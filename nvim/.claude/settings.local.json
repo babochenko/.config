@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(nvim:*)",
+      "Bash(find:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(timeout:*)",
+      "Bash(./test.sh:*)",
+      "Bash(lua tests:*)",
+      "Bash(lua:*)"
+    ],
+    "deny": []
+  }
+}

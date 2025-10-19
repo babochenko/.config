@@ -1,0 +1,12 @@
+font-family = "JetBrainsMonoNL"
+font-style = "Regular"
+font-size = 12.0
+background-opacity = 0.9
+
+foreground = #d0d0d0
+background = #101010
+cursor-color = #ffcc00
+
+cursor-style-blink = false
+shell-integration-features = no-cursor
+

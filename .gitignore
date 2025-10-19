@@ -1,0 +1,15 @@
+/**
+
+# Unignore these directories themselves
+!/ghostty/
+!/git/
+!/nvim/
+
+# Unignore all files inside them (recursively)
+!/ghostty/**
+!/git/**
+!/nvim/**
+
+!.gitignore
+!.zshrc
+
