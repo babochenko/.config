@@ -10,3 +10,5 @@ cursor-color = #ffcc00
 cursor-style-blink = false
 shell-integration-features = no-cursor
 
+bell-features = no-audio
+
