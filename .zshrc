@@ -115,7 +115,7 @@ compdef __p p
 function gitpp() {
     local commit="$@"
     local branch=$(_git_ticket)
-    commit_msg="${branch:+$branch }$commit"
+    local commit_msg="${branch:+$branch }$commit"
 
     git add .
     git commit -m "$commit_msg"
