@@ -4,14 +4,28 @@ bindkey -v
 
 alias ll='ls -latrh'
 
+function tac() {
+  if [ "$#" -eq 0 ]; then set -- -; fi
+  for f in "$@"; do
+    [ "$f" = "-" ] && awk '{a[NR]=$0} END{for(i=NR;i>0;i--)print a[i]}' \
+                   || awk '{a[NR]=$0} END{for(i=NR;i>0;i--)print a[i]}' "$f"
+  done
+}
+
+function _has() {
+    command -v "$1" >/dev/null 2>&1;
+}
+
 export PATH="$PATH:$HOME/files/nvim/bin"
 export PATH="$PATH:$(npm bin -g)"
 export PATH="$PATH:$HOME/.local/bin"
 export PATH="$PATH:$HOME/.cargo/bin"
 
-export PYENV_ROOT="$HOME/.pyenv"
-[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init - zsh)"
+_has pyenv && {
+    export PYENV_ROOT="$HOME/.pyenv"
+    [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init - zsh)"
+}
 
 function venv() {
   source "${VIRTUAL_ENV}/bin/activate"
