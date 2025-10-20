@@ -36,7 +36,7 @@ function _prompt_git_branch() {
 }
 
 function _git_ticket() {
-    _git_branch | sed -E 's/^([^_-]+)[_-]([^_-]+).*/\1-\2/'
+    _git_branch | grep -E '[-_]' | sed -E 's/^([^_-]+)[_-]([^_-]+).*/\1-\2/'
 }
 
 setopt prompt_subst
@@ -113,10 +113,10 @@ function __p() {
 compdef __p p
 
 function gitpp() {
-    branch=$(_git_ticket)
+    local commit="$@"
+    local branch=$(_git_ticket)
     commit_msg="${branch:+$branch }$commit"
 
-    local commit="$@"
     git add .
     git commit -m "$commit_msg"
     git push
