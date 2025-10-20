@@ -12,18 +12,14 @@ function tac() {
   done
 }
 
-function _has() {
-    command -v "$1" >/dev/null 2>&1;
-}
-
 export PATH="$PATH:$HOME/files/nvim/bin"
 export PATH="$PATH:$(npm bin -g)"
 export PATH="$PATH:$HOME/.local/bin"
 export PATH="$PATH:$HOME/.cargo/bin"
 
-_has pyenv && {
-    export PYENV_ROOT="$HOME/.pyenv"
-    [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && {
+    export PATH="$PYENV_ROOT/bin:$PATH"
     eval "$(pyenv init - zsh)"
 }
 
@@ -35,17 +31,23 @@ function venv() {
 zstyle ':completion:*' matcher-list '' 'm:{a-zA-Z}={A-Za-z}' 'r:|=*' 'l:|=* r:|=*'
 autoload -Uz compinit && compinit
 
-function __prompt_git_branch() {
-  local branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
-  if [[ -z "$branch" ]]; then
-    return
-  fi
+function _git_branch() {
+    git symbolic-ref --short HEAD 2>/dev/null
+}
 
-  echo "(git %F{green}${branch}%F{white}) "
+function _prompt_git_branch() {
+    local branch="$(_git_branch)"
+    if [[ -n "$branch" ]]; then
+        echo "(git %F{green}${branch}%F{white}) "
+    fi
+}
+
+function _git_ticket() {
+    _git_branch | sed -E 's/^([^_-]+)[_-]([^_-]+).*/\1-\2/'
 }
 
 setopt prompt_subst
-PROMPT='| %~ $(__prompt_git_branch)%# '
+PROMPT='| %~ $(_prompt_git_branch)%# '
 
 function gd() {
     nvim -c "DiffviewOpen HEAD"
@@ -117,13 +119,8 @@ function __p() {
 
 compdef __p p
 
-function _git_branch() {
-    local branch=$(git rev-parse --abbrev-ref HEAD)
-    echo "${branch}" | sed -E 's/^([^_-]+)[_-]([^_-]+).*/\1-\2/'
-}
-
 function gitpp() {
-    branch=$(_git_branch)
+    branch=$(_git_ticket)
     commit_msg="${branch:+$branch }$commit"
 
     local commit="$@"
@@ -135,8 +132,4 @@ function gitpp() {
 function ipy() {
      venv; ipython --TerminalInteractiveShell.editing_mode=vi
 }
-
-git config --global alias.s status
-git config --global alias.g \
-"log --graph --oneline --decorate --date=format:'%Y-%m-%d %H:%M' --pretty=format:'%C(auto)%h %Cgreen%ad %C(auto)%d %s'"
 
