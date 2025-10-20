@@ -117,11 +117,19 @@ function __p() {
 
 compdef __p p
 
+function _git_branch() {
+    local branch=$(git rev-parse --abbrev-ref HEAD)
+    echo "${branch}" | sed -E 's/^([^_-]+)[_-]([^_-]+).*/\1-\2/'
+}
+
 function gitpp() {
-  local commit="$@"
-  git add .
-  git commit -m "$commit"
-  git push
+    branch=$(_git_branch)
+    commit_msg="${branch:+$branch }$commit"
+
+    local commit="$@"
+    git add .
+    git commit -m "$commit_msg"
+    git push
 }
 
 function ipy() {
