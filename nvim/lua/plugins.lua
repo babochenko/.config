@@ -285,6 +285,14 @@ EnsureLazy().setup({
           },
         },
       })
+
+      lspconfig.hls.setup({
+          settings = {
+              haskell = {
+                  formattingProvider = "ormolu", -- or "fourmolu", "brittany"
+              },
+          },
+      })
     end,
   },
 

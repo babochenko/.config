@@ -6,7 +6,6 @@ alias ll='ls -latrh'
 alias tac='tail -r'
 
 export PATH="$PATH:$HOME/files/nvim/bin"
-export PATH="$PATH:$(npm bin -g)"
 export PATH="$PATH:$HOME/.local/bin"
 export PATH="$PATH:$HOME/.cargo/bin"
 
@@ -14,6 +13,12 @@ export PYENV_ROOT="$HOME/.pyenv"
 [[ -d "$PYENV_ROOT/bin" ]] && {
     export PATH="$PATH:$PYENV_ROOT/bin"
     eval "$(pyenv init - zsh)"
+}
+
+local ghcup="$HOME/.ghcup/env"
+[[ -f "$ghcup" ]] && {
+    export PATH="$PATH:$HOME/.ghcup/bin"
+    . "$ghcup"
 }
 
 function venv() {
