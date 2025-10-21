@@ -80,7 +80,6 @@ function v() {
     }
 
     local file="$1"
-    winname "$file"
     if [[ "$file" == ".zshrc" ]]; then
         nvim "$HOME/.zshrc"
     elif [[ "$file" == "config" ]]; then
@@ -94,7 +93,6 @@ function v() {
 
 function p() {
     local file="$1"
-    winname "$file"
     if [[ "$file" == "nvim" ]]; then
         cd "$HOME/.config/nvim/"
     elif [[ "$file" == "config" ]]; then
