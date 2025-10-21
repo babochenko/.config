@@ -83,6 +83,8 @@ function v() {
     winname "$file"
     if [[ "$file" == ".zshrc" ]]; then
         nvim "$HOME/.zshrc"
+    elif [[ "$file" == "config" ]]; then
+        _vd "$HOME/.config/"
     elif [[ "$file" == "nvim" ]]; then
         _vd "$HOME/.config/nvim/"
     else
@@ -95,19 +97,21 @@ function p() {
     winname "$file"
     if [[ "$file" == "nvim" ]]; then
         cd "$HOME/.config/nvim/"
+    elif [[ "$file" == "config" ]]; then
+        cd "$HOME/.config/"
     else
         cd "$HOME/Developer/$file"
     fi
 }
 
 function __v() {
-  compadd .zshrc nvim $(ls $HOME/Developer/)
+  compadd config .zshrc nvim $(ls $HOME/Developer/)
 }
 
 compdef __v v
 
 function __p() {
-  compadd nvim $(ls $HOME/Developer/)
+  compadd config nvim $(ls $HOME/Developer/)
 }
 
 compdef __p p
