@@ -6,21 +6,28 @@ require 'pathname'
 
 def main
   cfg = {short: false, all: false}
-  OptionParser.new do |opts|
-    opts.on('-s', '--short', 'Short output') { cfg[:short] = true }
-    opts.on('-a', '--all', 'All commits') { cfg[:all] = true }
-  end.parse!
 
-  abort <<~USAGE if ARGV.empty?
-  Usage:
-      git-list-changes <start-commit> [dir]
-  Parameters:
-      start-commit (required) - a commit or range of commits (..) to display the diff for
-      dir          (optional) - if you need diff not for entire repository, but for a subdirectory instead
-  Example:
-      git-list-changes d5bff459f963
-      git-list-changes d5bff459f963..e266dd4e6a55 mymodule
-  USAGE
+  parser = OptionParser.new do |opts|
+    opts.banner = <<~USAGE
+      Usage: git-list-changes [options] <start-commit> [dir]
+
+      Parameters:
+          start-commit (required) - a commit or range of commits (..) to display the diff for
+          dir          (optional) - if you need diff not for the entire repository, but for a subdirectory
+
+      Examples:
+          git-list-changes d5bff459f963
+          git-list-changes d5bff459f963..e266dd4e6a55 mymodule
+
+      Options:
+    USAGE
+
+    opts.on('-s', '--short', 'Short output') { cfg[:short] = true }
+    opts.on('-a', '--all', 'Include all commits') { cfg[:all] = true }
+  end
+
+  parser.parse!
+  abort(parser.to_s) if ARGV.empty?
 
   from, to = parse_range(ARGV[0])
   dir = ARGV[1] || ''
