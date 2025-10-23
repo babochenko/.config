@@ -3,6 +3,7 @@ local home = vim.fn.expand("$HOME")
 local plugins_cfg = {
   defaults = { lazy = true },
   install = { colorscheme = { 'onedark' } },
+  git = { url_format = "git@github.com:%s.git" },
 
   ui = {
     icons = {
@@ -20,7 +21,7 @@ local plugins_cfg = {
         'tohtml',
         'getscript',
         'getscriptPlugin',
-        'gzip',
+        -- 'gzip',
         'logipat',
         'netrw',
         'netrwPlugin',
@@ -33,8 +34,8 @@ local plugins_cfg = {
         'spellfile_plugin',
         'vimball',
         'vimballPlugin',
-        'zip',
-        'zipPlugin',
+        -- 'zip',
+        -- 'zipPlugin',
         'tutor',
         'rplugin',
         'syntax',
