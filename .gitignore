@@ -13,3 +13,5 @@
 !.gitignore
 !.zshrc
 
+!git-list-changes.rb
+
