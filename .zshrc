@@ -21,6 +21,8 @@ local ghcup="$HOME/.ghcup/env"
     . "$ghcup"
 }
 
+export CFGS="$HOME/.config"
+
 function venv() {
   source "${VIRTUAL_ENV}/bin/activate"
 }
@@ -161,107 +163,7 @@ function gitsw() {
   fi
 }
 
-function git-pr-desc() {
-  if [[ -z "$X_BITBUCKET_USER" || -z "$X_BITBUCKET_PW" || -z "$X_BITBUCKET_REPOSITORY" ]]; then
-    return
-  fi
-
-  local pr="$1"
-  local is_short="$2"
-
-  local repo="$X_BITBUCKET_REPOSITORY"
-  local dir=$(basename $(pwd))
-  local query="?fields=title,author.display_name,author.nickname,updated_on"
-  local json=$(curl -s --request GET \
-    --url "https://api.bitbucket.org/2.0/repositories/${repo}/${dir}/pullrequests/${pr}${query}" \
-    --user "${X_BITBUCKET_USER}:${X_BITBUCKET_PW}" \
-    --header 'Accept: application/json')
-
-  local title=$(echo $json | jq -r '.title')
-  local author=$(echo $json | jq '.author.display_name')
-  local nickname=$(echo $json | jq -r '.author.nickname')
-  local merge_time=$(echo $json | jq '.updated_on')
-
-  local full_pr="https://bitbucket.org/${repo}/${dir}/pull-requests/${pr}"
-
-  local ticket="$(echo "$title" | grep -oE '[A-Z]+-[0-9]+')"
-  local full_ticket="https://${repo}.atlassian.net/browse/${ticket}"
-
-  if [[ $is_short == 0 ]]; then
-    echo "\t@${nickname} ${full_pr} (${title})"
-    echo "\tTicket: $full_ticket"
-    echo "\tMerged At: $merge_time"
-  else
-    echo "@${nickname} ${title} (${full_pr})"
-  fi
-}
-
 function git-list-changes() {
-  local is_short=0
-  if [[ "$1" == '-s' ]]; then
-    is_short=1
-    shift
-  fi
-
-  local from="$1"
-  local dir="$2"
-  if [[ -z "$from" ]]; then
-    echo "Usage:"
-    echo "    git-list-changes <start-commit> [dir]"
-    echo "Parameters:"
-    echo "    start-commit (required) - a commit or range of commits (..) to display the diff for"
-    echo "    dir          (optional) - if you need diff not for entire repository, but for a subdirectory instead"
-    echo "Example:"
-    echo "    git-list-changes d5bff459f963"
-    echo "    git-list-changes d5bff459f963..e266dd4e6a55 albatross"
-    return
-  fi
-
-  if [[ "$from" == *".."* ]]; then
-    IFS='..' read -r from to <<< "$from"
-  else
-    to="origin/master"
-  fi
-
-  __glc() {
-    local module="$1"
-    local print_module_name=$2
-    if [[ "$module" == '.' ]]; then
-      return 0
-    fi
-
-    local result="$(git log origin/master --oneline "$from".."$to" --grep "^Merged" -- "$module")"
-    if [[ -z "$result" ]]; then
-      echo "No changes."
-    else
-      if [[ $print_module_name -eq 0 ]]; then
-        echo
-        echo ">>>> $module"
-      fi
-      git log --color=always origin/master --oneline "$from".."$to" --grep "^Merged" -- "$module" | while read line; do
-
-        local pr_id=$(echo "$line" | awk -F'pull request #' '{print $2}' | awk -F')' '{print $1}')
-        local desc=$(git-pr-desc $pr_id $is_short)
-        if [[ $is_short == 0 ]]; then
-          echo
-          echo -e $line
-          echo $desc
-        else
-          echo $desc
-        fi
-
-      done
-    fi
-  }
-
-  if [[ ! -z "$dir" ]]; then
-    __glc "$dir" 1
-    return 0
-  fi
-
-  local modules="$(find . -maxdepth 2 -name build.gradle -exec dirname {} \;)"
-  echo $modules | while read module; do
-    __glc "$module" 0
-  done
+    "$CFGS/zsh/git-list-changes.rb" $@
 }
 
