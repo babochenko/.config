@@ -4,14 +4,14 @@
 !/ghostty/
 !/git/
 !/nvim/
+!/zsh/
 
 # Unignore all files inside them (recursively)
 !/ghostty/**
 !/git/**
 !/nvim/**
+!/zsh/**
 
 !.gitignore
 !.zshrc
-
-!git-list-changes.rb
 
