@@ -2,7 +2,7 @@ export EDITOR=vim
 set -o vi
 bindkey -v
 
-alias ll='ls -latrh'
+alias ll='ls -la'
 alias tac='tail -r'
 
 export PATH="$PATH:$HOME/files/nvim/bin"
@@ -22,6 +22,7 @@ local ghcup="$HOME/.ghcup/env"
 }
 
 export CFGS="$HOME/.config"
+export VIRTUAL_ENV="$HOME/Developer/.venv"
 
 function venv() {
   source "${VIRTUAL_ENV}/bin/activate"
