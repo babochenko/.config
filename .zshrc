@@ -143,22 +143,18 @@ function gitsw() {
     return 1
   fi
 
-  if git show-ref --quiet refs/heads/"$branch"; then
-    local changes=$(git status -s | wc -l)
-    if [[ $changes -ne 0 ]]; then
-      echo "can't switch to $branch because you have unstashed changes"
-      return 1
-    fi
-    git switch "$branch"
-    return
-  fi
-
   local changes=$(git status -s | wc -l)
   if [[ $changes -ne 0 ]]; then
     git stash
   fi
-  git switch master && git pull
-  git switch -c "$branch" || git switch "$branch"
+
+  if git show-ref --quiet refs/heads/"$branch"; then
+    git switch "$branch"
+  else
+    git switch master && git pull
+    git switch -c "$branch" || git switch "$branch"
+  fi
+
   if [[ $changes -ne 0 ]]; then
     git stash apply
   fi
