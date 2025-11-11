@@ -54,7 +54,7 @@ autocmd({ 'UIEnter', 'BufReadPost', 'BufNewFile' }, {
 })
 
 -- Add error handling for invalid window operations
-vim.api.nvim_create_autocmd("User", {
+autocmd("User", {
   pattern = "LazyVimStarted",
   callback = function()
     -- Suppress treesitter errors for invalid windows
@@ -68,6 +68,30 @@ vim.api.nvim_create_autocmd("User", {
         error(err)
       end
     end
+  end,
+})
+
+autocmd("BufReadPost", {
+  pattern = "*",
+  callback = function(args)
+    local buf = args.buf
+    local line_count = vim.api.nvim_buf_line_count(buf)
+    if line_count <= 10000 then return end
+
+    vim.schedule(function()
+      vim.bo[buf].syntax = "OFF"
+      vim.bo[buf].foldmethod = "manual"
+      vim.wo[buf].number = false
+      vim.wo[buf].relativenumber = false
+      vim.wo[buf].cursorline = false
+      vim.wo[buf].cursorcolumn = false
+      vim.wo[buf].wrap = false
+      vim.bo[buf].swapfile = false
+      vim.bo[buf].undofile = false
+      vim.bo[buf].spell = false
+      pcall(vim.treesitter.stop, buf)
+      vim.diagnostic.disable(buf)
+    end)
   end,
 })
 
