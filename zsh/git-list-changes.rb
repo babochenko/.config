@@ -64,7 +64,7 @@ def process_module(mod, from, to, cfg)
 
   git_log.lines.each do |commit|
     hash, msg = commit.strip.split(' ', 2)
-    puts short ? "\e[33m#{hash}\e[0m #{msg}" : "\n\e[33m#{hash}\e[0m #{msg}"
+    puts "\n\e[33m#{hash}\e[0m #{msg}" if !short
 
     if match = msg.match(/pull request #(\d+)/)
       show_pr(match[1], short)
@@ -101,7 +101,7 @@ def show_pr(pr_num, short)
     pr_url = "https://bitbucket.org/#{repo}/#{dir}/pull-requests/#{pr_num}"
 
     if short
-      puts "\t@#{nickname} #{title} (#{pr_url})"
+      puts "@#{nickname} #{title} (#{pr_url})"
     else
       puts "\t@#{nickname} #{pr_url} (#{title})"
       puts "\tTicket: https://#{repo}.atlassian.net/browse/#{ticket}" if ticket
