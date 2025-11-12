@@ -94,8 +94,10 @@ function v() {
         _vd "$HOME/.config/"
     elif [[ "$file" == "nvim" ]]; then
         _vd "$HOME/.config/nvim/"
-    else
+    elif [[ -n "$file" ]]; then
         _vd "$HOME/Developer/$file"
+    else
+        nvim
     fi
 }
 

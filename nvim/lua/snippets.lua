@@ -14,7 +14,6 @@ local function try_load(p)
 end
 
 local snip_add = try_load(path)
-    or try_load("snippets_add")
     or {
         additional_sql_snippets = function(s, _) return s end
     }
