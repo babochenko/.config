@@ -1,5 +1,25 @@
+local path = os.getenv("NVIM_SNIPPETS_PATH")
+local snip_add = nil
+
+local function try_load(p)
+  if not p or p == "" then return nil end
+  if p:match("%.lua$") then
+    local f = loadfile(p); if not f then return nil end
+    local ok, mod = pcall(f)
+    return ok and mod or nil
+  else
+    local ok, mod = pcall(require, p)
+    return ok and mod or nil
+  end
+end
+
+local snip_add = try_load(path)
+    or try_load("snippets_add")
+    or {
+        additional_sql_snippets = function(s, _) return s end
+    }
+
 local snip = require("luasnip")
-local snip_add = require("snippets_add")
 local s = snip.snippet
 local t = snip.text_node
 local f = snip.function_node
