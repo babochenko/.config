@@ -3,9 +3,9 @@ local TestRunners = {
   shell = {
     regex_file = ".*%.sh$",
     regex_line = "jjjjjjdasjjsdjasdjsadjd", -- undefined
-    run_file = ". %s",
-    test_file = ". %s",
-    test_line = ". %s",
+    run_file = "bash %s",
+    test_file = "bash %s",
+    test_line = "bash %s",
   },
   python = {
     regex_file = ".*%.py$",
