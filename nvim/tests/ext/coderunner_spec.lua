@@ -61,6 +61,13 @@ local function restore_vim()
 end
 
 describe("detect_language()", function()
+	it(".sh", function()
+		mock_file("some_file.sh")
+		local result = coderunner.detect_language()
+		assert.equals(result, "shell")
+		restore_vim()
+	end)
+
 	it(".py", function()
 		mock_file("test_example.py")
 		local result = coderunner.detect_language()

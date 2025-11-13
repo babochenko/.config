@@ -1,5 +1,12 @@
 -- Test runners for different languages
 local TestRunners = {
+  shell = {
+    regex_file = ".*%.sh$",
+    regex_line = "jjjjjjdasjjsdjasdjsadjd", -- undefined
+    run_file = ". %s",
+    test_file = ". %s",
+    test_line = ". %s",
+  },
   python = {
     regex_file = ".*%.py$",
     regex_line = "def (test_[%w_]+)",
@@ -48,12 +55,17 @@ local function detect_language()
   local file_path = vim.fn.expand('%:p')
   local file_name = vim.fn.expand('%:t')
   local ext = vim.fn.expand('%:e')
-  
+
+  -- Python detection
+  if ext == "sh" then
+    return "shell"
+  end
+
   -- Python detection
   if ext == "py" then
     return "python"
   end
-  
+
   -- JavaScript/TypeScript detection
   if (ext == "js" or ext == "ts") and string.match(file_name, ".*%.test%." .. ext .. "$") then
     return ext == "js" and "javascript" or "typescript"
