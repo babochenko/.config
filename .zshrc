@@ -124,6 +124,15 @@ function __p() {
 
 compdef __p p
 
+function gitp() {
+    local commit="$@"
+    local branch=$(_git_ticket)
+    local commit_msg="${branch:+$branch }$commit"
+
+    git commit -m "$commit_msg"
+    git push
+}
+
 function gitpp() {
     local commit="$@"
     local branch=$(_git_ticket)
@@ -132,6 +141,10 @@ function gitpp() {
     git add .
     git commit -m "$commit_msg"
     git push
+}
+
+function gitmm() {
+  git fetch && git merge --no-edit origin/master && git push
 }
 
 function ipy() {
