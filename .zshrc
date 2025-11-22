@@ -124,22 +124,26 @@ function __p() {
 
 compdef __p p
 
-function gitp() {
+function gitc() {
     local commit="$@"
     local branch=$(_git_ticket)
     local commit_msg="${branch:+$branch }$commit"
 
     git commit -m "$commit_msg"
+}
+
+function gitcc() {
+    git add .
+    gitc $@
+}
+
+function gitp() {
+    gitc $@
     git push
 }
 
 function gitpp() {
-    local commit="$@"
-    local branch=$(_git_ticket)
-    local commit_msg="${branch:+$branch }$commit"
-
-    git add .
-    git commit -m "$commit_msg"
+    gitcc $@
     git push
 }
 
