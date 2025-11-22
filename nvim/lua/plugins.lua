@@ -433,6 +433,12 @@ EnsureLazy().setup({
       cmd = { "CsvViewEnable", "CsvViewDisable", "CsvViewToggle" },
     },
 
+    {
+      "sphamba/smear-cursor.nvim",
+      event = "VeryLazy",
+      opts = {},
+    },
+
     { "rest-nvim/rest.nvim",
       ft = 'http',
       dependencies = {
