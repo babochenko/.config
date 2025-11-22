@@ -25,7 +25,7 @@ vim.defer_fn(function()
     vim.o.foldlevelstart = 99
     vim.o.foldnestmax = 3    -- optional: limit nesting
   end
-  setup_treesitter_folding()
+  -- setup_treesitter_folding()
 
   require 'mappings'
   require 'snippets'
