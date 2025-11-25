@@ -183,3 +183,7 @@ function git-list-changes() {
     "$CFGS/zsh/git-list-changes.rb" $@
 }
 
+function gradle-checkstyle() {
+    "$CFGS/zsh/gradle-checkstyle.rb" $@
+}
+
