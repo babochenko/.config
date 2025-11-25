@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./test_gradle_checkstyle.rb)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,21 @@
+package com.example.test;
+
+import java.util.List;
+import java.util.ArrayList;
+import java.util.concurrent.Executors;
+
+public class TestClass {
+    private List<String> items;
+
+    public TestClass() {
+        this.items = new ArrayList<>();
+    }
+
+    public void addItem(String item) {
+        items.add(item);
+    }
+
+    public List<String> getItems() {
+        return items;
+    }
+}
