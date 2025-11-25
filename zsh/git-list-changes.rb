@@ -5,7 +5,11 @@ require 'optparse'
 require 'pathname'
 
 def main
-  cfg = {short: false, all: false}
+  cfg = {
+    short: false,
+    all: false,
+    master: false,
+  }
 
   parser = OptionParser.new do |opts|
     opts.banner = <<~USAGE
@@ -24,12 +28,13 @@ def main
 
     opts.on('-s', '--short', 'Short output') { cfg[:short] = true }
     opts.on('-a', '--all', 'Include all commits') { cfg[:all] = true }
+    opts.on('-m', '--master', 'Check against origin/mastere') { cfg[:master] = true }
   end
 
   parser.parse!
   abort(parser.to_s) if ARGV.empty?
 
-  from, to = parse_range(ARGV[0])
+  from, to = parse_range(ARGV[0], cfg[:masger])
   dir = ARGV[1] || ''
   modules = dir.empty? ? find_modules : [dir]
 
@@ -42,9 +47,10 @@ def main_branch
   end || abort("No 'main' or 'master' branch found")
 end
 
-def parse_range(range)
+def parse_range(range, is_master)
   from, to = range.split('..', 2)
-  [from, to || "origin/#{main_branch}"]
+  return [from, "origin/master"] if is_master
+  return [from, to || "origin/#{main_branch}"]
 end
 
 def find_modules
