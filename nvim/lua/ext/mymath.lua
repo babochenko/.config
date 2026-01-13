@@ -68,8 +68,34 @@ make_cmd0('Eval', function()
   if vis == nil then return end
 
   for _, line in ipairs(vis) do
-    local res = _eval(line)
-    print(res)
+    local text = line.text
+    local trimmed = text:match("^(.-)%s*$")
+
+    if trimmed:sub(-1) == '=' then
+      local expr = trimmed:sub(1, -2)
+      local modified_line = {
+        text = expr,
+        line = line.line,
+        lcol = line.lcol,
+        rcol = line.rcol
+      }
+      local safe_expr = expr:gsub("%s", ""):gsub("%^", "**")
+
+      if safe_expr:match('^[.,0-9%+%-%*/()%%^]*$') then
+        local result = load("return " .. safe_expr)
+        if result then
+          local value = result()
+          _writeln(line, expr .. "= " .. value)
+        else
+          print("Invalid expression: " .. expr)
+        end
+      else
+        print("Invalid expression: " .. expr)
+      end
+    else
+      local res = _eval(line)
+      print(res)
+    end
   end
 end)
 
