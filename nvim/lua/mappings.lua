@@ -109,6 +109,7 @@ local search = {
   map('n', '<leader>fw', Find.words_literal, { desc = 'Find words' }),
   map('n', '<leader>fz', '<cmd>Telescope current_buffer_fuzzy_find<CR>', { desc = 'Find words in current file' }),
   map('n', '<leader>fW', Find.words, { desc = 'Grep words' }),
+  map('n', '<leader>fe', Find.words_exact, { desc = 'Find words (exact match)' }),
 
   map('n', '<leader>ft', Find.testfile, { desc = 'Find test file' }),
   map('n', '<leader>fh', Find.files_history, { desc = 'Files history' }),

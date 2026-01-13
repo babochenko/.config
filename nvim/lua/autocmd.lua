@@ -95,3 +95,13 @@ autocmd("BufReadPost", {
   end,
 })
 
+autocmd("BufWinLeave", {
+  pattern = "*",
+  command = "silent! mkview",
+})
+
+autocmd("BufWinEnter", {
+  pattern = "*",
+  command = "silent! loadview",
+})
+

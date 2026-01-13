@@ -138,9 +138,11 @@ local getcwd = function(text)
   return cwd, text
 end
 
-local find_words = function(literal)
+local find_words = function(literal, exact_match)
   local text
-  if literal then
+  if exact_match then
+    text = "Find Words (exact match)"
+  elseif literal then
     text = "Find Words"
   else
     text = "Grep Words (regex)"
@@ -177,7 +179,11 @@ local find_words = function(literal)
     '--ignore-case'
   }
 
-  if literal then
+  if exact_match then
+    opt.additional_args = function()
+      return { "--word-regexp" }
+    end
+  elseif literal then
     opt.additional_args = function()
       return { "--fixed-strings" }
     end
@@ -261,11 +267,15 @@ return {
   split_path = split_path,
 
   words = function()
-    find_words(false)
+    find_words(false, false)
   end,
 
   words_literal = function()
-    find_words(true)
+    find_words(true, false)
+  end,
+
+  words_exact = function()
+    find_words(false, true)
   end,
 
   usages = function()

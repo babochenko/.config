@@ -54,3 +54,5 @@ vim.cmd [[
 end
 setup_transparency()
 
+vim.opt.viewoptions = { "folds", "cursor", "curdir", "slash", "unix" }
+
