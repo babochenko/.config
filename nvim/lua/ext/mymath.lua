@@ -63,7 +63,7 @@ local function _eval(line)
   end
 end
 
-make_cmd0('Eval', function()
+local eval = function()
   local vis = _visual()
   if vis == nil then return end
 
@@ -97,9 +97,12 @@ make_cmd0('Eval', function()
       print(res)
     end
   end
-end)
+end
+
+make_cmd0('Eval', eval)
 
 return {
-  _eval = _eval
+  _eval = _eval,
+  eval = eval,
 }
 

@@ -3,6 +3,7 @@ local GS = require 'gitsigns'
 local BUFLINE = require 'bufferline'
 local KEYS = require 'which-key'
 
+local Math = require 'ext/mymath'
 local Find = require 'ext/find'
 local Buf = require 'ext/buffers'
 local Code = require 'ext/code'
@@ -27,6 +28,10 @@ local nvim_defaults = {
   map('n', '<leader>el', function() vim.cmd('edit ~/.local/state/nvim/lsp.log') end, { desc = 'open LSP logs' }),
   map('n', '<leader>en', function() vim.cmd('edit ~/.local/share/nvim/notes.md') end, { desc = 'open notes' }),
   map('n', ',', '*'),
+}
+
+local math = {
+  map('v', '<leader>e', Math.eval, { desc = 'Eval math expr' }),
 }
 
 local general_helpers = {
@@ -119,7 +124,6 @@ local search = {
 
   map('n', '<leader>fs', Find.snippets_current, { desc = 'Find snippets for this file' }),
   map('n', '<leader>fS', Find.snippets_all, { desc = 'Find all snippets' }),
-
 }
 
 local git = {
