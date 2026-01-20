@@ -28,7 +28,7 @@ def main
 
     opts.on('-s', '--short', 'Short output') { cfg[:short] = true }
     opts.on('-a', '--all', 'Include all commits') { cfg[:all] = true }
-    opts.on('-m', '--master', 'Check against origin/mastere') { cfg[:master] = true }
+    opts.on('-m', '--master', 'Check against origin/master') { cfg[:master] = true }
   end
 
   parser.parse!
