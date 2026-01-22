@@ -6,7 +6,7 @@ require 'pathname'
 
 def main
   cfg = {
-    short: false,
+    short: true,
     all: false,
     master: false,
   }
@@ -26,7 +26,7 @@ def main
       Options:
     USAGE
 
-    opts.on('-s', '--short', 'Short output') { cfg[:short] = true }
+    opts.on('-f', '--full', 'Full output') { cfg[:short] = false }
     opts.on('-a', '--all', 'Include all commits') { cfg[:all] = true }
     opts.on('-m', '--master', 'Check against origin/master') { cfg[:master] = true }
   end
@@ -34,7 +34,7 @@ def main
   parser.parse!
   abort(parser.to_s) if ARGV.empty?
 
-  from, to = parse_range(ARGV[0], cfg[:masger])
+  from, to = parse_range(ARGV[0], cfg[:master])
   dir = ARGV[1] || ''
   modules = dir.empty? ? find_modules : [dir]
 
@@ -66,7 +66,7 @@ def process_module(mod, from, to, cfg)
   git_log = `git log origin/#{main_branch} --oneline #{from}..#{to} #{commits} -- #{mod}`.strip
   return if git_log.empty?
 
-  puts "\n>>>> #{mod}" unless mod.empty?
+  puts "\n\e[33m>>>> #{mod}\e[0m" unless mod.empty?
 
   git_log.lines.each do |commit|
     hash, msg = commit.strip.split(' ', 2)
@@ -107,7 +107,7 @@ def show_pr(pr_num, short)
     pr_url = "https://bitbucket.org/#{repo}/#{dir}/pull-requests/#{pr_num}"
 
     if short
-      puts "@#{nickname} #{title} (#{pr_url})"
+      puts "\e[32m@#{nickname}\e[0m #{title} \e[36m(#{pr_url})\e[0m"
     else
       puts "\t@#{nickname} #{pr_url} (#{title})"
       puts "\tTicket: https://#{repo}.atlassian.net/browse/#{ticket}" if ticket
