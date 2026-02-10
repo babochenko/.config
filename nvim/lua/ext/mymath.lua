@@ -1,9 +1,14 @@
 local _visual = require('ext/getvisual').getvisual
 
 local function _writeln(line, value)
-  local head = vim.fn.getline(line.line):sub(1, line.lcol-1)
-  local tail = vim.fn.getline(line.line):sub(line.rcol+1)
-  vim.fn.setline(line.line, head .. value .. tail)
+  -- If lcol=0 and rcol=-1, it means replace entire line
+  if line.lcol == 0 and line.rcol == -1 then
+    vim.fn.setline(line.line, value)
+  else
+    local head = vim.fn.getline(line.line):sub(1, line.lcol-1)
+    local tail = vim.fn.getline(line.line):sub(line.rcol+1)
+    vim.fn.setline(line.line, head .. value .. tail)
+  end
 end
 
 local function _num_write(func)
