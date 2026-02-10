@@ -32,6 +32,7 @@ local nvim_defaults = {
 
 local math = {
   map('v', '<leader>e', Math.eval, { desc = 'Eval math expr' }),
+  map('n', '<leader>e', Math.eval_current_line, { desc = 'Eval math expr on current line' }),
 }
 
 local general_helpers = {

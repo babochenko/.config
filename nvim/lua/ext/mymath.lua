@@ -54,7 +54,8 @@ local function _eval(line)
     local safe_expr = expr:gsub("%^", "**")
     local result = load("return " .. safe_expr)
     if result then
-      return "Result: " .. result()
+      local value = result()
+      return "Result: " .. tostring(value)
     else
       return "Invalid expression: " .. safe_expr
     end
@@ -63,9 +64,24 @@ local function _eval(line)
   end
 end
 
-local eval = function()
-  local vis = _visual()
-  if vis == nil then return end
+local eval_impl = function(use_current_line)
+  local vis
+
+  if use_current_line then
+    -- Normal mode: use current line
+    local current_line_num = vim.fn.line('.')
+    local current_line_text = vim.fn.getline('.')
+    vis = {{
+      text = current_line_text,
+      line = current_line_num,
+      lcol = 1,
+      rcol = #current_line_text
+    }}
+  else
+    -- Visual mode: use visual selection
+    vis = _visual()
+    if vis == nil or #vis == 0 then return end
+  end
 
   for _, line in ipairs(vis) do
     local text = line.text
@@ -99,10 +115,19 @@ local eval = function()
   end
 end
 
+local eval = function()
+  eval_impl(false)
+end
+
+local eval_current_line = function()
+  eval_impl(true)
+end
+
 make_cmd0('Eval', eval)
 
 return {
   _eval = _eval,
   eval = eval,
+  eval_current_line = eval_current_line,
 }
 
