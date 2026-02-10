@@ -67,6 +67,9 @@ local buffers = {
 
 local code = {
   group('<leader>c', 'Code'),
+  map('v', '<leader>l', ":!jq .<CR>", { desc = 'lint selection' }),
+  map('n', '<leader>l', ":.!jq .<CR>", { desc = 'lint current line' }),
+  map({'n', 'v'}, '<leader>L', ":%!jq .<CR>", { desc = 'lint entire file' }),
   navigate = {
     map('n', '<leader>cs', vim.lsp.buf.signature_help, { desc = 'function signature' }),
     map('n', '<leader>ch', vim.lsp.buf.hover, { desc = 'function help' }),
