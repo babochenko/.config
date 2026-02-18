@@ -151,6 +151,10 @@ function gitmm() {
   git fetch && git merge --no-edit origin/master && git push
 }
 
+function gitsm() {
+  git switch master && git pull
+}
+
 function ipy() {
      venv; ipython --TerminalInteractiveShell.editing_mode=vi
 }
