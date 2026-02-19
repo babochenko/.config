@@ -151,6 +151,10 @@ function gitmm() {
   git fetch && git merge --no-edit origin/master && git push
 }
 
+function gitmc() {
+  git merge --continue
+}
+
 function gitsm() {
   git switch master && git pull
 }
