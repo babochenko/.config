@@ -66,23 +66,48 @@ def process_module(mod, from, to, cfg)
   git_log = `git log origin/#{main_branch} --oneline #{from}..#{to} #{commits} -- #{mod}`.strip
   return if git_log.empty?
 
-  puts "\n\e[33m>>>> #{mod}\e[0m" unless mod.empty?
-
-  git_log.lines.each do |commit|
+  prs = git_log.lines.map do |commit|
     hash, msg = commit.strip.split(' ', 2)
-    puts "\n\e[33m#{hash}\e[0m #{msg}" if !short
+    next unless (match = msg.match(/pull request #(\d+)/))
+    fetch_pr(match[1], hash, msg)
+  end.compact
 
-    if match = msg.match(/pull request #(\d+)/)
-      show_pr(match[1], short)
+  return if prs.empty?
+
+  puts "\n\e[33m>>>> #{mod} (#{prs.size} PRs)\e[0m" unless mod.empty?
+
+  if short
+    by_user = prs.group_by { |pr| pr[:nickname] }
+    singles, groups = by_user.partition { |_, list| list.size == 1 }
+
+    singles.each do |nickname, list|
+      pr = list.first
+      puts "- \e[32m@#{nickname}\e[0m #{pr[:title]} \e[36m(#{pr[:url]})\e[0m"
+    end
+
+    puts "" unless singles.empty? || groups.empty?
+
+    groups.each do |nickname, list|
+      puts "\e[32m@#{nickname}\e[0m"
+      list.each { |pr| puts "- #{pr[:title]} \e[36m(#{pr[:url]})\e[0m" }
+      puts ""
+    end
+  else
+    repo = ENV['X_BITBUCKET_REPOSITORY']
+    prs.each do |pr|
+      puts "\n\e[33m#{pr[:hash]}\e[0m #{pr[:msg]}"
+      puts "\t\e[32m@#{pr[:nickname]}\e[0m #{pr[:url]} (#{pr[:title]})"
+      puts "\tTicket: https://#{repo}.atlassian.net/browse/#{pr[:ticket]}" if pr[:ticket]
+      puts "\tMerged At: #{pr[:updated]}"
     end
   end
 end
 
-def show_pr(pr_num, short)
+def fetch_pr(pr_num, hash, msg)
   user = ENV['X_BITBUCKET_USER']
   pass = ENV['X_BITBUCKET_PW']
   repo = ENV['X_BITBUCKET_REPOSITORY']
-  return unless user && pass && repo
+  return nil unless user && pass && repo
 
   dir = Pathname.pwd.basename.to_s
   uri = URI("https://api.bitbucket.org/2.0/repositories/#{repo}/#{dir}/pullrequests/#{pr_num}?fields=title,author.nickname,updated_on")
@@ -96,25 +121,18 @@ def show_pr(pr_num, short)
       http.request(req)
     end
 
-    return unless res.is_a?(Net::HTTPSuccess)
+    return nil unless res.is_a?(Net::HTTPSuccess)
 
     data = JSON.parse(res.body)
     title = data['title']
     nickname = data['author']['nickname']
     updated = data['updated_on']
     ticket = title[/[A-Z]+-[0-9]+/]
-
     pr_url = "https://bitbucket.org/#{repo}/#{dir}/pull-requests/#{pr_num}"
 
-    if short
-      puts "\e[32m@#{nickname}\e[0m #{title} \e[36m(#{pr_url})\e[0m"
-    else
-      puts "\t@#{nickname} #{pr_url} (#{title})"
-      puts "\tTicket: https://#{repo}.atlassian.net/browse/#{ticket}" if ticket
-      puts "\tMerged At: #{updated}"
-    end
+    { nickname: nickname, title: title, updated: updated, ticket: ticket, url: pr_url, hash: hash, msg: msg }
   rescue StandardError
-    # Silently fail on network/parse errors
+    nil
   end
 end
 
