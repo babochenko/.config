@@ -147,8 +147,12 @@ function gitpp() {
     git push
 }
 
+function master() {
+    git symbolic-ref --short refs/remotes/origin/HEAD | cut -d/ -f2
+}
+
 function gitmm() {
-  git fetch && git merge --no-edit origin/master && git push
+    git fetch && git merge --no-edit origin/$(master) && git push
 }
 
 function gitmc() {
@@ -156,7 +160,7 @@ function gitmc() {
 }
 
 function gitsm() {
-  git switch master && git pull
+    git switch $(master) && git pull
 }
 
 function ipy() {
@@ -178,7 +182,7 @@ function gitsw() {
   if git show-ref --quiet refs/heads/"$branch"; then
     git switch "$branch"
   else
-    git switch master && git pull
+      git switch $(master) && git pull
     git switch -c "$branch" || git switch "$branch"
   fi
 
