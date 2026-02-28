@@ -163,6 +163,10 @@ function gitsm() {
     git switch $(master) && git pull
 }
 
+function gitrh() {
+    git rebase origin head
+}
+
 function ipy() {
      venv; ipython --TerminalInteractiveShell.editing_mode=vi
 }
