@@ -164,7 +164,7 @@ function gitsm() {
 }
 
 function gitrh() {
-    git rebase origin head
+    git fetch && git rebase @{u}
 }
 
 function ipy() {
