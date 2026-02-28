@@ -11,6 +11,7 @@ local Mark = require 'ext/marks'
 local Sys = require 'ext/system'
 local Db = require 'ext/db'
 local CodeRunner = require 'ext/coderunner'
+local Run = require 'ext/run'
 local Clipboard = require 'ext/clipboard'
 
 local map = vim.keymap.set
@@ -88,9 +89,10 @@ local code = {
   },
   run = {
     group('<leader>r', 'Run'),
-    map('n', '<leader>rr', CodeRunner.do_test_line, { desc = 'Run this line' }),
-    map('n', '<leader>ra', CodeRunner.do_test_file, { desc = 'Run tests in file' }),
-    map('n', '<leader>rf', CodeRunner.do_run_file, { desc = 'Run file' }),
+    map('n', '<leader>r', Run.run, { desc = 'Run file/buffer' }),
+    -- map('n', '<leader>rr', CodeRunner.do_test_line, { desc = 'Run this line' }),
+    -- map('n', '<leader>ra', CodeRunner.do_test_file, { desc = 'Run tests in file' }),
+    -- map('n', '<leader>rf', CodeRunner.do_run_file, { desc = 'Run file' }),
     -- map('n', '<leader>rf', Code.run_file, { desc = 'execute file' }),
   },
 }
