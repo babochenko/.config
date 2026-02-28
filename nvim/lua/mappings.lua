@@ -55,7 +55,6 @@ local buffers = {
   create = {
     group('<leader>n', 'New'),
     map('n', '<leader>nn', ':enew<CR>', { desc = 'New file' }),
-    group('<leader>t', 'Terminal'),
     map('n', '<leader>tt', ':term<CR>', { desc = 'New term' }),
   },
   modify = {
@@ -108,6 +107,20 @@ local tabs = {
   map('n', '<leader>X', Buf.close_other_buffers, { desc = 'close other buffers' }),
   map('n', '<leader>q', '<C-W>q', { desc = 'close window' }),
   map('n', '<C-n>', nvimTree, { desc = 'nvimtree' }),
+}
+
+local windows = {
+  group('<leader>w', 'Windows'),
+  map('n', '<leader>wh', ':leftabove vsplit | enew<CR>', { desc = 'new buffer left' }),
+  map('n', '<leader>wj', ':belowright split | enew<CR>', { desc = 'new buffer down' }),
+  map('n', '<leader>wk', ':aboveleft split | enew<CR>', { desc = 'new buffer up' }),
+  map('n', '<leader>wl', ':belowright vsplit | enew<CR>', { desc = 'new buffer right' }),
+
+  group('<leader>t', 'Terminal'),
+  map('n', '<leader>th', ':leftabove vsplit | term<CR>', { desc = 'new terminal left' }),
+  map('n', '<leader>tj', ':belowright split | term<CR>', { desc = 'new terminal down' }),
+  map('n', '<leader>tk', ':aboveleft split | term<CR>', { desc = 'new terminal left' }),
+  map('n', '<leader>tl', ':belowright vsplit | term<CR>', { desc = 'new terminal right' }),
 }
 
 local search = {
