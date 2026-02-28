@@ -164,7 +164,7 @@ function gitsm() {
 }
 
 function gitrh() {
-    git fetch && git rebase @{u}
+    git fetch origin && git rebase origin/$(git branch --show-current)
 }
 
 function ipy() {
