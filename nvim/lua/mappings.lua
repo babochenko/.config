@@ -59,8 +59,8 @@ local buffers = {
   },
   modify = {
     group('<leader>b', 'Buffers'),
-    map('n', '<leader>bn', Buf.move_right, { desc = 'Move buffer right' }),
-    map('n', '<leader>bp', Buf.move_left, { desc = 'Move buffer left' }),
+    map('n', '<leader>bl', Buf.move_right, { desc = 'Move buffer right' }),
+    map('n', '<leader>bh', Buf.move_left, { desc = 'Move buffer left' }),
     map('n', '<leader>fb', Buf.find_all, { desc = 'Find buffers' }),
   },
 }
