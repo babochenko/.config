@@ -116,6 +116,11 @@ local windows = {
   map('n', '<leader>wk', ':aboveleft split | enew<CR>', { desc = 'new buffer up' }),
   map('n', '<leader>wl', ':belowright vsplit | enew<CR>', { desc = 'new buffer right' }),
 
+  map('n', '<leader>nh', ':leftabove vsplit | enew<CR>', { desc = 'new buffer left' }),
+  map('n', '<leader>nj', ':belowright split | enew<CR>', { desc = 'new buffer down' }),
+  map('n', '<leader>nk', ':aboveleft split | enew<CR>', { desc = 'new buffer up' }),
+  map('n', '<leader>nl', ':belowright vsplit | enew<CR>', { desc = 'new buffer right' }),
+
   group('<leader>t', 'Terminal'),
   map('n', '<leader>th', ':leftabove vsplit | term<CR>', { desc = 'new terminal left' }),
   map('n', '<leader>tj', ':belowright split | term<CR>', { desc = 'new terminal down' }),
