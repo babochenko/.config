@@ -2,12 +2,20 @@
 -- Supports: python, java, lua, haskell, javascript
 -- <leader>r in mappings.lua
 
+local function venv_python()
+  local venv = os.getenv("VIRTUAL_ENV")
+  if venv then
+    return venv .. "/bin/python"
+  end
+  return "python3"
+end
+
 local runners = {
-  python     = { cmd = 'python3 %s',  ext = 'py'   },
-  java       = { cmd = 'java %s',     ext = 'java' },
-  lua        = { cmd = 'lua %s',      ext = 'lua'  },
-  haskell    = { cmd = 'runghc %s',   ext = 'hs'   },
-  javascript = { cmd = 'node %s',     ext = 'js'   },
+  python     = { cmd = venv_python() .. " %s", ext = "py" },
+  java       = { cmd = "java %s",              ext = "java" },
+  lua        = { cmd = "lua %s",               ext = "lua" },
+  haskell    = { cmd = "runghc %s",            ext = "hs" },
+  javascript = { cmd = "node %s",              ext = "js" },
 }
 
 local function run_in_terminal(cmd)
@@ -39,4 +47,7 @@ local function run()
   end
 end
 
-return { run = run }
+return {
+    venv_python = venv_python,
+    run = run,
+}

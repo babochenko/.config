@@ -1,3 +1,4 @@
+vim.g.python3_host_prog = (require 'ext/run').venv_python()
 vim.g.mapleader = ' '
 vim.opt.fixendofline = false
 
