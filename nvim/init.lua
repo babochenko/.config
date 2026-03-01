@@ -1,3 +1,5 @@
+vim.g.python3_host_prog = os.getenv("VIRTUAL_ENV") .. "/bin/python"
+
 vim.g.mapleader = ' '
 vim.opt.fixendofline = false
 
