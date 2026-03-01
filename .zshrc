@@ -28,6 +28,10 @@ function venv() {
   source "${VIRTUAL_ENV}/bin/activate"
 }
 
+function py() {
+  venv && python
+}
+
 # fuzzy, case-insensitive autocomplete
 zstyle ':completion:*' matcher-list '' 'm:{a-zA-Z}={A-Za-z}' 'r:|=*' 'l:|=* r:|=*'
 autoload -Uz compinit && compinit
