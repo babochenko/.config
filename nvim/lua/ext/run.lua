@@ -10,19 +10,51 @@ local function venv_python()
   return "python3"
 end
 
-local runners = {
-  python     = { cmd = venv_python() .. " %s", ext = "py" },
-  java       = { cmd = "java %s",              ext = "java" },
-  lua        = { cmd = "lua %s",               ext = "lua" },
-  haskell    = { cmd = "runghc %s",            ext = "hs" },
-  javascript = { cmd = "node %s",              ext = "js" },
-}
-
-local function run_in_terminal(cmd)
+local function run_in_terminal(c)
   vim.cmd('botright split | terminal')
   vim.cmd('startinsert')
-  vim.fn.chansend(vim.b.terminal_job_id, cmd .. '\n')
+  vim.fn.chansend(vim.b.terminal_job_id, c .. '\n')
 end
+
+local function cmd(fmt)
+  return function(filename)
+    run_in_terminal(string.format(fmt, vim.fn.shellescape(filename)))
+  end
+end
+
+local function run_python(filename)
+  local output = {}
+
+  vim.fn.jobstart({ venv_python(), filename }, {
+    stdout_buffered = true,
+    stderr_buffered = true,
+
+    on_stdout = function(_, data)
+      if data then vim.list_extend(output, data) end
+    end,
+
+    on_stderr = function(_, data)
+      if data then vim.list_extend(output, data) end
+    end,
+
+    on_exit = function()
+      vim.schedule(function()
+        vim.cmd("botright split")
+        local buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_win_set_buf(0, buf)
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, output)
+      end)
+    end,
+  })
+end
+
+local runners = {
+  python     = { fn = run_python,          ext = "py"   },
+  java       = { fn = cmd("java %s"),      ext = "java" },
+  lua        = { fn = cmd("lua %s"),       ext = "lua"  },
+  haskell    = { fn = cmd("runghc %s"),    ext = "hs"   },
+  javascript = { fn = cmd("node %s"),      ext = "js"   },
+}
 
 local function run()
   local ft = vim.bo.filetype
@@ -35,19 +67,19 @@ local function run()
 
   local file_path = vim.fn.expand('%:p')
 
+  local file
   if file_path ~= '' and vim.fn.filereadable(file_path) == 1 then
-    run_in_terminal(string.format(runner.cmd, vim.fn.shellescape(file_path)))
+    file = file_path
   else
-    -- Unsaved buffer: dump to a temp file, run, then delete
-    local tmp = vim.fn.tempname() .. '.' .. runner.ext
-    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-    vim.fn.writefile(lines, tmp)
-    local cmd = string.format(runner.cmd, vim.fn.shellescape(tmp))
-    run_in_terminal(cmd .. '; rm -f ' .. vim.fn.shellescape(tmp))
+    file = vim.fn.tempname() .. '.' .. runner.ext
+    vim.fn.writefile(vim.api.nvim_buf_get_lines(0, 0, -1, false), tmp)
   end
+
+  runner.fn(file)
 end
 
 return {
-    venv_python = venv_python,
-    run = run,
+  venv_python = venv_python,
+  run = run,
 }
+
