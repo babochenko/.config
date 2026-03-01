@@ -5,7 +5,7 @@ bindkey -v
 alias ll='ls -la'
 alias tac='tail -r'
 
-# export PATH="$PATH:$HOME/files/nvim/bin"
+export PATH="$PATH:$HOME/files/nvim/bin"
 export PATH="$PATH:$HOME/.local/bin"
 export PATH="$PATH:$HOME/.cargo/bin"
 
