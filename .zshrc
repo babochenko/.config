@@ -28,10 +28,6 @@ function venv() {
   source "${VIRTUAL_ENV}/bin/activate"
 }
 
-function py() {
-  venv && python
-}
-
 # fuzzy, case-insensitive autocomplete
 zstyle ':completion:*' matcher-list '' 'm:{a-zA-Z}={A-Za-z}' 'r:|=*' 'l:|=* r:|=*'
 autoload -Uz compinit && compinit
@@ -171,8 +167,8 @@ function gitrh() {
     git fetch origin && git rebase origin/$(git branch --show-current)
 }
 
-function ipy() {
-     venv; ipython --TerminalInteractiveShell.editing_mode=vi
+function py() {
+     venv && ipython --TerminalInteractiveShell.editing_mode=vi
 }
 
 function gitsw() {
