@@ -199,6 +199,10 @@ function git-list-changes() {
     "$CFGS/zsh/git-list-changes.rb" $@
 }
 
+function git-review-reply() {
+    "$CFGS/zsh/git-review-reply.rb" $@
+}
+
 function check() {
     "$CFGS/zsh/gradle-checkstyle.rb" $@
 }

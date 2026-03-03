@@ -1,8 +1,7 @@
 #!/usr/bin/env ruby
-require 'json'
-require 'net/http'
 require 'optparse'
 require 'pathname'
+require_relative 'bitbucket'
 
 def main
   cfg = {
@@ -100,39 +99,6 @@ def process_module(mod, from, to, cfg)
       puts "\tTicket: https://#{repo}.atlassian.net/browse/#{pr[:ticket]}" if pr[:ticket]
       puts "\tMerged At: #{pr[:updated]}"
     end
-  end
-end
-
-def fetch_pr(pr_num, hash, msg)
-  user = ENV['X_BITBUCKET_USER']
-  pass = ENV['X_BITBUCKET_PW']
-  repo = ENV['X_BITBUCKET_REPOSITORY']
-  return nil unless user && pass && repo
-
-  dir = Pathname.pwd.basename.to_s
-  uri = URI("https://api.bitbucket.org/2.0/repositories/#{repo}/#{dir}/pullrequests/#{pr_num}?fields=title,author.nickname,updated_on")
-
-  begin
-    req = Net::HTTP::Get.new(uri)
-    req.basic_auth(user, pass)
-    req['Accept'] = 'application/json'
-
-    res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true, read_timeout: 10) do |http|
-      http.request(req)
-    end
-
-    return nil unless res.is_a?(Net::HTTPSuccess)
-
-    data = JSON.parse(res.body)
-    title = data['title']
-    nickname = data['author']['nickname']
-    updated = data['updated_on']
-    ticket = title[/[A-Z]+-[0-9]+/]
-    pr_url = "https://bitbucket.org/#{repo}/#{dir}/pull-requests/#{pr_num}"
-
-    { nickname: nickname, title: title, updated: updated, ticket: ticket, url: pr_url, hash: hash, msg: msg }
-  rescue StandardError
-    nil
   end
 end
 
