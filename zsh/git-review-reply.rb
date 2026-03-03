@@ -3,6 +3,16 @@ require 'json'
 require 'open3'
 require_relative 'bitbucket'
 
+def timed(label)
+  t0 = Time.now
+  result = yield
+  [result, Time.now - t0]
+end
+
+def fmt_duration(seconds)
+  seconds >= 60 ? "#{(seconds / 60).to_i}m #{(seconds % 60).to_i}s" : "#{seconds.round(1)}s"
+end
+
 def main
   branch = `git rev-parse --abbrev-ref HEAD`.strip
   abort("Not in a git repository") if branch.empty? || branch == 'HEAD'
@@ -10,7 +20,7 @@ def main
   pr = find_open_pr_for_branch(branch)
   abort("No open PR found for branch: #{branch}") unless pr
 
-  comments = fetch_pr_comments(pr[:id])
+  comments, t_fetch = timed("fetch") { fetch_pr_comments(pr[:id]) }
   abort("Failed to fetch comments") unless comments
 
   grouped = group_pr_comments(comments)
@@ -25,7 +35,16 @@ def main
     return
   end
 
-  puts JSON.pretty_generate(rate_with_claude(unanswered))
+  ratings, t_rate = timed("rate") { rate_with_claude(unanswered) }
+  puts JSON.pretty_generate(ratings)
+
+  easy_fixes = ratings.select { |r| r['complexity'] <= 2 }
+  _, t_apply = timed("apply") { apply_fixes_with_claude(easy_fixes) }
+
+  puts "\n=== Timing ==="
+  puts "  Fetch comments : #{fmt_duration(t_fetch)}"
+  puts "  Rate with Claude: #{fmt_duration(t_rate)}"
+  puts "  Apply fixes    : #{fmt_duration(t_apply)}"
 end
 
 def rate_with_claude(unanswered)
@@ -52,9 +71,34 @@ def rate_with_claude(unanswered)
   output, status = Open3.capture2('claude', '-p', stdin_data: prompt)
   abort("claude failed: #{output}") unless status.success?
 
-  JSON.parse(output)
+  json_str = output[/\[.*\]/m] || output
+  JSON.parse(json_str)
 rescue StandardError => e
   abort("Failed to rate comments: #{e.message}")
+end
+
+def apply_fixes_with_claude(easy_fixes)
+  return if easy_fixes.empty?
+
+  puts "\nApplying #{easy_fixes.size} fix(es) with complexity <= 2..."
+
+  fix_list = easy_fixes.map.with_index(1) do |fix, i|
+    "#{i}. File: #{fix['file']}\n   Line: #{fix['line']}\n   Comment: #{fix['comment']}\n   Reason: #{fix['reason']}"
+  end.join("\n\n")
+
+  prompt = <<~PROMPT
+    Apply the following code review fixes. For each item, read the specified file, find the relevant line, and apply the appropriate change to address the review comment.
+
+    #{fix_list}
+  PROMPT
+
+  require 'tempfile'
+  Tempfile.create('git-review-fixes') do |f|
+    f.write(prompt)
+    f.flush
+    f.rewind
+    system('claude', in: f, out: $stdout, err: $stderr)
+  end
 end
 
 main if __FILE__ == $PROGRAM_NAME
