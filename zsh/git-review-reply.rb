@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+require 'json'
 require_relative 'bitbucket'
 
 def main
@@ -8,38 +9,34 @@ def main
   pr = find_open_pr_for_branch(branch)
   abort("No open PR found for branch: #{branch}") unless pr
 
-  puts "\e[33mPR ##{pr[:id]}: #{pr[:title]}\e[0m"
-
   comments = fetch_pr_comments(pr[:id])
   abort("Failed to fetch comments") unless comments
 
-  if comments.empty?
-    puts "No comments."
-    return
-  end
-
   inline, general = comments.partition { |c| c[:file] }
 
-  unless inline.empty?
-    puts "\n\e[36m=== Inline Comments ===\e[0m"
-    inline.group_by { |c| c[:file] }.each do |file, file_comments|
-      puts "\n\e[33m#{file}\e[0m"
-      file_comments.each do |c|
-        puts "  Line #{c[:line]}: \e[32m@#{c[:author]}\e[0m"
-        puts "  #{c[:body]}"
-        puts
-      end
-    end
+  by_id = inline.each_with_object({}) { |c, h| h[c[:id]] = c }
+
+  thread_root = lambda do |c|
+    c[:parent_id] && by_id[c[:parent_id]] ? thread_root.call(by_id[c[:parent_id]]) : c
   end
 
-  unless general.empty?
-    puts "\n\e[36m=== General Comments ===\e[0m\n"
-    general.each do |c|
-      puts "\e[32m@#{c[:author]}\e[0m"
-      puts c[:body]
-      puts
-    end
+  grouped = inline.group_by { |c| c[:file] }.transform_values do |file_comments|
+    file_comments
+      .group_by { |c| thread_root.call(c)[:id] }
+      .values
+      .sort_by { |t| thread_root.call(t.first)[:created_at] || '' }
+      .map do |thread|
+        root = thread_root.call(thread.first)
+        {
+          line: root[:line],
+          thread: thread.sort_by { |c| c[:created_at] || '' }
+        }
+      end
   end
+
+  grouped[:general] = general unless general.empty?
+
+  puts JSON.pretty_generate(grouped)
 end
 
 main if __FILE__ == $PROGRAM_NAME

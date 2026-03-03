@@ -74,7 +74,7 @@ def fetch_pr_comments(pr_num)
   dir = Pathname.pwd.basename.to_s
   url = "https://api.bitbucket.org/2.0/repositories/#{repo}/#{dir}/pullrequests/#{pr_num}/comments?pagelen=100"
 
-  comments = []
+  raw = []
 
   loop do
     uri = URI(url)
@@ -92,28 +92,28 @@ def fetch_pr_comments(pr_num)
     end
 
     data = JSON.parse(res.body)
-
-    data['values'].each do |c|
-      next if c['deleted']
-
-      comment = {
-        author: c.dig('user', 'display_name') || 'unknown',
-        body: c.dig('content', 'raw') || '',
-      }
-
-      if (inline = c['inline'])
-        comment[:file] = inline['path']
-        comment[:line] = inline['to'] || inline['from']
-      end
-
-      comments << comment
-    end
+    raw.concat(data['values'])
 
     break unless data['next']
     url = data['next']
   end
 
-  comments
+  raw.reject { |c| c['deleted'] }.map do |c|
+    comment = {
+      id: c['id'],
+      parent_id: c.dig('parent', 'id'),
+      author: c.dig('user', 'display_name') || 'unknown',
+      body: c.dig('content', 'raw') || '',
+      created_at: c['created_on'],
+    }
+
+    if (inline = c['inline'])
+      comment[:file] = inline['path']
+      comment[:line] = inline['to'] || inline['from']
+    end
+
+    comment
+  end.compact
 rescue StandardError => e
   warn "fetch_pr_comments failed: #{e.message}"
   nil
