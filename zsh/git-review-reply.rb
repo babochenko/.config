@@ -38,8 +38,24 @@ def main
   ratings, t_rate = timed("rate") { rate_with_claude(unanswered) }
   puts JSON.pretty_generate(ratings)
 
-  easy_fixes = ratings.select { |r| r['complexity'] <= 2 }
-  _, t_apply = timed("apply") { apply_fixes_with_claude(easy_fixes) }
+  easy_fixes = ratings.select { |r| r['complexity'] <= 2 }.map do |fix|
+    thread = (unanswered[fix['file']] || []).find { |t| t[:line] == fix['line'] }
+    fix.merge('thread_id' => thread&.dig(:thread, 0, :id))
+  end
+
+  _, t_apply = timed("apply") do
+    apply_fixes_with_claude(easy_fixes)
+    easy_fixes.each do |fix|
+      next unless fix['thread_id']
+      if reply_to_pr_comment(pr[:id], fix['thread_id'], fix['summary'] || 'fixed')
+        puts "  Replied 'fixed' on #{fix['file']}:#{fix['line']}"
+      else
+        warn "  Failed to reply on #{fix['file']}:#{fix['line']}"
+      end
+    end
+  end
+
+  system('gitpp', 'on rv')
 
   puts "\n=== Timing ==="
   puts "  Fetch comments : #{fmt_duration(t_fetch)}"
@@ -63,7 +79,7 @@ def rate_with_claude(unanswered)
     - 4: Complex (significant refactor or new logic)
     - 5: Very complex (architectural change or large refactor)
 
-    Return ONLY a JSON array, no other text. Each element: { "file": "...", "line": N, "comment": "...", "complexity": N, "reason": "one sentence" }
+    Return ONLY a JSON array, no other text. Each element: { "file": "...", "line": N, "comment": "...", "complexity": N, "reason": "one sentence", "summary": "one word describing the change, e.g. fixed, renamed, deleted" }
 
     #{sections.join("\n\n")}
   PROMPT

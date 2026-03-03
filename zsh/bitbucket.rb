@@ -92,6 +92,31 @@ def group_pr_comments(comments)
   grouped
 end
 
+def reply_to_pr_comment(pr_num, parent_comment_id, text)
+  user = ENV['X_BITBUCKET_USER']
+  pass = ENV['X_BITBUCKET_PW']
+  repo = ENV['X_BITBUCKET_REPOSITORY']
+  return false unless user && pass && repo
+
+  dir = Pathname.pwd.basename.to_s
+  uri = URI("https://api.bitbucket.org/2.0/repositories/#{repo}/#{dir}/pullrequests/#{pr_num}/comments")
+
+  req = Net::HTTP::Post.new(uri)
+  req.basic_auth(user, pass)
+  req['Content-Type'] = 'application/json'
+  req['Accept'] = 'application/json'
+  req.body = JSON.generate({ content: { raw: text }, parent: { id: parent_comment_id } })
+
+  res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true, read_timeout: 10) do |http|
+    http.request(req)
+  end
+
+  res.is_a?(Net::HTTPSuccess)
+rescue StandardError => e
+  warn "reply_to_pr_comment failed: #{e.message}"
+  false
+end
+
 def fetch_pr_comments(pr_num)
   user = ENV['X_BITBUCKET_USER']
   pass = ENV['X_BITBUCKET_PW']
