@@ -66,15 +66,15 @@ function gh() {
 
   if [[ "$mode" == "commit" ]]; then
     # show just that commit for the file
-    nvim -c "DiffviewOpen ${arg}^! -- $file"
+    nvim -c "DiffviewOpen ${arg}^! $file"
 
   elif [[ "$mode" == "range" ]]; then
     # show for range - e.g. a1b2c3d^..HEAD
-    nvim -c "DiffviewFileHistory --range=${arg} -- $file"
+    nvim -c "DiffviewFileHistory --range=${arg} $file"
 
   else
     # full history
-    nvim -c "DiffviewFileHistory -- $file"
+    nvim -c "DiffviewFileHistory $file"
   fi
 }
 
