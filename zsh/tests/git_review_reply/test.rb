@@ -18,6 +18,10 @@ class GitReviewReplyTest
     test_no_comments_on_pr
     test_fetch_comments_failure
     test_with_unanswered_comments
+    test_already_answered_thread_skipped
+    test_general_comments_ignored
+    test_reply_failure_warns
+    test_missing_summary_defaults_to_fixed
     test_complex_fixes_not_auto_applied
     test_claude_ratings_parsed_correctly
 
@@ -33,6 +37,15 @@ class GitReviewReplyTest
     $stdout.string
   ensure
     $stdout = old
+  end
+
+  def capture_stderr
+    old = $stderr
+    $stderr = StringIO.new
+    yield
+    $stderr.string
+  ensure
+    $stderr = old
   end
 
   def make_api(overrides = {})
@@ -104,6 +117,95 @@ class GitReviewReplyTest
     puts "  ✓ Posted reply to unanswered comment"
   end
 
+  def test_already_answered_thread_skipped
+    puts "\n[TEST] Comment with a reply (already answered) is skipped"
+
+    # Comment 10 is the root, comment 11 is the author's reply — thread is answered
+    comments = [
+      { id: 10, parent_id: nil,  author: "reviewer", body: "rename this", created_at: "2024-01-01T00:00:00Z", file: "foo.rb", line: 5 },
+      { id: 11, parent_id: 10,   author: "author",   body: "done",        created_at: "2024-01-02T00:00:00Z", file: "foo.rb", line: 5 }
+    ]
+    rated_with = nil
+
+    api = make_api(
+      fetch_comments: ->(_id) { comments },
+      rate_comments: ->(unanswered) { rated_with = unanswered; [] }
+    )
+
+    output = capture_stdout { run_review_reply("my-branch", api) }
+
+    assert_true(rated_with.nil? || rated_with.empty?, "Already-answered thread should not be rated")
+    assert_includes(output, "No unanswered inline comments", "Should report nothing to do")
+    puts "  ✓ Already-answered thread skipped"
+  end
+
+  def test_general_comments_ignored
+    puts "\n[TEST] General (non-inline) comments are ignored"
+
+    # Only a general comment, no inline file/line
+    comments = [
+      { id: 1, parent_id: nil, author: "reviewer", body: "overall LGTM", created_at: "2024-01-01T00:00:00Z" }
+    ]
+    rated_with = nil
+
+    api = make_api(
+      fetch_comments: ->(_id) { comments },
+      rate_comments: ->(unanswered) { rated_with = unanswered; [] }
+    )
+
+    output = capture_stdout { run_review_reply("my-branch", api) }
+
+    assert_true(rated_with.nil? || rated_with.empty?, "General comments should not be rated")
+    assert_includes(output, "No unanswered inline comments", "Should report nothing to do")
+    puts "  ✓ General comments ignored"
+  end
+
+  def test_reply_failure_warns
+    puts "\n[TEST] Reply failure emits a warning"
+
+    comments = [
+      { id: 10, parent_id: nil, author: "reviewer", body: "fix indentation", created_at: "2024-01-01T00:00:00Z", file: "foo.rb", line: 3 }
+    ]
+    ratings = [
+      { "file" => "foo.rb", "line" => 3, "comment" => "fix indentation", "complexity" => 0, "reason" => "trivial", "summary" => "fixed" }
+    ]
+
+    api = make_api(
+      fetch_comments: ->(_id) { comments },
+      rate_comments: ->(_u) { ratings },
+      reply_comment: ->(_pr, _comment, _text) { false }
+    )
+
+    stderr = capture_stderr { capture_stdout { run_review_reply("my-branch", api) } }
+
+    assert_includes(stderr, "Failed to reply on foo.rb:3", "Should warn about failed reply")
+    puts "  ✓ Warning emitted on reply failure"
+  end
+
+  def test_missing_summary_defaults_to_fixed
+    puts "\n[TEST] Rating with no summary falls back to 'fixed'"
+
+    comments = [
+      { id: 10, parent_id: nil, author: "reviewer", body: "remove space", created_at: "2024-01-01T00:00:00Z", file: "foo.rb", line: 2 }
+    ]
+    ratings = [
+      { "file" => "foo.rb", "line" => 2, "comment" => "remove space", "complexity" => 0, "reason" => "trivial" }
+    ]
+    replies = []
+
+    api = make_api(
+      fetch_comments: ->(_id) { comments },
+      rate_comments: ->(_u) { ratings },
+      reply_comment: ->(_pr, comment_id, text) { replies << { comment_id: comment_id, text: text }; true }
+    )
+
+    capture_stdout { run_review_reply("my-branch", api) }
+
+    assert_equal(1, replies.size, "Should post 1 reply")
+    assert_equal("fixed", replies.first[:text], "Should use 'fixed' when summary is absent")
+    puts "  ✓ Defaulted to 'fixed' when summary missing"
+  end
+
   def test_complex_fixes_not_auto_applied
     puts "\n[TEST] Complex fixes (complexity > 2) are not auto-applied"
 
@@ -169,6 +271,14 @@ class GitReviewReplyTest
       @passed += 1
     else
       fail_test("#{message}\n  Expected: #{expected.inspect}\n  Got: #{actual.inspect}")
+    end
+  end
+
+  def assert_true(condition, message)
+    if condition
+      @passed += 1
+    else
+      fail_test(message)
     end
   end
 
