@@ -3,6 +3,18 @@ require 'json'
 require 'open3'
 require_relative 'bitbucket'
 
+Api = Struct.new(:find_open_pr, :fetch_comments, :reply_comment, :rate_comments, :apply_fixes, keyword_init: true)
+
+def default_api
+  Api.new(
+    find_open_pr: method(:find_open_pr_for_branch),
+    fetch_comments: method(:fetch_pr_comments),
+    reply_comment: method(:reply_to_pr_comment),
+    rate_comments: method(:rate_with_claude),
+    apply_fixes: method(:apply_fixes_with_claude)
+  )
+end
+
 def timed(label)
   t0 = Time.now
   result = yield
@@ -13,15 +25,18 @@ def fmt_duration(seconds)
   seconds >= 60 ? "#{(seconds / 60).to_i}m #{(seconds % 60).to_i}s" : "#{seconds.round(1)}s"
 end
 
-def main
-  branch = `git rev-parse --abbrev-ref HEAD`.strip
-  abort("Not in a git repository") if branch.empty? || branch == 'HEAD'
+def run_review_reply(branch, api)
+  pr = api.find_open_pr.call(branch)
+  unless pr
+    puts "No open PR found for branch: #{branch}"
+    return
+  end
 
-  pr = find_open_pr_for_branch(branch)
-  abort("No open PR found for branch: #{branch}") unless pr
-
-  comments, t_fetch = timed("fetch") { fetch_pr_comments(pr[:id]) }
-  abort("Failed to fetch comments") unless comments
+  comments, t_fetch = timed("fetch") { api.fetch_comments.call(pr[:id]) }
+  unless comments
+    puts "Failed to fetch comments"
+    return
+  end
 
   grouped = group_pr_comments(comments)
 
@@ -35,7 +50,7 @@ def main
     return
   end
 
-  ratings, t_rate = timed("rate") { rate_with_claude(unanswered) }
+  ratings, t_rate = timed("rate") { api.rate_comments.call(unanswered) }
   puts JSON.pretty_generate(ratings)
 
   easy_fixes = ratings.select { |r| r['complexity'] <= 2 }.map do |fix|
@@ -44,11 +59,11 @@ def main
   end
 
   _, t_apply = timed("apply") do
-    apply_fixes_with_claude(easy_fixes)
+    api.apply_fixes.call(easy_fixes)
     easy_fixes.each do |fix|
       next unless fix['thread_id']
-      if reply_to_pr_comment(pr[:id], fix['thread_id'], fix['summary'] || 'fixed')
-        puts "  Replied 'fixed' on #{fix['file']}:#{fix['line']}"
+      if api.reply_comment.call(pr[:id], fix['thread_id'], fix['summary'] || 'fixed')
+        puts "  Replied '#{fix['summary'] || 'fixed'}' on #{fix['file']}:#{fix['line']}"
       else
         warn "  Failed to reply on #{fix['file']}:#{fix['line']}"
       end
@@ -61,6 +76,12 @@ def main
   puts "  Fetch comments : #{fmt_duration(t_fetch)}"
   puts "  Rate with Claude: #{fmt_duration(t_rate)}"
   puts "  Apply fixes    : #{fmt_duration(t_apply)}"
+end
+
+def main
+  branch = `git rev-parse --abbrev-ref HEAD`.strip
+  abort("Not in a git repository") if branch.empty? || branch == 'HEAD'
+  run_review_reply(branch, default_api)
 end
 
 def rate_with_claude(unanswered)
