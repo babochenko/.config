@@ -205,9 +205,9 @@ function git-review-reply() {
 
 function check() {
   while true; do
-    local _check="[ant:checkstyle] [ERROR]"
+    local _check="[ERROR]"
     local _spot=".java:[line"
-    local errors=$(./gradlew check -x test -x testFunctional | grep -F -e "${_check}" -e "${_spot}")
+    local errors=$(./gradlew check -x test -x testFunctional 2>&1 | grep -F -e "${_check}" -e "${_spot}")
 
     if [[ -z "$errors" ]]; then
       echo
