@@ -204,6 +204,7 @@ function git-review-reply() {
 }
 
 function check() {
+  echo "Running checkstyle..."
   while true; do
     local _check="[ERROR]"
     local _spot=".java:[line"
