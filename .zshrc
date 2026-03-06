@@ -204,6 +204,36 @@ function git-review-reply() {
 }
 
 function check() {
-    "$CFGS/zsh/gradle-checkstyle.rb" $@
+  while true; do
+    local _check="[ant:checkstyle] [ERROR]"
+    local _spot=".java:[line"
+    local errors=$(./gradlew check -x test -x testFunctional | grep -F -e "${_check}" -e "${_spot}")
+
+    if [[ -z "$errors" ]]; then
+      echo
+      echo vvvvvvvvvvvvvvv
+      echo "All checks passed!"
+      echo ^^^^^^^^^^^^^^^
+      echo
+      return 0
+    fi
+
+    echo
+    echo ---------------
+    echo "Checkstyle violations:"
+    echo "$errors"
+    echo ---------------
+    echo
+
+    claude "Fix these Checkstyle violations in the project files. Each line is filepath:line_number: [severity] description. Read each file, apply the fix, and save the changes.
+
+    For spotbugs errors (the ones matching '.java:[line'), ONLY STRICTLY resolve them by slapping the annotation @SuppressFBWarnings(...) from edu.umd.cs.findbugs.annotations.SuppressFBWarnings, on a faulty line(s)
+
+    For checkstyle errors (the ones matching '[ant:checkstyle] [ERROR]', resolve the actual cause
+
+    use intellij mcp as much as possible
+
+    $errors"
+  done
 }
 
