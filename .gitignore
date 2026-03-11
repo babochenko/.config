@@ -5,12 +5,14 @@
 !/git/
 !/nvim/
 !/zsh/
+!/marimo/
 
 # Unignore all files inside them (recursively)
 !/ghostty/**
 !/git/**
 !/nvim/**
 !/zsh/**
+!/marimo/**
 
 !.gitignore
 !.zshrc
