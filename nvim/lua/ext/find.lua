@@ -299,6 +299,21 @@ return {
       end,
       cwd = cwd,
       file_ignore_patterns = {},
+      find_command = { 'rg', '--files', '--hidden', '--follow', '--no-ignore-vcs', '--ignore-case', '--glob', '!.git/' }
+    }))
+  end,
+
+  files_all = function()
+    local cwd, text = getcwd("Find Files (All)")
+
+    TSC.find_files(vertical_layout(text, {
+      entry_maker = function(entry)
+        entry = make_entry.gen_from_file({})(entry)
+        entry.display = display_modified_path
+        return entry
+      end,
+      cwd = cwd,
+      file_ignore_patterns = {},
       find_command = { 'rg', '--files', '--hidden', '--follow', '--no-ignore-vcs', '--ignore-case' }
     }))
   end,

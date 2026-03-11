@@ -133,6 +133,7 @@ local windows = {
 local search = {
   group('<leader>f', 'Find'),
   map('n', '<leader>ff', Find.files, { desc = 'Find files' }),
+  map('n', '<leader>fF', Find.files_all, { desc = 'Find files (include .git)' }),
   map('n', '<leader>fa', '<cmd>Telescope find_files follow=true no_ignore=true hidden=true<CR>', { desc = 'Find all files' }),
 
   map('n', '<leader>fw', Find.words_literal, { desc = 'Find words' }),
