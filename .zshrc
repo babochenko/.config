@@ -236,3 +236,10 @@ function check() {
   $errors"
 }
 
+function m() {
+    mkdir -p "$HOME/Developer/marimo" && \
+    cd $_ && \
+    venv && \
+    marimo edit
+}
+
