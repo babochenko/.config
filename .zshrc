@@ -237,9 +237,10 @@ function check() {
 }
 
 function m() {
-    mkdir -p "$HOME/Developer/marimo" && \
-    cd $_ && \
-    venv && \
-    marimo edit
+    dir="$HOME/Developer/marimo"
+    mkdir -p "$dir"
+
+    tmux new-session -d -s marimo "zsh -ic 'cd $dir && venv && marimo edit'"
+    tmux ls
 }
 
