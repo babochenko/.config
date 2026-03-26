@@ -159,6 +159,10 @@ function gitmc() {
   git merge --continue
 }
 
+function gitrc() {
+  git rebase --continue
+}
+
 function gitsm() {
     git switch $(master) && git pull
 }
