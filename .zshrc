@@ -258,6 +258,17 @@ function gitwt() {
 }
 
 function gitwr() {
+  local main_worktree
+  main_worktree=$(git worktree list 2>/dev/null | awk 'NR==1{print $1}')
+
+  if [[ -n "$main_worktree" && "$PWD" != "$main_worktree" ]]; then
+    local current="$PWD"
+    cd "$main_worktree"
+    git worktree remove "$current"
+    echo "$current → $PWD"
+    return 0
+  fi
+
   local target="$1"
 
   if [[ -z "$target" ]]; then
