@@ -219,6 +219,52 @@ function gitwt() {
   git worktree add -b "$branch" "$target" "$base"
 }
 
+function gitwr() {
+  local target="$1"
+
+  if [[ -z "$target" ]]; then
+    echo "Usage: gitwr <worktree-path>"
+    return 1
+  fi
+
+  # Must exist
+  if [[ ! -d "$target" ]]; then
+    echo "Directory does not exist: $target"
+    return 1
+  fi
+
+  # Prefix must match current dir name
+  local curdir
+  curdir=$(basename "$PWD")
+
+  local target_base
+  target_base=$(basename "$target")
+
+  if [[ "$target_base" != "${curdir}-"* ]]; then
+    echo "Refusing: $target does not start with ${curdir}-"
+    return 1
+  fi
+
+  # Must be a registered worktree
+  if ! git worktree list | awk '{print $1}' | grep -Fxq "$(cd "$target" && pwd)"; then
+    echo "Refusing: $target is not a registered worktree of this repo"
+    return 1
+  fi
+
+  # Prevent removing current worktree
+  if [[ "$(cd "$target" && pwd)" == "$(pwd)" ]]; then
+    echo "Refusing: cannot remove current worktree"
+    return 1
+  fi
+
+  git worktree remove "$target"
+}
+
+function gitwr() {
+  git worktree remove "$1" 2>/dev/null || rm -rf "$1"
+  git worktree prune
+}
+
 function git-list-changes() {
     "$CFGS/zsh/git-list-changes.rb" $@
 }
@@ -229,7 +275,7 @@ function git-review-reply() {
 
 function check() {
   echo "Running checkstyle..."
-  local _check="[ERROR]"
+  local _check=""[ERROR]
   local _spot=".java:[line"
   local errors=$(./gradlew check -x test -x testFunctional 2>&1 | grep -F -e "${_check}" -e "${_spot}")
 
