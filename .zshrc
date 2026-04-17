@@ -298,11 +298,6 @@ function gitwr() {
   git worktree remove "$target"
 }
 
-function gitwr() {
-  git worktree remove "$1" 2>/dev/null || rm -rf "$1"
-  git worktree prune
-}
-
 function git-list-changes() {
     "$CFGS/zsh/git-list-changes.rb" $@
 }
