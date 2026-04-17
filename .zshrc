@@ -199,6 +199,26 @@ function gitsw() {
   fi
 }
 
+function gitwt() {
+  local name="$1"
+  local base="${2:-master}"
+
+  if [[ -z "$name" ]]; then
+    echo "Usage: gitws <branch-name> [base-branch]"
+    echo "creates a new worktree at ../branch-name from [base-branch | master]"
+    return 1
+  fi
+
+  local target="../$(basename "$PWD")-${branch}"
+  if [[ -d "$target" ]]; then
+    echo "Directory $target already exists"
+    return 1
+  fi
+
+  git fetch origin >/dev/null 2>&1
+  git worktree add -b "$branch" "$target" "$base"
+}
+
 function git-list-changes() {
     "$CFGS/zsh/git-list-changes.rb" $@
 }
