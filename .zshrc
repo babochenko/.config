@@ -36,19 +36,52 @@ function _git_branch() {
     git symbolic-ref --short HEAD 2>/dev/null
 }
 
-function _prompt_git_branch() {
-    local branch="$(_git_branch)"
-    if [[ -n "$branch" ]]; then
-        echo "(git %F{green}${branch}%F{white}) "
-    fi
+function git_prompt() {
+  git rev-parse --is-inside-work-tree &>/dev/null || return
+
+  local git_status
+  git_status=$(git status --porcelain=v1 --branch 2>/dev/null)
+
+  local branch ahead=0 behind=0
+  local staged=0 modified=0 deleted=0 untracked=0
+
+  while IFS= read -r line; do
+    case "$line" in
+      "## "*)
+        branch=${line#\#\# }
+        if [[ $line =~ ahead\ ([0-9]+) ]]; then
+          ahead=${match[1]}
+        fi
+        if [[ $line =~ behind\ ([0-9]+) ]]; then
+          behind=${match[1]}
+        fi
+        branch=${branch%%...*}
+        ;;
+      \?\?*) ((untracked++)) ;;
+      *)
+        [[ ${line:0:1} != " " && ${line:0:1} != "?" ]] && ((staged++))
+        [[ ${line:1:1} != " " ]] && ((modified++))
+        ;;
+    esac
+  done <<< "$git_status"
+
+  local out="(git %F{green}$branch%f"
+  [[ $ahead -gt 0 ]]     && out+=" %F{green}↑$ahead%f"
+  [[ $behind -gt 0 ]]    && out+=" %F{red}↓$behind%f"
+  [[ $staged -gt 0 ]]    && out+=" %F{green}+$staged%f"
+  [[ $modified -gt 0 ]]  && out+=" %F{yellow}~$modified%f"
+  [[ $untracked -gt 0 ]] && out+=" %F{cyan}?$untracked%f"
+  out+=")"
+
+  echo "$out"
 }
+
+setopt prompt_subst
+PROMPT='| %~ $(git_prompt) %# '
 
 function _git_ticket() {
     _git_branch | grep -E '[-_]' | sed -E 's/^([^_-]+)[_-]([^_-]+).*/\1-\2/'
 }
-
-setopt prompt_subst
-PROMPT='| %~ $(_prompt_git_branch)%# '
 
 function gd() {
     nvim -c "DiffviewOpen HEAD"
