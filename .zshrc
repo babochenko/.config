@@ -209,14 +209,19 @@ function gitwt() {
     return 1
   fi
 
-  local target="../$(basename "$PWD")-${branch}"
+  local target="../$(basename "$PWD")-${name}"
   if [[ -d "$target" ]]; then
-    echo "Directory $target already exists"
-    return 1
+    cd "$target"
+    return 0
   fi
 
   git fetch origin >/dev/null 2>&1
-  git worktree add -b "$branch" "$target" "$base"
+  if git show-ref --quiet refs/heads/"$name"; then
+    git worktree add "$target" "$name"
+  else
+    git worktree add -b "$name" "$target" "$base"
+  fi
+  cd "$target"
 }
 
 function gitwr() {
