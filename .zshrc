@@ -362,7 +362,7 @@ function claude() {
     local prompt='
     ## Coding
 
-    - when working with java code, always use intellij mcp for all file lookups, navigation, and inspection — reading files, finding symbols, searching code, etc. Only fall back to direct filesystem tools if the intellij mcp call fails or is unavailable
+    - when working with java code, always use intellij mcp for all file lookups, navigation, inspection, and edits — reading files, finding symbols, searching code, writing changes. Only fall back to direct filesystem tools if the intellij mcp call fails or is unavailable
     - after done writing code, split it into atomic git commits, one for each subfeature (or a single commit if change is homogeneous) and commit them. If git branch name matches regex "<(\w+)-(\d+)>.*" (where <...> is ticket name) then extract ticket name as commit msg prefix
 
     ## Testing code
@@ -389,13 +389,17 @@ function claude() {
     - For spotbugs errors (the ones matching ".java:[line"), ONLY STRICTLY resolve them by slapping the annotation @SuppressFBWarnings(...) from edu.umd.cs.findbugs.annotations.SuppressFBWarnings, on a faulty line(s)
     - For checkstyle errors (the ones matching "[ant:checkstyle] [ERROR]", resolve the actual cause
 
+    After applying fixes, re-run checkstyle immediately without asking — repeat until clean.
+
     ## Bitbucket ticket workflow
 
     When the user supplies a Bitbucket ticket URL:
     1. Fetch the ticket details using the Bitbucket MCP tool
     2. Derive a branch name: <ticket-id>_<description> where description is max 15 chars, lowercase, words separated by underscores, summarising the ticket
-    3. Create a git worktree at "../<current-dir-name>-<branch-name>" on a new branch with that name (e.g. if cwd is /dev/myrepo, worktree goes to /dev/myrepo-PROJ-123_fix_login)
-    4. Do ALL subsequent work (edits, commits, tests, checkstyle) inside that worktree — never touch the original working tree
+    3. Check if a worktree for that branch already exists (via "git worktree list") — if so, switch into it and skip creation
+    4. Otherwise create a git worktree at "../<current-dir-name>-<branch-name>" on a new branch with that name (e.g. if cwd is /dev/myrepo, worktree goes to /dev/myrepo-PROJ-123_fix_login)
+    5. Do ALL subsequent work (edits, commits, tests, checkstyle) inside that worktree — never touch the original working tree
+    6. When running independent tool calls (reads, lookups, searches), batch them in parallel rather than sequentially
     '
 
     command "$HOME/.local/bin/claude" --append-system-prompt "Always follow this rule: $prompt" "$@"
