@@ -388,6 +388,14 @@ function claude() {
 
     - For spotbugs errors (the ones matching ".java:[line"), ONLY STRICTLY resolve them by slapping the annotation @SuppressFBWarnings(...) from edu.umd.cs.findbugs.annotations.SuppressFBWarnings, on a faulty line(s)
     - For checkstyle errors (the ones matching "[ant:checkstyle] [ERROR]", resolve the actual cause
+
+    ## Bitbucket ticket workflow
+
+    When the user supplies a Bitbucket ticket URL:
+    1. Fetch the ticket details using the Bitbucket MCP tool
+    2. Derive a branch name: <ticket-id>_<description> where description is max 15 chars, lowercase, words separated by underscores, summarising the ticket
+    3. Create a git worktree at "../<current-dir-name>-<branch-name>" on a new branch with that name (e.g. if cwd is /dev/myrepo, worktree goes to /dev/myrepo-PROJ-123_fix_login)
+    4. Do ALL subsequent work (edits, commits, tests, checkstyle) inside that worktree — never touch the original working tree
     '
 
     command "$HOME/.local/bin/claude" --append-system-prompt "Always follow this rule: $prompt" "$@"
