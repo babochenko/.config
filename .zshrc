@@ -319,7 +319,7 @@ function git-review-reply() {
 
 function check() {
   echo "Running checkstyle..."
-  local _check=""[ERROR]
+  local _check="[ERROR]"
   local _spot=".java:[line"
   local errors=$(./gradlew check -x test -x testFunctional 2>&1 | grep -F -e "${_check}" -e "${_spot}")
 
@@ -363,14 +363,14 @@ function claude() {
     ## Coding
 
     - when asked to inspect or edit code, always use intellij mcp if present
-    - after done writing code, split it into atomic git commits, one for each subfeature (or a single commit if change is homogeneous) and commit them. If git branch name matches regex "<(w+)-(\d+)>.*" (where <...> is ticket name) then extract ticket name as commit msg prefix
+    - after done writing code, split it into atomic git commits, one for each subfeature (or a single commit if change is homogeneous) and commit them. If git branch name matches regex "<(\w+)-(\d+)>.*" (where <...> is ticket name) then extract ticket name as commit msg prefix
 
     ## Testing code
 
-    Work working on java code, you can run tests via this exact command (dont change the command, as its optimised for fast execution and low token spending):
+    When working on java code, you can run tests via this exact command (dont change the command, as its optimised for fast execution and low token spending):
     ``
     ./gradlew test --tests \"full.test.class.name\" --tests \"...\" --console=plain --quiet 2>&1 | \
-    grep -E -A5 -B2 ""FAILED|Exception|Error|Caused by" | \
+    grep -E -A5 -B2 "FAILED|Exception|Error|Caused by" | \
     grep -vE "org.gradle|java.base|sun.reflect"
     ``
 
@@ -390,6 +390,6 @@ function claude() {
     - For checkstyle errors (the ones matching "[ant:checkstyle] [ERROR]", resolve the actual cause
     '
 
-    command "$HOME/.local/bin/claude" --system-prompt "Always follow this rule: $prompt" "$@"
+    command "$HOME/.local/bin/claude" --append-system-prompt "Always follow this rule: $prompt" "$@"
 }
 
