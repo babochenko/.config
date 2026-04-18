@@ -362,8 +362,9 @@ function claude() {
     local prompt='
     ## Coding
 
-    - when working with java code, always use intellij mcp for all file lookups, navigation, inspection, and edits — reading files, finding symbols, searching code, writing changes. Only fall back to direct filesystem tools if the intellij mcp call fails or is unavailable
-    - after done writing code, split it into atomic git commits, one for each subfeature (or a single commit if change is homogeneous) and commit them. If git branch name matches regex "<(\w+)-(\d+)>.*" (where <...> is ticket name) then extract ticket name as commit msg prefix
+    1. when working with java code, always use intellij mcp for all file lookups, navigation, inspection, and edits — reading files, finding symbols, searching code, writing changes. Only fall back to direct filesystem tools if the intellij mcp call fails or is unavailable
+    2. after done writing code, split it into atomic git commits, one for each subfeature (or a single commit if change is homogeneous) and commit them. If git branch name matches regex "<(\w+)-(\d+)>.*" (where <...> is ticket name) then extract ticket name as commit msg prefix
+    3. When running independent tool calls (reads, lookups, searches), batch them in parallel rather than sequentially
 
     ## Testing code
 
@@ -399,7 +400,6 @@ function claude() {
     3. Check if a worktree for that branch already exists (via "git worktree list") — if so, switch into it and skip creation
     4. Otherwise create a git worktree at "../<current-dir-name>-<branch-name>" on a new branch with that name (e.g. if cwd is /dev/myrepo, worktree goes to /dev/myrepo-PROJ-123_fix_login)
     5. Do ALL subsequent work (edits, commits, tests, checkstyle) inside that worktree — never touch the original working tree
-    6. When running independent tool calls (reads, lookups, searches), batch them in parallel rather than sequentially
     '
 
     command "$HOME/.local/bin/claude" --append-system-prompt "Always follow this rule: $prompt" "$@"
