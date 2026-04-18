@@ -362,7 +362,7 @@ function claude() {
     local prompt='
     ## Coding
 
-    - when asked to inspect or edit code, always use intellij mcp if present
+    - when working with java code, always use intellij mcp for all file lookups, navigation, and inspection — reading files, finding symbols, searching code, etc. Only fall back to direct filesystem tools if the intellij mcp call fails or is unavailable
     - after done writing code, split it into atomic git commits, one for each subfeature (or a single commit if change is homogeneous) and commit them. If git branch name matches regex "<(\w+)-(\d+)>.*" (where <...> is ticket name) then extract ticket name as commit msg prefix
 
     ## Testing code
