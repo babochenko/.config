@@ -358,3 +358,38 @@ function m() {
     tmux ls
 }
 
+function claude() {
+    local prompt='
+    ## Coding
+
+    - when asked to inspect or edit code, always use intellij mcp if present
+    - after done writing code, split it into atomic git commits, one for each subfeature (or a single commit if change is homogeneous) and commit them. If git branch name matches regex "<(w+)-(\d+)>.*" (where <...> is ticket name) then extract ticket name as commit msg prefix
+
+    ## Testing code
+
+    Work working on java code, you can run tests via this exact command (dont change the command, as its optimised for fast execution and low token spending):
+    ``
+    ./gradlew test --tests \"full.test.class.name\" --tests \"...\" --console=plain --quiet 2>&1 | \
+    grep -E -A5 -B2 ""FAILED|Exception|Error|Caused by" | \
+    grep -vE "org.gradle|java.base|sun.reflect"
+    ``
+
+    Only do this when you write new or change existing tests, or otherwise when asked by user to test. If test fails, automatically think of the resolution, apply it, and run again until they execute 
+
+    ## Checkstyle for java projects
+
+    after done working on a java code change, always run checkstyle through this exact command with no modifications (this is necessary, because command is optimised to reduce token usage):
+    ./gradlew check -x test -x testFunctional 2>&1 | grep -F -e "[ERROR]" -e ".java:[line"
+
+    - first -e is checkstyle
+    - second -e is spotbugs
+
+    Then, only if there are any errors found, apply the fixes. Each line is filepath:line_number: [severity] description. Read each file, apply the fix, and save the changes.
+
+    - For spotbugs errors (the ones matching ".java:[line"), ONLY STRICTLY resolve them by slapping the annotation @SuppressFBWarnings(...) from edu.umd.cs.findbugs.annotations.SuppressFBWarnings, on a faulty line(s)
+    - For checkstyle errors (the ones matching "[ant:checkstyle] [ERROR]", resolve the actual cause
+    '
+
+    command "$HOME/.local/bin/claude" --system-prompt "Always follow this rule: $prompt" "$@"
+}
+
