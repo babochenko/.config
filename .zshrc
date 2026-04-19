@@ -405,3 +405,5 @@ function claude() {
     command "$HOME/.local/bin/claude" --append-system-prompt "Always follow this rule: $prompt" "$@"
 }
 
+alias c='claude'
+
