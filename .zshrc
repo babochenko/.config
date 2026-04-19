@@ -365,6 +365,7 @@ function claude() {
     1. when working with java code, always use intellij mcp for all file lookups, navigation, inspection, and edits — reading files, finding symbols, searching code, writing changes. Only fall back to direct filesystem tools if the intellij mcp call fails or is unavailable
     2. after done writing code, split it into atomic git commits, one for each subfeature (or a single commit if change is homogeneous) and commit them. If git branch name matches regex "<(\w+)-(\d+)>.*" (where <...> is ticket name) then extract ticket name as commit msg prefix
     3. When running independent tool calls (reads, lookups, searches), batch them in parallel rather than sequentially
+    4. When the user says "gitpp": stage all changes, write a concise summary commit message, and push to upstream — do this immediately without asking for confirmation
 
     ## Testing code
 
