@@ -396,7 +396,7 @@ function claude() {
 
     When the user supplies a Bitbucket ticket URL:
     1. Fetch the ticket details using the Bitbucket MCP tool
-    2. Derive a branch name: <ticket-id>_<description> where description is max 15 chars, lowercase, words separated by underscores, summarising the ticket
+    2. Derive a branch name: <ticket-id>_<description> where description is max 15 chars, lowercase, words separated by underscores, summarising the ticket and users request
     3. Check if a worktree for that branch already exists (via "git worktree list") — if so, switch into it and skip creation
     4. Otherwise create a git worktree at "../<current-dir-name>-<branch-name>" on a new branch with that name (e.g. if cwd is /dev/myrepo, worktree goes to /dev/myrepo-PROJ-123_fix_login)
     5. Do ALL subsequent work (edits, commits, tests, checkstyle) inside that worktree — never touch the original working tree
