@@ -367,10 +367,10 @@ function claude() {
     3. When running independent tool calls (reads, lookups, searches), batch them in parallel rather than sequentially
     4. When the user says "gitpp": stage all changes, write a concise summary commit message, and push to upstream — do this immediately without asking for confirmation
 
-    ## Bitbucket ticket workflow
+    ## Jira ticket workflow
 
-    When the user supplies a Bitbucket ticket URL:
-    1. Fetch the ticket details using the Bitbucket MCP tool
+    When the user supplies a Jira ticket URL:
+    1. Fetch the ticket details using the Jira MCP tool
     2. Derive a branch name: <ticket-id>_<description> where description is max 15 chars, lowercase, words separated by underscores, summarising the ticket and users request
     3. Check if a worktree for that branch already exists (via "git worktree list") — if so, switch into it and skip creation
     4. Otherwise run "git fetch origin" then create a git worktree at "../<current-dir-name>-<branch-name>" on a new branch based off origin/master: git worktree add -b <branch-name> <path> origin/master (e.g. if cwd is /dev/myrepo, worktree goes to /dev/myrepo-PROJ-123_fix_login)
