@@ -367,32 +367,6 @@ function claude() {
     3. When running independent tool calls (reads, lookups, searches), batch them in parallel rather than sequentially
     4. When the user says "gitpp": stage all changes, write a concise summary commit message, and push to upstream — do this immediately without asking for confirmation
 
-    ## Testing code
-
-    When working on java code, you can run tests via this exact command (dont change the command, as its optimised for fast execution and low token spending):
-    ``
-    ./gradlew test --tests \"full.test.class.name\" --tests \"...\" --console=plain --quiet 2>&1 | \
-    grep -E -A5 -B2 "FAILED|Exception|Error|Caused by" | \
-    grep -vE "org.gradle|java.base|sun.reflect"
-    ``
-
-    Only do this when you write new or change existing tests, or otherwise when asked by user to test. If test fails, automatically think of the resolution, apply it, and run again until they execute 
-
-    ## Checkstyle for java projects
-
-    after done working on a java code change, always run checkstyle through this exact command with no modifications (this is necessary, because command is optimised to reduce token usage):
-    ./gradlew check -x test -x testFunctional 2>&1 | grep -F -e "[ERROR]" -e ".java:[line"
-
-    - first -e is checkstyle
-    - second -e is spotbugs
-
-    Then, only if there are any errors found, apply the fixes. Each line is filepath:line_number: [severity] description. Read each file, apply the fix, and save the changes.
-
-    - For spotbugs errors (the ones matching ".java:[line"), ONLY STRICTLY resolve them by slapping the annotation @SuppressFBWarnings(...) from edu.umd.cs.findbugs.annotations.SuppressFBWarnings, on a faulty line(s)
-    - For checkstyle errors (the ones matching "[ant:checkstyle] [ERROR]", resolve the actual cause
-
-    After applying fixes, re-run checkstyle immediately without asking — repeat until clean.
-
     ## Bitbucket ticket workflow
 
     When the user supplies a Bitbucket ticket URL:
@@ -400,7 +374,7 @@ function claude() {
     2. Derive a branch name: <ticket-id>_<description> where description is max 15 chars, lowercase, words separated by underscores, summarising the ticket and users request
     3. Check if a worktree for that branch already exists (via "git worktree list") — if so, switch into it and skip creation
     4. Otherwise create a git worktree at "../<current-dir-name>-<branch-name>" on a new branch with that name (e.g. if cwd is /dev/myrepo, worktree goes to /dev/myrepo-PROJ-123_fix_login)
-    5. Do ALL subsequent work (edits, commits, tests, checkstyle) inside that worktree — never touch the original working tree
+    5. Do ALL subsequent work (edits, commits) inside that worktree — never touch the original working tree
     '
 
     command "$HOME/.local/bin/claude" --append-system-prompt "Always follow this rule: $prompt" "$@"
