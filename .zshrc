@@ -309,6 +309,10 @@ function gitwr() {
   git worktree remove "$target"
 }
 
+function gitwl() {
+    git worktree list
+}
+
 function git-list-changes() {
     "$CFGS/zsh/git-list-changes.rb" $@
 }
