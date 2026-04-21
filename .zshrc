@@ -321,6 +321,44 @@ function git-review-reply() {
     "$CFGS/zsh/git-review-reply.rb" $@
 }
 
+function xtest() {
+    local tests
+    tests=$(git diff --name-only --diff-filter=AM master...HEAD -- '*Test.java' '*Spec.java')
+
+    if [[ -z "$tests" ]]; then
+        echo "No changed test files found."
+        return 0
+    fi
+
+    local test_args=()
+    while IFS= read -r f; do
+        local class
+        class=$(echo "$f" | sed 's|.*/java/||; s|/|.|g; s|\.java$||')
+        test_args+=("--tests" "$class")
+    done <<< "$tests"
+
+    echo "Running tests..."
+    local errors
+    errors=$(./gradlew test "${test_args[@]}" --console=plain --quiet 2>&1 | \
+        grep -E -A5 -B2 'FAILED|Exception|Error|Caused by' | \
+        grep -vE 'org.gradle|java.base|sun.reflect')
+
+    if [[ -z "$errors" ]]; then
+        echo
+        echo "vvvvvvvvvvvvvvv"
+        echo "All tests passed!"
+        echo "^^^^^^^^^^^^^^^"
+        echo
+        return 0
+    fi
+
+    claude "Fix these test errors in the project files
+
+  once fixed, push the changes to git upstream
+
+  $errors"
+}
+
 function check() {
   echo "Running checkstyle..."
   local _check="[ERROR]"
