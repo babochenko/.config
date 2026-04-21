@@ -351,6 +351,8 @@ function check() {
 
   use intellij mcp as much as possible
 
+  once fixed, push the changes to git upstream
+
   $errors"
 }
 
