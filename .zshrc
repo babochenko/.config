@@ -189,7 +189,7 @@ function gitmm() {
 }
 
 function gitmc() {
-  git merge --continue
+  git merge --continue --no-edit
 }
 
 function gitrc() {
