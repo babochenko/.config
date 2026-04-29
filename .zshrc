@@ -158,11 +158,15 @@ function __p() {
 compdef __p p
 
 function gitc() {
-    local commit="$@"
-    local branch=$(_git_ticket)
-    local commit_msg="${branch:+$branch }$commit"
+    if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+        git commit --no-edit
+    else
+        local commit="$@"
+        local branch=$(_git_ticket)
+        local commit_msg="${branch:+$branch }$commit"
 
-    git commit -m "$commit_msg"
+        git commit -m "$commit_msg"
+    fi
 }
 
 function gitcc() {
@@ -186,10 +190,6 @@ function master() {
 
 function gitmm() {
     git fetch && git merge --no-edit origin/$(master) && git push
-}
-
-function gitmc() {
-  git merge --continue --no-edit
 }
 
 function gitrc() {
@@ -316,6 +316,8 @@ function gitwl() {
 function git-list-changes() {
     "$CFGS/zsh/git-list-changes.rb" $@
 }
+
+alias gitlc='git-list-changes'
 
 function git-review-reply() {
     "$CFGS/zsh/git-review-reply.rb" $@
