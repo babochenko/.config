@@ -193,6 +193,7 @@ function gitmm() {
 }
 
 function gitrc() {
+  git add .
   git rebase --continue
 }
 
