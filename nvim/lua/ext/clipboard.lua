@@ -1,10 +1,3 @@
-local telescope = require('telescope')
-local pickers = require('telescope.pickers')
-local finders = require('telescope.finders')
-local conf = require('telescope.config').values
-local actions = require('telescope.actions')
-local action_state = require('telescope.actions.state')
-
 local function get_clipboard_file()
   local env_path = os.getenv('NVIM_CLIPBOARD_HISTORY')
   if env_path then
@@ -140,6 +133,12 @@ local function copy_to_clipboard(text)
 end
 
 local function show_clipboard_history()
+  local pickers = require('telescope.pickers')
+  local finders = require('telescope.finders')
+  local conf = require('telescope.config').values
+  local actions = require('telescope.actions')
+  local action_state = require('telescope.actions.state')
+
   local history = read_clipboard_history()
 
   if #history == 0 then
