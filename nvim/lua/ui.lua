@@ -9,31 +9,29 @@ vim.diagnostic.config({
   float = { border = "rounded" }, -- Customize floating windows
 })
 
-require('telescope').setup {
-  defaults = {
-    previewer = true, -- Globally enable the previewer
-    borderchars = { '─', '│', '─', '│', '╭', '╮', '╯', '╰' }, -- Customize border style
-    win_options = {
-      winblend = 10, -- Add transparency if desired
-    },
-    border = true, -- Enable the border
-    layout_strategy = 'horizontal',
-    layout_config = {
-      horizontal = {
-        prompt_position = 'top',
-        preview_width = 0.5,
-        results_width = 0.8,
+vim.api.nvim_create_autocmd("User", {
+  pattern = "VeryLazy",
+  once = true,
+  callback = function()
+    require('telescope').setup {
+      defaults = {
+        previewer = true,
+        borderchars = { '─', '│', '─', '│', '╭', '╮', '╯', '╰' },
+        win_options = { winblend = 10 },
+        border = true,
+        layout_strategy = 'horizontal',
+        layout_config = {
+          horizontal = { prompt_position = 'top', preview_width = 0.5, results_width = 0.8 },
+          vertical = { mirror = false },
+          width = 0.87,
+          height = 0.80,
+          preview_cutoff = 120,
+        },
+        sorting_strategy = 'ascending',
       },
-      vertical = {
-        mirror = false,
-      },
-      width = 0.87,
-      height = 0.80,
-      preview_cutoff = 120,
-    },
-    sorting_strategy = 'ascending',
-  },
-}
+    }
+  end,
+})
 
 require('lualine').setup {
   options = {

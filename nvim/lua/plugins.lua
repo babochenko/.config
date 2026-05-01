@@ -65,11 +65,11 @@ end
 EnsureLazy().setup({
   { 'mfussenegger/nvim-jdtls' },
 
-  { 'tpope/vim-fugitive', lazy = false, },
+  { 'tpope/vim-fugitive', cmd = { 'Git', 'G', 'Gdiffsplit', 'Gread', 'Gwrite', 'GMove', 'GDelete', 'GBrowse' } },
 
   { 'sindrets/diffview.nvim',
     dependencies = { 'nvim-lua/plenary.nvim' },
-    lazy = false,
+    cmd = { 'DiffviewOpen', 'DiffviewClose', 'DiffviewToggleFiles', 'DiffviewFocusFiles', 'DiffviewFileHistory' },
     config = true,
     opts = {
       view = {
@@ -100,6 +100,7 @@ EnsureLazy().setup({
   { 'nvim-telescope/telescope.nvim' },
 
   { 'nvim-tree/nvim-tree.lua',
+    cmd = { 'NvimTreeToggle', 'NvimTreeOpen', 'NvimTreeFocus', 'NvimTreeFindFile' },
     dependencies = { 'nvim-tree/nvim-web-devicons' },
     config = function()
       require('nvim-tree').setup({
@@ -128,6 +129,7 @@ EnsureLazy().setup({
   },
 
   { 'akinsho/bufferline.nvim',
+    event = "VeryLazy",
     version = "*",
     dependencies = 'nvim-tree/nvim-web-devicons',
     config = function()
@@ -163,6 +165,7 @@ EnsureLazy().setup({
   },
 
   { 'hrsh7th/nvim-cmp',
+    event = "InsertEnter",
     dependencies = {
       'hrsh7th/cmp-nvim-lsp',
       'hrsh7th/cmp-buffer',
@@ -298,6 +301,7 @@ EnsureLazy().setup({
   },
 
   { "simrat39/rust-tools.nvim",
+    ft = "rust",
     dependencies = { "neovim/nvim-lspconfig" },
     config = function()
       require("rust-tools").setup({})
@@ -305,6 +309,7 @@ EnsureLazy().setup({
   },
 
   { 'lewis6991/gitsigns.nvim',
+    event = "VeryLazy",
     config = function()
       require('gitsigns').setup()
     end,
@@ -387,6 +392,7 @@ EnsureLazy().setup({
   },
 
   { 'nvim-treesitter/nvim-treesitter',
+    event = "BufReadPost",
   	opts = {
   		ensure_installed = {
             'css',

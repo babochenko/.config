@@ -1,7 +1,5 @@
 if #vim.api.nvim_list_uis() == 0 then return end
 
-local TREE = require('nvim-tree.api')
-
 local function autocmd(name, opts)
   vim.api.nvim_create_autocmd(name, opts)
 end
