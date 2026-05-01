@@ -10,10 +10,8 @@ export PATH="$PATH:$HOME/.local/bin"
 export PATH="$PATH:$HOME/.cargo/bin"
 
 export PYENV_ROOT="$HOME/.pyenv"
-[[ -d "$PYENV_ROOT/bin" ]] && {
-    export PATH="$PATH:$PYENV_ROOT/bin"
-    eval "$(pyenv init - zsh)"
-}
+[[ -d "$PYENV_ROOT/bin" ]] && export PATH="$PATH:$PYENV_ROOT/bin"
+pyenv() { unfunction pyenv; eval "$(command pyenv init - zsh)"; pyenv "$@"; }
 
 local ghcup="$HOME/.ghcup/env"
 [[ -f "$ghcup" ]] && {
@@ -30,7 +28,8 @@ function venv() {
 
 # fuzzy, case-insensitive autocomplete
 zstyle ':completion:*' matcher-list '' 'm:{a-zA-Z}={A-Za-z}' 'r:|=*' 'l:|=* r:|=*'
-autoload -Uz compinit && compinit
+autoload -Uz compinit
+if [[ -n ~/.zcompdump(#qN.mh+24) ]]; then compinit; else compinit -C; fi
 
 function _git_branch() {
     git symbolic-ref --short HEAD 2>/dev/null
@@ -76,8 +75,30 @@ function git_prompt() {
   echo "$out"
 }
 
+typeset -g _git_prompt_cache=""
+typeset -g _git_prompt_fd=""
+
+function _async_git_callback() {
+  local fd=$1
+  IFS= read -r -u $fd _git_prompt_cache
+  zle -F $fd 2>/dev/null; exec {fd}<&- 2>/dev/null
+  _git_prompt_fd=""
+  zle && zle reset-prompt
+}
+
+function _async_git_update() {
+  if [[ -n $_git_prompt_fd ]]; then
+    zle -F $_git_prompt_fd 2>/dev/null
+    exec {_git_prompt_fd}<&- 2>/dev/null
+    _git_prompt_fd=""
+  fi
+  exec {_git_prompt_fd}< <(git_prompt 2>/dev/null; echo)
+  zle -F $_git_prompt_fd _async_git_callback
+}
+
 setopt prompt_subst
-PROMPT='| %~ $(git_prompt) %# '
+precmd_functions+=(_async_git_update)
+PROMPT='| %~ ${_git_prompt_cache} %# '
 
 function _git_ticket() {
     _git_branch | grep -E '[-_]' | sed -E 's/^([^_-]+)[_-]([^_-]+).*/\1-\2/'
