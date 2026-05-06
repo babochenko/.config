@@ -43,7 +43,7 @@ local general_helpers = {
   map('n', '<leader>tm', Sys.toggle_mouse, { silent = true, desc = 'toggle mouse' }),
   map('n', ';', ':', { desc = 'command mode' }),
   map('n', '<Esc>', '<cmd>noh<CR>', { desc = 'general clear highlights' }),
-  map('n', '<leader>db', ':DBUI<CR>', { desc = 'open database ui' }),
+  map('n', '<leader>db', function() require('dbee').toggle() end, { desc = 'toggle database ui' }),
   map('n', '<leader>dc', Db.open_config_file, { desc = 'open database config' }),
   map('n', '<leader>fo', ":!open -R %:p:h<CR>", { desc = 'Open this in file manager' }),
   map('n', '<leader>fO', ":!open .<CR>", { desc = 'Open current dir in file manager' }),

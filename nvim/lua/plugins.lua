@@ -356,19 +356,31 @@ EnsureLazy().setup({
     end,
   },
 
-  { 'kristijanhusak/vim-dadbod-ui',
-    dependencies = {
-      { 'tpope/vim-dadbod', lazy = true },
-      { 'kristijanhusak/vim-dadbod-completion', ft = { 'sql', 'mysql', 'plsql' }, lazy = true },
-    },
-    cmd = {
-      'DBUI',
-      'DBUIToggle',
-      'DBUIAddConnection',
-      'DBUIFindBuffer',
-    },
-    init = function()
-      vim.g.db_ui_use_nerd_fonts = 1
+  { 'kndndrj/nvim-dbee',
+    dependencies = { 'MunifTanjim/nui.nvim' },
+    build = function()
+      local install = require('dbee.install')
+      local uname = vim.loop.os_uname()
+      local os_aliases = { Darwin = "darwin", Linux = "linux" }
+      local arch_aliases = { arm64 = "arm64", aarch64 = "arm64", x86_64 = "amd64" }
+      local osys = os_aliases[uname.sysname] or uname.sysname:lower()
+      local arch = arch_aliases[uname.machine] or uname.machine
+      local manifest = require('dbee.install.__manifest')
+      local url = manifest.urls[osys .. "/" .. arch]
+      if not url then
+        vim.notify("[dbee] no prebuilt binary for " .. osys .. "/" .. arch, vim.log.levels.ERROR)
+        return
+      end
+      local bin_dir = install.dir()
+      local archive = vim.fn.stdpath("cache") .. "/dbee_install.tar.gz"
+      vim.fn.mkdir(bin_dir, "p")
+      vim.fn.system({ "curl", "-sfLo", archive, url })
+      vim.fn.system({ "tar", "-xzf", archive, "-C", bin_dir })
+      vim.fn.system({ "chmod", "+x", install.bin() })
+    end,
+    lazy = true,
+    config = function()
+      require('dbee').setup()
     end,
   },
 
