@@ -66,6 +66,14 @@ snip.add_snippets("python", {
 local function sql_snippets()
   local snippets = {
       s('1d', t({ "and created_date > now() - interval '1 day'" })),
+      s('list', t_multiline([[
+        SELECT table_schema, table_name 
+        FROM information_schema.tables 
+        WHERE 
+            table_schema NOT IN ('information_schema', 'pg_catalog') 
+            AND table_type = 'BASE TABLE'
+        ORDER BY table_schema, table_name;
+      ]])),
       s('json', t_multiline([[
         SELECT json_agg(t) AS data
         FROM (
