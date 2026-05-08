@@ -190,6 +190,10 @@ function gitc() {
     fi
 }
 
+function gitcl() {
+    git clean -fd
+}
+
 function gitcc() {
     git add .
     gitc $@
