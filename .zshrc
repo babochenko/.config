@@ -343,7 +343,7 @@ function git-list-changes() {
     "$CFGS/zsh/git-list-changes.rb" $@
 }
 
-alias gitlc='git-list-changes'
+alias glc='git-list-changes'
 
 function git-review-reply() {
     "$CFGS/zsh/git-review-reply.rb" $@
