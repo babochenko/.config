@@ -392,10 +392,28 @@ function check() {
   local _check="[ERROR]"
   local _spot=".java:[line"
   local start=$SECONDS
-  local errors=$(./gradlew --offline --parallel --build-cache \
-      checkstyleMain checkstyleTest checkstyleTestData checkstyleTestFunctional \
-      spotbugsMain spotbugsTest spotbugsTestData spotbugsTestFunctional \
-      2>&1 | grep -F -e "${_check}" -e "${_spot}")
+
+  local tmpdir
+  tmpdir=$(mktemp -d)
+
+  local groups=(
+    "checkstyleMain checkstyleTest checkstyleTestData checkstyleTestFunctional"
+    "spotbugsMain spotbugsTest spotbugsTestData spotbugsTestFunctional"
+  )
+
+  local pids=() i=0
+  for tasks in "${groups[@]}"; do
+    ./gradlew --offline --parallel --build-cache ${=tasks} \
+        < /dev/null > "$tmpdir/$i.log" 2>&1 &
+    pids+=($!)
+    ((i++))
+  done
+
+  for pid in "${pids[@]}"; do wait "$pid"; done
+
+  local errors
+  errors=$(cat "$tmpdir"/*.log | grep -F -e "${_check}" -e "${_spot}")
+  rm -rf "$tmpdir"
   local elapsed=$((SECONDS - start))
 
   if [[ -z "$errors" ]]; then
