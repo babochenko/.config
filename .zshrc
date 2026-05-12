@@ -206,7 +206,7 @@ function gitp() {
 
 function gitpp() {
     gitcc $@
-    git push
+    git push && "$CFGS/zsh/git-pr-link.rb"
 }
 
 function master() {
