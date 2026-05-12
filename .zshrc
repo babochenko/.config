@@ -391,12 +391,17 @@ function check() {
   echo "Running checkstyle..."
   local _check="[ERROR]"
   local _spot=".java:[line"
-  local errors=$(./gradlew check -x test -x testFunctional 2>&1 | grep -F -e "${_check}" -e "${_spot}")
+  local start=$SECONDS
+  local errors=$(./gradlew --offline --parallel --build-cache \
+      checkstyleMain checkstyleTest checkstyleTestData checkstyleTestFunctional \
+      spotbugsMain spotbugsTest spotbugsTestData spotbugsTestFunctional \
+      2>&1 | grep -F -e "${_check}" -e "${_spot}")
+  local elapsed=$((SECONDS - start))
 
   if [[ -z "$errors" ]]; then
     echo
     echo vvvvvvvvvvvvvvv
-    echo "All checks passed!"
+    echo "All checks passed! (${elapsed}s)"
     echo ^^^^^^^^^^^^^^^
     echo
     return 0
@@ -404,7 +409,7 @@ function check() {
 
   echo
   echo ---------------
-  echo "Checkstyle violations:"
+  echo "Checkstyle violations (took ${elapsed}s):"
   echo "$errors"
   echo ---------------
   echo
