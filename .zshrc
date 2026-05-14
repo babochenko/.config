@@ -191,6 +191,8 @@ function gitc() {
 }
 
 function gitcl() {
+    git restore --staged .
+    git restore .
     git clean -fd
 }
 
