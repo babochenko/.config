@@ -28,6 +28,7 @@ require 'plugins'
 require 'autocmd'
 require 'ui'
 require 'ext/mymath'
+require 'ext/mysnips'
 
 require('ext/coderunner').setup_autocmds()
 require('ext/clipboard').setup_autocmds()

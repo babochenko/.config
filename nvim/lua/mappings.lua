@@ -4,6 +4,7 @@ local BUFLINE = require 'bufferline'
 local KEYS = require 'which-key'
 
 local Math = require 'ext/mymath'
+local Snips = require 'ext/mysnips'
 local Find = require 'ext/find'
 local Buf = require 'ext/buffers'
 local Code = require 'ext/code'
@@ -34,6 +35,8 @@ local nvim_defaults = {
 local math = {
   map('v', '<leader>e', Math.eval, { desc = 'Eval math expr' }),
   map('n', '<leader>e', Math.eval_current_line, { desc = 'Eval math expr on current line' }),
+  map('n', '<leader>ct', Snips.parse_date_cursor, { desc = 'Parse timestamp under cursor' }),
+  map('v', '<leader>ct', Snips.parse_date_visual, { desc = 'Parse timestamp from selection' }),
 }
 
 local general_helpers = {
