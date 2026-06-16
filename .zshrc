@@ -4,6 +4,7 @@ bindkey -v
 
 alias ll='ls -la'
 alias tac='tail -r'
+alias t='tree'
 
 export PATH="$PATH:$HOME/files/nvim/bin"
 export PATH="$PATH:$HOME/.local/bin"
