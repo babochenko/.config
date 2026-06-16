@@ -344,6 +344,14 @@ function gitwt() {
   cd "$target"
 }
 
+function are-you-sure() {
+  local prompt="${1:-Are you sure?}"
+  read -q "REPLY?${prompt} [y/N] "
+  local ans=$?
+  echo
+  return $ans
+}
+
 function gitwr() {
   local main_worktree
   main_worktree=$(git worktree list 2>/dev/null | awk 'NR==1{print $1}')
@@ -394,6 +402,26 @@ function gitwr() {
   fi
 
   git worktree remove "$target"
+}
+
+# Remove every worktree of this repo except the main one.
+function gitwra() {
+  are-you-sure "Remove ALL worktrees of this repo?" || return 1
+
+  local main_worktree
+  main_worktree=$(git worktree list 2>/dev/null | awk 'NR==1{print $1}')
+
+  if [[ -z "$main_worktree" ]]; then
+    echo "Not inside a git repository"
+    return 1
+  fi
+
+  cd "$main_worktree"
+
+  local wt
+  git worktree list | awk 'NR>1{print $1}' | while IFS= read -r wt; do
+    git worktree remove "$wt" && echo "removed $wt"
+  done
 }
 
 function gitwl() {
