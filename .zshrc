@@ -2,6 +2,10 @@ export EDITOR=vim
 set -o vi
 bindkey -v
 
+local CONFIG=${${(%):-%N}:A:h}
+
+source "$CONFIG/zsh/prompt.zsh"
+
 alias ll='ls -la'
 alias tac='tail -r'
 alias t='tree'
@@ -26,80 +30,9 @@ export VIRTUAL_ENV="$HOME/Developer/.venv"
 function venv() {
   source "${VIRTUAL_ENV}/bin/activate"
 }
-
-# fuzzy, case-insensitive autocomplete
-zstyle ':completion:*' matcher-list '' 'm:{a-zA-Z}={A-Za-z}' 'r:|=*' 'l:|=* r:|=*'
-autoload -Uz compinit
-if [[ -n ~/.zcompdump(#qN.mh+24) ]]; then compinit; else compinit -C; fi
-
 function _git_branch() {
     git symbolic-ref --short HEAD 2>/dev/null
 }
-
-function git_prompt() {
-  git rev-parse --is-inside-work-tree &>/dev/null || return
-
-  local git_status
-  git_status=$(git status --porcelain=v1 --branch 2>/dev/null)
-
-  local branch ahead=0 behind=0
-  local staged=0 modified=0 deleted=0 untracked=0
-
-  while IFS= read -r line; do
-    case "$line" in
-      "## "*)
-        branch=${line#\#\# }
-        if [[ $line =~ ahead\ ([0-9]+) ]]; then
-          ahead=${match[1]}
-        fi
-        if [[ $line =~ behind\ ([0-9]+) ]]; then
-          behind=${match[1]}
-        fi
-        branch=${branch%%...*}
-        ;;
-      \?\?*) ((untracked++)) ;;
-      *)
-        [[ ${line:0:1} != " " && ${line:0:1} != "?" ]] && ((staged++))
-        [[ ${line:1:1} != " " ]] && ((modified++))
-        ;;
-    esac
-  done <<< "$git_status"
-
-  local out="(git %F{green}$branch%f"
-  [[ $ahead -gt 0 ]]     && out+=" %F{green}↑$ahead%f"
-  [[ $behind -gt 0 ]]    && out+=" %F{red}↓$behind%f"
-  [[ $staged -gt 0 ]]    && out+=" %F{green}+$staged%f"
-  [[ $modified -gt 0 ]]  && out+=" %F{yellow}~$modified%f"
-  [[ $untracked -gt 0 ]] && out+=" %F{cyan}?$untracked%f"
-  out+=")"
-
-  echo "$out"
-}
-
-typeset -g _git_prompt_cache=""
-typeset -g _git_prompt_fd=""
-
-function _async_git_callback() {
-  local fd=$1
-  IFS= read -r -u $fd _git_prompt_cache
-  zle -F $fd 2>/dev/null; exec {fd}<&- 2>/dev/null
-  _git_prompt_fd=""
-  zle && zle reset-prompt
-}
-
-function _async_git_update() {
-  if [[ -n $_git_prompt_fd ]]; then
-    zle -F $_git_prompt_fd 2>/dev/null
-    exec {_git_prompt_fd}<&- 2>/dev/null
-    _git_prompt_fd=""
-  fi
-  exec {_git_prompt_fd}< <(git_prompt 2>/dev/null; echo)
-  zle -F $_git_prompt_fd _async_git_callback
-}
-
-setopt prompt_subst
-precmd_functions+=(_async_git_update)
-PROMPT='| %~ ${_git_prompt_cache} %# '
 
 function _git_ticket() {
     _git_branch | grep -E '[-_]' | sed -E 's/^([^_-]+)[_-]([^_-]+).*/\1-\2/'
@@ -167,64 +100,8 @@ function p() {
     fi
 }
 
-# Insert a \x01 marker before every word boundary of a string (start, after a
-# -_/. or space separator, or a camelCase hump) and lowercase the result, so a
-# query char anchored to a marker only matches at a segment start.
-function __fuzzy_mark() {
-  local s="$1" ch prev="" out="" i
-  for (( i=1; i<=${#s}; i++ )); do
-    ch="${s[i]}"
-    if [[ -z "$prev" || "$prev" == [-_/.\ ] || ( "$ch" == [A-Z] && "$prev" == [a-z0-9] ) ]]; then
-      out+=$'\x01'"$ch"
-    else
-      out+="$ch"
-    fi
-    prev="$ch"
-  done
-  REPLY="${(L)out}"
-}
 
-# Boundary-aware fuzzy completion, ranked in three tiers:
-#   1. literal prefix     - candidate starts with the typed query ("pr" -> "project")
-#   2. start-anchored     - first typed letter is at the candidate's very start,
-#                           remaining letters at later word boundaries
-#                           ("pm" -> "project-main")
-#   3. any-boundary       - first letter at any word boundary, deeper in the name
-# Each typed letter must begin matching at a word boundary, so "no" never matches
-# "eventstore". Non-alphanumeric query chars are ignored.
-function __fuzzy_compadd() {
-  local query="${(L)PREFIX//[^a-zA-Z0-9]/}"
-  if [[ -z "$query" ]]; then
-    compadd -- "$@"
-    return
-  fi
-  local -a chars=(${(s::)query})
-  local body="${(j:.*:)chars}"               # q0 .* q1 .* q2 ...
-  local re_any=$'\x01'"$body"                # first letter at any boundary
-  local re_anchor='^'$'\x01'"$body"          # first letter at the very start
-  local -a prefixed anchored others
-  local cand REPLY
-  for cand in "$@"; do
-    if [[ "${(L)cand}" == "$query"* ]]; then
-      prefixed+=("$cand")
-      continue
-    fi
-    __fuzzy_mark "$cand"
-    if [[ "$REPLY" =~ $re_anchor ]]; then
-      anchored+=("$cand")
-    elif [[ "$REPLY" =~ $re_any ]]; then
-      others+=("$cand")
-    fi
-  done
-  local -a matches=("${prefixed[@]}" "${anchored[@]}" "${others[@]}")
-  (( ${#matches} )) || return
-  # Matches need not share the typed prefix, so force menu insertion instead of
-  # the (possibly empty) longest-common-prefix that -U would otherwise insert.
-  compstate[insert]=menu
-  # -V names an unsorted group so compadd keeps our order (literal-prefix
-  # matches first, fuzzy after) instead of re-sorting alphabetically.
-  compadd -U -Q -V fuzzy -- "${matches[@]}"
-}
+source "$CONFIG/zsh/completions.zsh"
 
 function __v() {
   __fuzzy_compadd config .zshrc nvim $(ls $HOME/Developer/)
