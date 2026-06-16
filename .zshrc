@@ -317,6 +317,10 @@ function git-review-reply() {
     "$CFGS/zsh/git-review-reply.rb" $@
 }
 
+function gitprs() {
+    "$CFGS/zsh/git-prs.rb" $@
+}
+
 function xtest() {
     local tests
     tests=$(git diff --name-only --diff-filter=AM master...HEAD -- '*Test.java' '*Spec.java')

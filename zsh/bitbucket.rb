@@ -65,6 +65,61 @@ def find_open_pr_for_branch(branch)
   end
 end
 
+def fetch_my_prs(states = %w[OPEN MERGED DECLINED])
+  user = ENV['X_BITBUCKET_USER']
+  pass = ENV['X_BITBUCKET_PW']
+  workspace = ENV['X_BITBUCKET_REPOSITORY']
+  selected_user = ENV['X_BITBUCKET_UUID'] || user
+  return nil unless user && pass && workspace && selected_user
+
+  fields = 'values.id,values.title,values.state,values.created_on,values.updated_on,' \
+           'values.author.nickname,values.links.html.href,' \
+           'values.destination.repository.full_name,next'
+  state_q = Array(states).map { |s| "state=#{s}" }.join('&')
+  url = "https://api.bitbucket.org/2.0/workspaces/#{workspace}/pullrequests/" \
+        "#{URI.encode_www_form_component(selected_user)}?#{state_q}&pagelen=50&fields=#{fields}"
+
+  prs = []
+
+  loop do
+    uri = URI(url)
+    req = Net::HTTP::Get.new(uri)
+    req.basic_auth(user, pass)
+    req['Accept'] = 'application/json'
+
+    res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true, read_timeout: 10) do |http|
+      http.request(req)
+    end
+
+    unless res.is_a?(Net::HTTPSuccess)
+      warn "Bitbucket API error #{res.code}: #{res.body}"
+      return nil
+    end
+
+    data = JSON.parse(res.body)
+    (data['values'] || []).each do |pr|
+      prs << {
+        id: pr['id'],
+        title: pr['title'],
+        state: pr['state'],
+        repo: pr.dig('destination', 'repository', 'full_name'),
+        created: pr['created_on'],
+        updated: pr['updated_on'],
+        url: pr.dig('links', 'html', 'href'),
+        ticket: pr['title'] && pr['title'][/[A-Z]+-[0-9]+/]
+      }
+    end
+
+    break unless data['next']
+    url = data['next']
+  end
+
+  prs
+rescue StandardError => e
+  warn "fetch_my_prs failed: #{e.message}"
+  nil
+end
+
 def group_pr_comments(comments)
   inline, general = comments.partition { |c| c[:file] }
 
