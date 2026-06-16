@@ -57,16 +57,3 @@ function __fuzzy_compadd() {
   compadd -U -Q -V fuzzy -- "${matches[@]}"
 }
 
-function _comp() {
-  local cmd=$1
-  shift
-
-  eval "
-  _${cmd}_complete() {
-    __fuzzy_compadd \$@
-  }
-
-  compdef _${cmd}_complete ${cmd}
-  "
-}
-
