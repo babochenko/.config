@@ -442,7 +442,9 @@ function claude() {
     4. Do ALL subsequent work (edits, commits) inside that worktree — never touch the original project dir
     '
 
-    command "$HOME/.local/bin/claude" --append-system-prompt "Always follow this rule: $prompt" "$@"
+    command "$HOME/.local/bin/claude" \
+        --permission-mode auto \
+        --append-system-prompt "Always follow this rule: $prompt" "$@"
 }
 
 alias c='claude'
