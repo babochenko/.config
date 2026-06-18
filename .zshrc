@@ -82,6 +82,10 @@ function v() {
         _vd "$HOME/.config/"
     elif [[ "$file" == "nvim" ]]; then
         _vd "$HOME/.config/nvim/"
+    elif [[ "$file" == "Developer" ]]; then
+        _vd "$HOME/Developer/"
+    elif [[ "$file" == "Downloads" ]]; then
+        _vd "$HOME/Downloads/"
     elif [[ -n "$file" ]]; then
         _vd "$HOME/Developer/$file"
     else
@@ -95,6 +99,10 @@ function p() {
         cd "$HOME/.config/nvim/"
     elif [[ "$file" == "config" ]]; then
         cd "$HOME/.config/"
+    elif [[ "$file" == "Developer" ]]; then
+        cd "$HOME/Developer/"
+    elif [[ "$file" == "Downloads" ]]; then
+        cd "$HOME/Downloads/"
     else
         cd "$HOME/Developer/$file"
     fi
@@ -104,13 +112,13 @@ function p() {
 source "$CONFIG/zsh/completions.zsh"
 
 function __v() {
-  __fuzzy_compadd config .zshrc nvim $(ls $HOME/Developer/)
+  __fuzzy_compadd config .zshrc nvim Developer Downloads $(ls $HOME/Developer/)
 }
 
 compdef __v v
 
 function __p() {
-  __fuzzy_compadd config nvim $(ls $HOME/Developer/)
+  __fuzzy_compadd config nvim Developer Downloads $(ls $HOME/Developer/)
 }
 
 compdef __p p
