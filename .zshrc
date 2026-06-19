@@ -418,6 +418,7 @@ function m() {
 function claude() {
     local prompt='
     - never squash git commits
+    - when .md files in current directory, read them for context when prompted to do work on the project
 
     ## Java 
 
