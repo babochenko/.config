@@ -66,6 +66,8 @@ function gh() {
   fi
 }
 
+alias o=open
+
 function v() {
     # vd - vim open dir
     function _vd() {
