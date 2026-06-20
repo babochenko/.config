@@ -106,7 +106,7 @@ function p() {
     elif [[ "$file" == "Downloads" ]]; then
         cd "$HOME/Downloads/"
     elif [[ "$file" == "Movies" ]]; then
-        _vd "$HOME/Movies/"
+        cd "$HOME/Movies/"
     else
         cd "$HOME/Developer/$file"
     fi
