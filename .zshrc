@@ -86,6 +86,8 @@ function v() {
         _vd "$HOME/Developer/"
     elif [[ "$file" == "Downloads" ]]; then
         _vd "$HOME/Downloads/"
+    elif [[ "$file" == "Movies" ]]; then
+        _vd "$HOME/Movies/"
     elif [[ -n "$file" ]]; then
         _vd "$HOME/Developer/$file"
     else
@@ -103,6 +105,8 @@ function p() {
         cd "$HOME/Developer/"
     elif [[ "$file" == "Downloads" ]]; then
         cd "$HOME/Downloads/"
+    elif [[ "$file" == "Movies" ]]; then
+        _vd "$HOME/Movies/"
     else
         cd "$HOME/Developer/$file"
     fi
@@ -112,13 +116,13 @@ function p() {
 source "$CONFIG/zsh/completions.zsh"
 
 function __v() {
-  __fuzzy_compadd config .zshrc nvim Developer Downloads $(ls $HOME/Developer/)
+  __fuzzy_compadd config .zshrc nvim Developer Downloads Movies $(ls $HOME/Developer/)
 }
 
 compdef __v v
 
 function __p() {
-  __fuzzy_compadd config nvim Developer Downloads $(ls $HOME/Developer/)
+  __fuzzy_compadd config nvim Developer Downloads Movies $(ls $HOME/Developer/)
 }
 
 compdef __p p
