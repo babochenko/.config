@@ -24,6 +24,13 @@ local ghcup="$HOME/.ghcup/env"
     . "$ghcup"
 }
 
+load_fireworks_key() {
+  if [[ -z "$FIREWORKS_CODING_API_KEY" ]]; then
+    export FIREWORKS_CODING_API_KEY="$(security find-generic-password -s "fireworks-coding-api-key" -w /Library/Keychains/System.keychain 2>/dev/null)" || return 1
+  fi
+}
+load_fireworks_key >/dev/null 2>&1
+
 export CFGS="$HOME/.config"
 export VIRTUAL_ENV="$HOME/Developer/.venv"
 
