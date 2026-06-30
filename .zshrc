@@ -31,6 +31,8 @@ load_fireworks_key() {
 }
 load_fireworks_key >/dev/null 2>&1
 
+alias oc='opencode'
+
 export CFGS="$HOME/.config"
 export VIRTUAL_ENV="$HOME/Developer/.venv"
 
