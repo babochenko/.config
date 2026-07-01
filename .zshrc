@@ -156,6 +156,10 @@ function gitcl() {
     git clean -fd
 }
 
+function gitcp() {
+    git cherry-pick $@
+}
+
 function gitcc() {
     git add .
     gitc $@
