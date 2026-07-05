@@ -100,7 +100,7 @@ function v() {
     elif [[ "$file" == "Movies" ]]; then
         _vd "$HOME/Movies/"
     elif [[ -n "$file" ]]; then
-        _vd "$HOME/Developer/$file"
+        _vd "$HOME/Developer/$file" || _vd "$file"
     else
         nvim
     fi
@@ -119,7 +119,7 @@ function p() {
     elif [[ "$file" == "Movies" ]]; then
         cd "$HOME/Movies/"
     else
-        cd "$HOME/Developer/$file"
+        cd "$HOME/Developer/$file" || cd "$file"
     fi
 }
 
@@ -127,17 +127,21 @@ function p() {
 source "$CONFIG/zsh/completions.zsh"
 
 function __v() {
-  # hardcoded completions first, then folders+files in the live cwd last
+  # three visually separated groups: shortcuts, ~/Developer projects, live cwd
   local -a here=( ${PWD}/*(N:t) )
-  __fuzzy_compadd config .zshrc nvim Developer Downloads Movies $(ls $HOME/Developer/) $here
+  __fuzzy_group shortcuts  "=== shortcuts ==="  config .zshrc nvim Developer Downloads Movies
+  __fuzzy_group developer  "\n=== ~/Developer ===" $(ls $HOME/Developer/)
+  __fuzzy_group cwd        "\n=== current dir ===" $here
 }
 
 compdef __v v
 
 function __p() {
-  # hardcoded completions first, then folders in the live cwd last
+  # three visually separated groups: shortcuts, ~/Developer projects, live cwd
   local -a here=( ${PWD}/*(/N:t) )
-  __fuzzy_compadd config nvim Developer Downloads Movies $(ls $HOME/Developer/) $here
+  __fuzzy_group shortcuts  "=== shortcuts ==="  config nvim Developer Downloads Movies
+  __fuzzy_group developer  "\n=== ~/Developer ===" $(ls $HOME/Developer/)
+  __fuzzy_group cwd        "\n=== current dir ===" $here
 }
 
 compdef __p p

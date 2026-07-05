@@ -23,10 +23,14 @@ function __fuzzy_mark() {
 #   3. any-boundary       - first letter at any word boundary, deeper in the name
 # Each typed letter must begin matching at a word boundary, so "no" never matches
 # "eventstore". Non-alphanumeric query chars are ignored.
-function __fuzzy_compadd() {
+# Rank the given candidates against the current PREFIX and leave the ordered
+# matches in the global array `reply` (literal-prefix, then start-anchored, then
+# any-boundary). Empty query keeps every candidate in the given order.
+function __fuzzy_rank() {
+  reply=()
   local query="${(L)PREFIX//[^a-zA-Z0-9]/}"
   if [[ -z "$query" ]]; then
-    compadd -- "$@"
+    reply=("$@")
     return
   fi
   local -a chars=(${(s::)query})
@@ -47,13 +51,32 @@ function __fuzzy_compadd() {
       others+=("$cand")
     fi
   done
-  local -a matches=("${prefixed[@]}" "${anchored[@]}" "${others[@]}")
-  (( ${#matches} )) || return
+  reply=("${prefixed[@]}" "${anchored[@]}" "${others[@]}")
+}
+
+function __fuzzy_compadd() {
+  local -a reply
+  __fuzzy_rank "$@"
+  (( ${#reply} )) || return
   # Matches need not share the typed prefix, so force menu insertion instead of
   # the (possibly empty) longest-common-prefix that -U would otherwise insert.
   compstate[insert]=menu
   # -V names an unsorted group so compadd keeps our order (literal-prefix
   # matches first, fuzzy after) instead of re-sorting alphabetically.
-  compadd -U -Q -V fuzzy -- "${matches[@]}"
+  compadd -U -Q -V fuzzy -- "${reply[@]}"complet
+}
+
+# Fuzzy-filter one labelled section and add it as its own visually separated
+# group. Call once per section; sections display in call order, each under its
+# own header. Usage: __fuzzy_group <tag> <header> <candidate>...
+function __fuzzy_group() {
+  local tag="$1" header="$2"; shift 2
+  local -a reply
+  __fuzzy_rank "$@"
+  (( ${#reply} )) || return
+  compstate[insert]=menu
+  # -X gives the group a header line; -V keeps our order and separates it from
+  # the other groups. -Q since candidates are already quoted-literal.
+  compadd -U -Q -X "$header" -V "$tag" -- "${reply[@]}"
 }
 
