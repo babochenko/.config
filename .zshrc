@@ -127,13 +127,17 @@ function p() {
 source "$CONFIG/zsh/completions.zsh"
 
 function __v() {
-  __fuzzy_compadd config .zshrc nvim Developer Downloads Movies $(ls $HOME/Developer/)
+  # hardcoded completions first, then folders+files in the live cwd last
+  local -a here=( ${PWD}/*(N:t) )
+  __fuzzy_compadd config .zshrc nvim Developer Downloads Movies $(ls $HOME/Developer/) $here
 }
 
 compdef __v v
 
 function __p() {
-  __fuzzy_compadd config nvim Developer Downloads Movies $(ls $HOME/Developer/)
+  # hardcoded completions first, then folders in the live cwd last
+  local -a here=( ${PWD}/*(/N:t) )
+  __fuzzy_compadd config nvim Developer Downloads Movies $(ls $HOME/Developer/) $here
 }
 
 compdef __p p
