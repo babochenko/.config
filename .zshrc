@@ -130,8 +130,8 @@ function __v() {
   # three visually separated groups: shortcuts, ~/Developer projects, live cwd
   local -a here=( ${PWD}/*(N:t) )
   __fuzzy_group shortcuts  "=== shortcuts ==="  config .zshrc nvim Developer Downloads Movies
-  __fuzzy_group developer  "\n=== ~/Developer ===" $(ls $HOME/Developer/)
-  __fuzzy_group cwd        "\n=== current dir ===" $here
+  __fuzzy_group developer  $'\n=== ~/Developer ===' $(ls $HOME/Developer/)
+  __fuzzy_group cwd        $'\n=== current dir ===' $here
 }
 
 compdef __v v
@@ -140,8 +140,8 @@ function __p() {
   # three visually separated groups: shortcuts, ~/Developer projects, live cwd
   local -a here=( ${PWD}/*(/N:t) )
   __fuzzy_group shortcuts  "=== shortcuts ==="  config nvim Developer Downloads Movies
-  __fuzzy_group developer  "\n=== ~/Developer ===" $(ls $HOME/Developer/)
-  __fuzzy_group cwd        "\n=== current dir ===" $here
+  __fuzzy_group developer  $'\n=== ~/Developer ===' $(ls $HOME/Developer/)
+  __fuzzy_group cwd        $'\n=== current dir ===' $here
 }
 
 compdef __p p
