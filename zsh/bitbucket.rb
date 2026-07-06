@@ -2,11 +2,32 @@ require 'json'
 require 'net/http'
 require 'pathname'
 
+def warn_bitbucket_error(context)
+  return if @bitbucket_error
+
+  @bitbucket_error = context
+  warn "\e[31m#{context}\e[0m"
+end
+
+def bitbucket_error_message(res)
+  detail = begin
+    JSON.parse(res.body).dig('error', 'message')
+  rescue StandardError
+    nil
+  end
+  detail || (res.body && !res.body.empty? ? res.body.strip[0, 300] : res.message)
+end
+
 def fetch_pr(pr_num, hash, msg)
   user = ENV['X_BITBUCKET_USER']
   pass = ENV['X_BITBUCKET_PW']
   repo = ENV['X_BITBUCKET_REPOSITORY']
-  return nil unless user && pass && repo
+  unless user && pass && repo
+    missing = { 'X_BITBUCKET_USER' => user, 'X_BITBUCKET_PW' => pass, 'X_BITBUCKET_REPOSITORY' => repo }
+             .reject { |_, v| v && !v.empty? }.keys
+    warn_bitbucket_error("bitbucket: missing env #{missing.join(', ')}")
+    return nil
+  end
 
   dir = Pathname.pwd.basename.to_s
   uri = URI("https://api.bitbucket.org/2.0/repositories/#{repo}/#{dir}/pullrequests/#{pr_num}?fields=title,author.nickname,updated_on")
@@ -20,7 +41,10 @@ def fetch_pr(pr_num, hash, msg)
       http.request(req)
     end
 
-    return nil unless res.is_a?(Net::HTTPSuccess)
+    unless res.is_a?(Net::HTTPSuccess)
+      warn_bitbucket_error("bitbucket API #{res.code}: #{bitbucket_error_message(res)}")
+      return nil
+    end
 
     data = JSON.parse(res.body)
     title = data['title']
@@ -30,7 +54,8 @@ def fetch_pr(pr_num, hash, msg)
     pr_url = "https://bitbucket.org/#{repo}/#{dir}/pull-requests/#{pr_num}"
 
     { nickname: nickname, title: title, updated: updated, ticket: ticket, url: pr_url, hash: hash, msg: msg }
-  rescue StandardError
+  rescue StandardError => e
+    warn_bitbucket_error("bitbucket API error: #{e.message}")
     nil
   end
 end

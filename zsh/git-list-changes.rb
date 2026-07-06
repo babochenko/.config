@@ -38,6 +38,11 @@ def main
   modules = dir.empty? ? find_modules : [dir]
 
   modules.each { |mod| process_module(mod, from, to, cfg) }
+
+  return unless @bitbucket_error
+
+  warn "\n\e[31m>>>> PR enrichment failed, showed plain git log instead:\e[0m"
+  warn "\e[31m#{@bitbucket_error}\e[0m"
 end
 
 def main_branch
@@ -71,7 +76,11 @@ def process_module(mod, from, to, cfg)
     fetch_pr(match[1], hash, msg)
   end.compact
 
-  return if prs.empty?
+  if prs.empty?
+    puts "\n\e[33m>>>> #{mod}\e[0m" unless mod.empty?
+    puts git_log
+    return
+  end
 
   puts "\n\e[33m>>>> #{mod} (#{prs.size} PRs)\e[0m" unless mod.empty?
 
