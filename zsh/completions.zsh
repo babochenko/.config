@@ -76,7 +76,9 @@ function __fuzzy_group() {
   (( ${#reply} )) || return
   compstate[insert]=menu
   # -X gives the group a header line; -V keeps our order and separates it from
-  # the other groups. -Q since candidates are already quoted-literal.
-  compadd -U -Q -X "$header" -V "$tag" -- "${reply[@]}"
+  # the other groups. -Q since candidates are already quoted-literal. Wrap the
+  # header in a raw ANSI gray (bright-black) sequence so headers read as dim
+  # labels; the listing prints these escapes verbatim.
+  compadd -U -Q -X $'\e[90m'"$header"$'\e[0m' -V "$tag" -- "${reply[@]}"
 }
 
