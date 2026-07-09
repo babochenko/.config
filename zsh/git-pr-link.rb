@@ -13,13 +13,13 @@ def main
   dir = Pathname.pwd.basename.to_s
 
   if (pr = find_open_pr_for_branch(branch))
-    puts "PR: https://bitbucket.org/#{repo}/#{dir}/pull-requests/#{pr[:id]}"
+    puts "PR: \e[34mhttps://bitbucket.org/#{repo}/#{dir}/pull-requests/#{pr[:id]}\e[0m"
     return
   end
 
   dest = URI.encode_www_form_component("#{repo}/#{dir}::master")
   source = URI.encode_www_form_component(branch)
-  puts "Create PR: https://bitbucket.org/#{repo}/#{dir}/pull-requests/new?source=#{source}&dest=#{dest}&event_source=branch_detail"
+  puts "Create PR: \e[34mhttps://bitbucket.org/#{repo}/#{dir}/pull-requests/new?source=#{source}&dest=#{dest}&event_source=branch_detail\e[0m"
 end
 
 main if __FILE__ == $PROGRAM_NAME
