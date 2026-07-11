@@ -63,7 +63,7 @@ function __fuzzy_compadd() {
   compstate[insert]=menu
   # -V names an unsorted group so compadd keeps our order (literal-prefix
   # matches first, fuzzy after) instead of re-sorting alphabetically.
-  compadd -U -Q -V fuzzy -- "${reply[@]}"complet
+  compadd -U -Q -V fuzzy -- "${reply[@]}"
 }
 
 # Fuzzy-filter one labelled section and add it as its own visually separated
@@ -74,7 +74,11 @@ function __fuzzy_group() {
   local -a reply
   __fuzzy_rank "$@"
   (( ${#reply} )) || return
-  compstate[insert]=menu
+  # `unambiguous` inserts only a shared prefix (none for fuzzy matches), so the
+  # first TAB lists the options instead of completing the first one. `list force`
+  # guarantees the listing shows.
+  compstate[insert]=unambiguous
+  compstate[list]='list force'
   # -X gives the group a header line; -V keeps our order and separates it from
   # the other groups. -Q since candidates are already quoted-literal. Wrap the
   # header in a raw ANSI gray (bright-black) sequence so headers read as dim
