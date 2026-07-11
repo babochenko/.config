@@ -134,15 +134,9 @@ source "$CONFIG/zsh/completions.zsh"
 function __v() {
   # three visually separated groups: shortcuts, ~/Developer projects, live cwd
   local -a here=( ${PWD}/*(N:t) )
-<<<<<<< HEAD
-  __fuzzy_group shortcuts  "=== shortcuts ==="  config .zshrc nvim Developer Downloads Movies
-  __fuzzy_group developer  $'\n=== ~/Developer ===' $(ls $HOME/Developer/)
-  __fuzzy_group cwd        $'\n=== current dir ===' $here
-=======
   __fuzzy_group shortcuts  '=== shortcuts ==='       config .zshrc nvim Developer Downloads Movies
   __fuzzy_group developer  $'\n=== ~/Developer ==='  $(ls $HOME/Developer/)
   __fuzzy_group cwd        $'\n=== current dir ==='  $here
->>>>>>> 776c9bf (okokok)
 }
 
 compdef __v v
@@ -150,15 +144,9 @@ compdef __v v
 function __p() {
   # three visually separated groups: shortcuts, ~/Developer projects, live cwd
   local -a here=( ${PWD}/*(/N:t) )
-<<<<<<< HEAD
-  __fuzzy_group shortcuts  "=== shortcuts ==="  config nvim Developer Downloads Movies
-  __fuzzy_group developer  $'\n=== ~/Developer ===' $(ls $HOME/Developer/)
-  __fuzzy_group cwd        $'\n=== current dir ===' $here
-=======
   __fuzzy_group shortcuts  '=== shortcuts ==='       config nvim Developer Downloads Movies
   __fuzzy_group developer  $'\n=== ~/Developer ==='  $(ls $HOME/Developer/)
   __fuzzy_group cwd        $'\n=== current dir ==='  $here
->>>>>>> 776c9bf (okokok)
 }
 
 compdef __p p
