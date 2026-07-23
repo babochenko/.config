@@ -188,6 +188,9 @@ function gitpp() {
     git push && "$CFGS/zsh/git-pr-link.rb"
 }
 
+alias pp='gitpp'
+alias push='gitpp'
+
 function master() {
     git symbolic-ref --short refs/remotes/origin/HEAD | cut -d/ -f2
 }
