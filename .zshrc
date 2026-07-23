@@ -499,6 +499,8 @@ function claude() {
     3.1. Check if a worktree for that branch already exists (via "git worktree list") — if so, switch into it and skip creation. Otherwise:
     3.2. Run "git fetch origin" then create a git worktree at "../<current-dir-name>-<branch-name>" on a new branch based off origin/master: git worktree add -b <branch-name> <path> origin/master (e.g. if cwd is /dev/myrepo, worktree goes to /dev/myrepo-PROJ-123_fix_login)
     4. Do ALL subsequent work (edits, commits) inside that worktree — never touch the original project dir
+
+    IMPORTANT: NEVER (and I mean under NO CIRCUMSTANCE) run the "review" skill UNLESS EXPLICITLY PROMPTED BY THE USER!!!!
     '
 
     command "$HOME/.local/bin/claude" \
