@@ -74,10 +74,12 @@ function __fuzzy_group() {
   local -a reply
   __fuzzy_rank "$@"
   (( ${#reply} )) || return
-  # `unambiguous` inserts only a shared prefix (none for fuzzy matches), so the
-  # first TAB lists the options instead of completing the first one. `list force`
-  # guarantees the listing shows.
-  compstate[insert]=unambiguous
+  # Insert nothing on TAB: fuzzy matches share no common prefix, so an
+  # `unambiguous` insert would replace the typed word with the empty common
+  # prefix and wipe what was typed ("con" -> ""). Leaving insert empty keeps the
+  # buffer intact and just lists the options so it can be corrected by hand.
+  # `list force` guarantees the listing shows.
+  compstate[insert]=''
   compstate[list]='list force'
   # -X gives the group a header line; -V keeps our order and separates it from
   # the other groups. -Q since candidates are already quoted-literal. Wrap the
