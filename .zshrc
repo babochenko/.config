@@ -439,7 +439,8 @@ function check() {
   echo ---------------
   echo
 
-  opencode --prompt "Fix these Checkstyle violations in the project files. Each line is filepath:line_number: [severity] description. Read each file, apply the fix, and save the changes.
+  local model=$(opencode models 2>/dev/null | grep "glm" | head -1 | awk '{print $1}')
+  local prompt="Fix these Checkstyle violations in the project files. Each line is filepath:line_number: [severity] description. Read each file, apply the fix, and save the changes.
 
   For spotbugs errors (the ones matching '.java:[line'), ONLY STRICTLY resolve them by slapping the annotation @SuppressFBWarnings(...) from edu.umd.cs.findbugs.annotations.SuppressFBWarnings, on a faulty line(s)
 
@@ -450,6 +451,11 @@ function check() {
   once fixed, push the changes to git upstream
 
   $errors"
+  if [ -n "$model" ]; then
+    opencode run --model "$model" "$prompt"
+  else
+    opencode run "$prompt"
+  fi
 }
 
 function m() {
