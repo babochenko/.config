@@ -196,7 +196,17 @@ function master() {
 }
 
 function gitmm() {
-    git fetch && git merge --no-edit origin/$(master) && git push
+    git fetch && git merge --no-edit origin/$(master)
+    if [ $? -ne 0 ]; then
+        local model=$(opencode models 2>/dev/null | grep "glm" | head -1 | awk '{print $1}')
+        if [ -n "$model" ]; then
+            opencode run --model "$model" "resolve merge conflicts, make sure to maintain code style"
+        else
+            opencode run "resolve merge conflicts, make sure to maintain code style"
+        fi
+        git merge --continue
+    fi
+    git push
 }
 
 function gitrc() {
