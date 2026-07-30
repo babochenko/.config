@@ -448,13 +448,17 @@ function check() {
 
   use intellij mcp as much as possible
 
-  once fixed, push the changes to git upstream
-
   $errors"
   if [ -n "$model" ]; then
     opencode run --model "$model" "$prompt"
   else
     opencode run "$prompt"
+  fi
+
+  if [[ -n $(git status --porcelain) ]]; then
+    git add .
+    gitpp "check"
+    git push
   fi
 }
 
