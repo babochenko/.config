@@ -188,6 +188,7 @@ function gitpp() {
     git push && "$CFGS/zsh/git-pr-link.rb"
 }
 
+alias gg='git g'
 alias pp='gitpp'
 alias push='gitpp'
 
