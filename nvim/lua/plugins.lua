@@ -219,7 +219,6 @@ EnsureLazy().setup({
     event = { "BufReadPre", "BufNewFile" },
     config = function()
       local capabilities = require('cmp_nvim_lsp').default_capabilities()
-      local lspconfig = require('lspconfig')
 
       -- Add on_attach function for keybindings
       local on_attach = function(client, bufnr)
@@ -236,7 +235,7 @@ EnsureLazy().setup({
         vim.keymap.set('n', ']d', vim.diagnostic.goto_next, opts)
       end
 
-      lspconfig.pyright.setup({
+      vim.lsp.config('pyright', {
         settings = {
           python = {
             pythonPath = home .. "/Developer/.venv/bin/python",
@@ -252,7 +251,7 @@ EnsureLazy().setup({
         },
       })
 
-      lspconfig.lua_ls.setup({
+      vim.lsp.config('lua_ls', {
         on_attach = on_attach,
         settings = {
           Lua = {
@@ -263,24 +262,23 @@ EnsureLazy().setup({
         },
       })
 
-      lspconfig.ts_ls.setup({ 
+      vim.lsp.config('ts_ls', {
         capabilities = capabilities,
         on_attach = on_attach,
       })
 
-      lspconfig.clangd.setup({ 
+      vim.lsp.config('clangd', {
         capabilities = capabilities,
         on_attach = on_attach,
       })
 
-      lspconfig.sourcekit.setup({
+      vim.lsp.config('sourcekit', {
         cmd = { 'xcrun', 'sourcekit-lsp' },
-        root_dir = require('lspconfig.util').root_pattern('*.xcodeproj', '*.xcworkspace', '.git'),
         capabilities = capabilities,
         on_attach = on_attach,
       })
 
-      lspconfig.rust_analyzer.setup({
+      vim.lsp.config('rust_analyzer', {
         settings = {
           ["rust-analyzer"] = {
             cargo = { allFeatures = true },
@@ -291,13 +289,15 @@ EnsureLazy().setup({
         },
       })
 
-      lspconfig.hls.setup({
+      vim.lsp.config('hls', {
           settings = {
               haskell = {
                   formattingProvider = "ormolu", -- or "fourmolu", "brittany"
               },
           },
       })
+
+      vim.lsp.enable { 'pyright', 'lua_ls', 'ts_ls', 'clangd', 'sourcekit', 'rust_analyzer', 'hls' }
     end,
   },
 
