@@ -38,13 +38,6 @@ local TestRunners = {
     test_file = "cargo test",
     test_line = "cargo test %s",
   },
-  http = {
-    regex_file = ".*%.http$",
-    regex_line = "^%s*([A-Z]+%s+https?://.*)",
-    run_file = ":Rest run",
-    test_file = ":Rest run",
-    test_line = ":Rest run",
-  },
 }
 
 -- Namespace for virtual text signs
@@ -84,11 +77,6 @@ local function detect_language()
         return "rust"
       end
     end
-  end
-  
-  -- HTTP detection
-  if ext == "http" then
-    return "http"
   end
   
   return nil
@@ -161,8 +149,6 @@ local function run_test_function(test_name)
     cmd = string.format("cd %s && " .. runner.test_line, dir, ".", test_name)
   elseif lang == "rust" then
     cmd = string.format(runner.test_line, test_name)
-  elseif lang == "http" then
-    cmd = runner.test_line
   end
   
   if cmd then
@@ -189,8 +175,6 @@ local function do_execute_file(get_runner)
     local dir = vim.fn.expand('%:h')
     cmd = string.format("cd %s && " .. runner, dir, ".")
   elseif lang == "rust" then
-    cmd = runner
-  elseif lang == "http" then
     cmd = runner
   end
   

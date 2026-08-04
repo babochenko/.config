@@ -50,19 +50,6 @@ local plugins_cfg = {
   },
 }
 
--- The python.org python3 that leads $PATH ships no CA bundle, so hererocks
--- cannot download luarocks and every rockspec build fails on startup.
-local function EnsureCaBundle()
-  if vim.env.SSL_CERT_FILE then return end
-
-  for _, bundle in ipairs { '/etc/ssl/cert.pem', '/opt/homebrew/etc/ca-certificates/cert.pem' } do
-    if vim.fn.filereadable(bundle) == 1 then
-      vim.env.SSL_CERT_FILE = bundle
-      return
-    end
-  end
-end
-
 function EnsureLazy()
   local lazypath = vim.fn.stdpath 'data' .. '/lazy/lazy.nvim'
 
@@ -72,8 +59,6 @@ function EnsureLazy()
   end
 
   vim.opt.rtp:prepend(lazypath)
-
-  EnsureCaBundle()
 
   return require 'lazy'
 end
@@ -461,37 +446,6 @@ EnsureLazy().setup({
     --   opts = {},
     -- },
     --
-    { "rest-nvim/rest.nvim",
-      ft = 'http',
-      dependencies = {
-        "nvim-treesitter/nvim-treesitter",
-        opts = function (_, opts)
-          opts.ensure_installed = opts.ensure_installed or {}
-          table.insert(opts.ensure_installed, "http")
-        end,
-      },
-      config = function()
-        require("rest-nvim").setup({
-            env_file = function()
-                -- use .env in the same dir as the current buffer (.http file)
-                local http_file = vim.api.nvim_buf_get_name(0)
-                local dir = vim.fn.fnamemodify(http_file, ":h")
-                local env_path = dir .. "/.env"
-                if vim.fn.filereadable(env_path) == 1 then
-                  return env_path
-                end
-                return nil -- fallback, no .env found
-            end,
-            ui = {
-                keybinds = {
-                    prev = "<S-Tab>",
-                    next = "<Tab>",
-                },
-            },
-        })
-      end,
-    },
-
   -- 	'williamboman/mason.nvim',
   -- 	opts = {
   -- 		ensure_installed = {
