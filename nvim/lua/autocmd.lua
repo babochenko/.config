@@ -12,7 +12,7 @@ autocmd('FileType', { pattern = 'sql', callback = function()
   vim.bo.commentstring = '-- %s'
 end })
 
-autocmd('FileType', { pattern = { 'yml', 'yaml' }, command = 'syntax off' })
+
 
 autocmd('TextYankPost', { callback = function()
   vim.highlight.on_yank()
