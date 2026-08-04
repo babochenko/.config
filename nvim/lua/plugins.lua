@@ -50,6 +50,19 @@ local plugins_cfg = {
   },
 }
 
+-- The python.org python3 that leads $PATH ships no CA bundle, so hererocks
+-- cannot download luarocks and every rockspec build fails on startup.
+local function EnsureCaBundle()
+  if vim.env.SSL_CERT_FILE then return end
+
+  for _, bundle in ipairs { '/etc/ssl/cert.pem', '/opt/homebrew/etc/ca-certificates/cert.pem' } do
+    if vim.fn.filereadable(bundle) == 1 then
+      vim.env.SSL_CERT_FILE = bundle
+      return
+    end
+  end
+end
+
 function EnsureLazy()
   local lazypath = vim.fn.stdpath 'data' .. '/lazy/lazy.nvim'
 
@@ -59,6 +72,8 @@ function EnsureLazy()
   end
 
   vim.opt.rtp:prepend(lazypath)
+
+  EnsureCaBundle()
 
   return require 'lazy'
 end
