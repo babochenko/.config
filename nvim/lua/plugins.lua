@@ -301,14 +301,6 @@ EnsureLazy().setup({
     end,
   },
 
-  { "simrat39/rust-tools.nvim",
-    ft = "rust",
-    dependencies = { "neovim/nvim-lspconfig" },
-    config = function()
-      require("rust-tools").setup({})
-    end,
-  },
-
   { 'lewis6991/gitsigns.nvim',
     event = "VeryLazy",
     config = function()
