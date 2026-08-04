@@ -3,6 +3,7 @@ local home = vim.fn.expand("$HOME")
 local plugins_cfg = {
   defaults = { lazy = true },
   install = { colorscheme = { 'onedark' } },
+  checker = { enabled = false },
   git = { url_format = "git@github.com:%s.git" },
 
   ui = {
