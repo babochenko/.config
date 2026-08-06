@@ -190,6 +190,7 @@ function gitpp() {
 
 alias gg='git g'
 alias pp='gitpp'
+alias gpp='gitpp'
 alias push='gitpp'
 
 function master() {
