@@ -42,10 +42,24 @@ export CFGS="$HOME/.config"
 export VIRTUAL_ENV="$HOME/Developer/.venv"
 
 function watch() {
+    local -a old new
+    local i max
+
+    printf '\033[?25l'
+
+    trap 'printf "\033[?25h"; return' INT TERM EXIT
+
     while true; do
-        clear
-        "$@"
-        ll
+        new=("${(@f)$(eval "$*")}")
+        max=$(( ${#old[@]} > ${#new[@]} ? ${#old[@]} : ${#new[@]} ))
+
+        for (( i = 1; i <= max; i++ )); do
+            if [[ "${old[i]-}" != "${new[i]-}" ]]; then
+                printf '\033[%d;1H\033[2K%s' "$i" "${new[i]-}"
+            fi
+        done
+
+        old=("${new[@]}")
         sleep 0.5
     done
 }
