@@ -5,10 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FAILED=0
 
 run_test() {
-  local test_file="$1"
+  local runner="$1" test_file="$2"
   echo ""
   echo "--- Running: $test_file"
-  if ruby "$test_file"; then
+  if "$runner" "$test_file"; then
     echo "--- PASSED"
   else
     echo "--- FAILED"
@@ -16,7 +16,8 @@ run_test() {
   fi
 }
 
-run_test "$SCRIPT_DIR/git_review_reply/test.rb"
+run_test ruby "$SCRIPT_DIR/git_review_reply/test.rb"
+run_test zsh  "$SCRIPT_DIR/completions/test.zsh"
 
 echo ""
 if [ "$FAILED" -eq 0 ]; then
