@@ -18,6 +18,7 @@ run_test() {
 
 run_test ruby "$SCRIPT_DIR/git_review_reply/test.rb"
 run_test zsh  "$SCRIPT_DIR/completions/test.zsh"
+run_test zsh  "$SCRIPT_DIR/completions/smoke.zsh"
 
 echo ""
 if [ "$FAILED" -eq 0 ]; then
