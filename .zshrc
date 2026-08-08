@@ -196,6 +196,7 @@ alias gg='git g'
 alias pp='gitpp'
 alias gpp='gitpp'
 alias push='gitpp'
+alias grestore='git restore .'
 
 function master() {
     git symbolic-ref --short refs/remotes/origin/HEAD | cut -d/ -f2
