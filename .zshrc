@@ -41,6 +41,15 @@ alias oc='opencode'
 export CFGS="$HOME/.config"
 export VIRTUAL_ENV="$HOME/Developer/.venv"
 
+function watch() {
+    while true; do
+        clear
+        "$@"
+        ll
+        sleep 0.5
+    done
+}
+
 function venv() {
   source "${VIRTUAL_ENV}/bin/activate"
 }
