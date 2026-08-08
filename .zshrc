@@ -472,14 +472,6 @@ function check() {
   fi
 }
 
-function m() {
-    dir="$HOME/Developer/marimo"
-    mkdir -p "$dir"
-
-    tmux new-session -d -s marimo "zsh -ic 'cd $dir && venv && marimo edit'"
-    tmux ls
-}
-
 function ytv() {
     if [[ -z "$1" ]]; then
         echo "usage: ytv <youtube-url> [more-urls...]" >&2
