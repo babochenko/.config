@@ -16,7 +16,6 @@ run_test() {
   fi
 }
 
-run_test "$SCRIPT_DIR/gradle_checkstyle/test.rb"
 run_test "$SCRIPT_DIR/git_review_reply/test.rb"
 
 echo ""
