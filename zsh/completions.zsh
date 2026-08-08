@@ -109,3 +109,31 @@ function __fuzzy_group() {
   compadd -U -Q -X $'\e[90m'"$header"$'\e[0m' -V "$tag" -- "${reply[@]}"
 }
 
+function __v() {
+  # three visually separated groups: shortcuts, ~/Developer projects, live cwd
+  local -a here=( ${PWD}/*(N:t) )
+  local -a shortcuts=( config .zshrc nvim Developer Downloads Movies )
+  local -a developer=( $(ls $HOME/Developer/) )
+  # a single match across all three groups completes straight away
+  __fuzzy_unique $shortcuts $developer $here && return
+  __fuzzy_group shortcuts  '=== shortcuts ==='       $shortcuts
+  __fuzzy_group developer  $'\n=== ~/Developer ==='  $developer
+  __fuzzy_group cwd        $'\n=== current dir ==='  $here
+}
+
+compdef __v v
+
+function __p() {
+  # same three groups as __v, but cwd is limited to directories
+  local -a here=( ${PWD}/*(/N:t) )
+  local -a shortcuts=( config nvim Developer Downloads Movies )
+  local -a developer=( $(ls $HOME/Developer/) )
+  # a single match across all three groups completes straight away
+  __fuzzy_unique $shortcuts $developer $here && return
+  __fuzzy_group shortcuts  '=== shortcuts ==='       $shortcuts
+  __fuzzy_group developer  $'\n=== ~/Developer ==='  $developer
+  __fuzzy_group cwd        $'\n=== current dir ==='  $here
+}
+
+compdef __p p
+

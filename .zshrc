@@ -129,35 +129,8 @@ function p() {
 }
 
 
+# defines __v / __p and their compdefs for the v and p functions above
 source "$CONFIG/zsh/completions.zsh"
-
-function __v() {
-  # three visually separated groups: shortcuts, ~/Developer projects, live cwd
-  local -a here=( ${PWD}/*(N:t) )
-  local -a shortcuts=( config .zshrc nvim Developer Downloads Movies )
-  local -a developer=( $(ls $HOME/Developer/) )
-  # a single match across all three groups completes straight away
-  __fuzzy_unique $shortcuts $developer $here && return
-  __fuzzy_group shortcuts  '=== shortcuts ==='       $shortcuts
-  __fuzzy_group developer  $'\n=== ~/Developer ==='  $developer
-  __fuzzy_group cwd        $'\n=== current dir ==='  $here
-}
-
-compdef __v v
-
-function __p() {
-  # three visually separated groups: shortcuts, ~/Developer projects, live cwd
-  local -a here=( ${PWD}/*(/N:t) )
-  local -a shortcuts=( config nvim Developer Downloads Movies )
-  local -a developer=( $(ls $HOME/Developer/) )
-  # a single match across all three groups completes straight away
-  __fuzzy_unique $shortcuts $developer $here && return
-  __fuzzy_group shortcuts  '=== shortcuts ==='       $shortcuts
-  __fuzzy_group developer  $'\n=== ~/Developer ==='  $developer
-  __fuzzy_group cwd        $'\n=== current dir ==='  $here
-}
-
-compdef __p p
 
 function gitc() {
     if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
