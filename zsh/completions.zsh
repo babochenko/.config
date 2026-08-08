@@ -66,6 +66,22 @@ function __fuzzy_compadd() {
   compadd -U -Q -V fuzzy -- "${reply[@]}"
 }
 
+# Take every section's candidates at once: if the whole completion has exactly
+# one distinct match, insert it immediately (no listing, no second TAB) and
+# return 0 so the caller can skip the per-section groups. Returns 1 otherwise.
+# Usage: __fuzzy_unique <candidate>...   (pass the union of all sections)
+function __fuzzy_unique() {
+  local -a reply
+  __fuzzy_rank "$@"
+  # (u) dedups: the same name in two sections still inserts the same text.
+  local -a matches=(${(u)reply})
+  (( ${#matches} == 1 )) || return 1
+  # `insert=1` inserts the first (only) match outright instead of listing it.
+  compstate[insert]=1
+  compadd -U -Q -- "$matches[1]"
+  return 0
+}
+
 # Fuzzy-filter one labelled section and add it as its own visually separated
 # group. Call once per section; sections display in call order, each under its
 # own header. Usage: __fuzzy_group <tag> <header> <candidate>...
