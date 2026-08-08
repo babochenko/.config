@@ -11,7 +11,7 @@ export CLICOLOR=1
 # Set directories to blue (the 'ex' at the beginning)
 export LSCOLORS="exfxcxdxbxegedabagacad"
 
-alias ll='ls -Glath'
+alias ll='ls -Glah'
 alias tac='tail -r'
 alias t='tree'
 
