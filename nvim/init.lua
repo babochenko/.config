@@ -15,6 +15,10 @@ vim.opt.timeoutlen = 200
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
 
+vim.opt.foldmethod = "indent"
+-- without this, indent folding opens every file fully collapsed
+-- vim.opt.foldlevelstart = 99
+
 vim.api.nvim_create_autocmd("User", {
   pattern = "VeryLazy",
   once = true,
@@ -48,5 +52,7 @@ vim.cmd [[
 end
 setup_transparency()
 
-vim.opt.viewoptions = { "folds", "cursor", "curdir", "slash", "unix" }
+-- no "folds": mkview would persist foldmethod/foldlevel/manual folds and
+-- loadview would replay them, so fold state would drift between sessions
+vim.opt.viewoptions = { "cursor", "curdir", "slash", "unix" }
 

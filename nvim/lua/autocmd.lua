@@ -77,18 +77,30 @@ autocmd("BufReadPost", {
     if line_count <= 10000 then return end
 
     vim.schedule(function()
+      if not vim.api.nvim_buf_is_valid(buf) then return end
+
       vim.bo[buf].syntax = "OFF"
-      vim.bo[buf].foldmethod = "manual"
-      vim.wo[buf].number = false
-      vim.wo[buf].relativenumber = false
-      vim.wo[buf].cursorline = false
-      vim.wo[buf].cursorcolumn = false
-      vim.wo[buf].wrap = false
       vim.bo[buf].swapfile = false
       vim.bo[buf].undofile = false
-      vim.bo[buf].spell = false
+
+      -- these are window-local, not buffer-local: they have to be set per
+      -- window showing the buffer, not via vim.bo/vim.wo indexed by bufnr
+      for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+        for opt, val in pairs({
+          foldmethod = "indent",
+          number = false,
+          relativenumber = false,
+          cursorline = false,
+          cursorcolumn = false,
+          wrap = false,
+          spell = false,
+        }) do
+          vim.api.nvim_set_option_value(opt, val, { win = win })
+        end
+      end
+
       pcall(vim.treesitter.stop, buf)
-      vim.diagnostic.disable(buf)
+      vim.diagnostic.enable(false, { bufnr = buf })
     end)
   end,
 })
@@ -101,5 +113,23 @@ autocmd("BufWinLeave", {
 autocmd("BufWinEnter", {
   pattern = "*",
   command = "silent! loadview",
+})
+
+-- Folds exist from the moment a file opens, and all start open.
+-- Runs after the loadview autocmd above so it overrides the ~80 stale view
+-- files on disk that still carry "setlocal foldmethod=manual" + "zE" from
+-- before 'folds' was dropped from viewoptions.
+-- Guarded per buffer so revisiting a window does not reopen folds you closed.
+autocmd("BufWinEnter", {
+  pattern = "*",
+  callback = function(args)
+    if vim.wo.foldmethod == "diff" then return end
+    if vim.b[args.buf].folds_initialised then return end
+    vim.b[args.buf].folds_initialised = true
+
+    vim.wo.foldmethod = "indent"
+    vim.wo.foldenable = true
+    vim.wo.foldlevel = 99
+  end,
 })
 

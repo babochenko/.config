@@ -106,8 +106,8 @@ function gh() {
 alias o=open
 
 function v() {
-    # vd - vim open dir
     function _vd() {
+        # vd - vim open dir
         local d="$1"
         pushd . >/dev/null
         cd "$d" && nvim
