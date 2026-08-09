@@ -66,5 +66,5 @@ function _async_git_update() {
 
 setopt prompt_subst
 precmd_functions+=(_async_git_update)
-PROMPT='| %~ ${_git_prompt_cache} %# '
+PROMPT='| %F{245}%~%f ${_git_prompt_cache} %# '
 
