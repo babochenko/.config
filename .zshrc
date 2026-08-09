@@ -375,7 +375,6 @@ function git-list-changes() {
 }
 
 alias gs='git s'
-alias glc='git-list-changes'
 
 function git-review-reply() {
     "$CFGS/zsh/git-review-reply.rb" $@
