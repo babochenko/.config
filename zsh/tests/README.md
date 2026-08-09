@@ -5,13 +5,11 @@ standalone script that can also be run on its own:
 
 ```bash
 ./test.sh                       # everything
-ruby git_review_reply/test.rb   # one suite
 zsh  completions/test.zsh
 ```
 
 | Suite                     | Covers                                              |
 | ------------------------- | --------------------------------------------------- |
-| `git_review_reply/`       | `zsh/git-review-reply.rb` — `gh` calls are mocked    |
 | `completions/test.zsh`    | `zsh/completions.zsh` — the fuzzy TAB behind `v`/`p` |
 | `completions/smoke.zsh`   | the same, end to end in a real shell                 |
 

@@ -229,7 +229,6 @@ chmod +x "$SANDBOX/bin/zz-path-tool"
 
 git-list-changes() { : }
 gitwt() { : }
-gitprs() { : }
 _zzhidden() { : }            # completion-system style name, must stay hidden
 alias zzalias='echo hi'
 
@@ -252,9 +251,6 @@ check "  and runs straight away"        "1"                "$compstate[insert]"
 
 cmds gwt
 check "initials reach gitwt"            "gitwt"            "${(j: :)ADDED}"
-
-cmds gprs
-check "  and gitprs"                    "gitprs"           "${(j: :)ADDED}"
 
 cmds zzal
 check "aliases are candidates too"      "zzalias"          "${(j: :)ADDED}"
