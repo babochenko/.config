@@ -8,7 +8,7 @@ local M = {}
 M.disabled = {
     'z<CR>', 'z=', 'zA', 'zC', 'zD', 'zE', 'zH', 'zL', 'zM', 'zO', 'zR', 'zb',
     'zc', 'zd', 'ze', 'zf', 'zg', 'zi', 'zm', 'zo', 'zr', 'zt', 'zv', 'zw',
-    'zx', 'zz',
+    'zx',
 }
 
 local function norm(lhs)
