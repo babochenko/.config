@@ -16,7 +16,7 @@ end })
 -- shiftwidth=4 a 2-space function body lands on level 0 and never folds.
 -- Shell files here mix 2- and 4-space bodies; shiftwidth=2 makes both fold.
 -- Re-asserting foldmethod is what forces the folds to be recomputed.
-autocmd('FileType', { pattern = { 'sh', 'bash', 'zsh' }, callback = function()
+autocmd('FileType', { pattern = { '*' }, callback = function()
   vim.bo.shiftwidth = 2
   vim.wo.foldmethod = 'indent'
 end })
