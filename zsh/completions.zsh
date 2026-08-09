@@ -143,3 +143,26 @@ function __p() {
 
 compdef __p p
 
+# Same boundary-aware matching for the command word itself, so "gitlc" reaches
+# git-list-changes and "gwt" reaches gitwt. Functions starting with _ are the
+# completion system's own (_git, _make, ...) and are never typed by hand.
+function __cmds() {
+  local -a funcs=( ${(k)functions[(I)[^_]*]} )
+  local -a alis=( ${(k)aliases} )
+  local -a bins=( ${(k)commands[(I)[^_]*]} )
+
+  # a single match among your own functions and aliases runs straight away
+  __fuzzy_unique $funcs $alis && return
+
+  local hit=0
+  __fuzzy_group functions '=== functions ==='   $funcs && hit=1
+  __fuzzy_group aliases   $'\n=== aliases ==='  $alis  && hit=1
+  __fuzzy_group commands  $'\n=== path ==='     $bins  && hit=1
+
+  # nothing looked like a fuzzy match: hand back to stock command completion so
+  # ./scripts, sudo <cmd>, PATH lookups and friends keep working as before
+  (( hit )) || _command_names -e
+}
+
+compdef __cmds -command-
+

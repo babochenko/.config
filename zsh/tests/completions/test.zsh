@@ -216,6 +216,63 @@ tab "zs"
 __v
 check ".zshrc shortcut is v-only"      ".zshrc"      "${(j: :)ADDED}"
 
+# ---------------------------------------------------------------- __cmds ---
+# The command word itself. Candidates come from three live sources, so the
+# suite installs its own: throwaway functions and an alias here in the test
+# shell, plus one executable reached through a sandboxed $PATH.
+
+suite "__cmds completes the command word"
+
+mkdir -p "$SANDBOX/bin"
+print -r -- '#!/bin/sh' > "$SANDBOX/bin/zz-path-tool"
+chmod +x "$SANDBOX/bin/zz-path-tool"
+
+git-list-changes() { : }
+gitwt() { : }
+gitprs() { : }
+_zzhidden() { : }            # completion-system style name, must stay hidden
+alias zzalias='echo hi'
+
+# __cmds hands unmatched words back to the stock command completion
+typeset -g FELL_BACK
+_command_names() { FELL_BACK="$*" }
+
+# $PATH is scoped to the call so the cleanup trap keeps its own commands
+cmds() {  # cmds <query>
+  local -x PATH="$SANDBOX/bin"
+  hash -r
+  tab "$1"
+  FELL_BACK=""
+  __cmds
+}
+
+cmds gitlc
+check "camelish query hits a function"  "git-list-changes" "${(j: :)ADDED}"
+check "  and runs straight away"        "1"                "$compstate[insert]"
+
+cmds gwt
+check "initials reach gitwt"            "gitwt"            "${(j: :)ADDED}"
+
+cmds gprs
+check "  and gitprs"                    "gitprs"           "${(j: :)ADDED}"
+
+cmds zzal
+check "aliases are candidates too"      "zzalias"          "${(j: :)ADDED}"
+
+cmds zzpt
+check "PATH binaries list under path"   "commands:zz-path-tool" "${(j: :)GROUPS}"
+
+cmds zzhid
+check "_ functions are never offered"   ""                 "${(j: :)ADDED}"
+check "  falling back instead"          "-e"               "$FELL_BACK"
+
+cmds qqqzzz
+check "no match adds nothing"           ""                 "${(j: :)ADDED}"
+check "  and defers to stock completion" "-e"              "$FELL_BACK"
+
+cmds git
+check "a real hit does not fall back"   ""                 "$FELL_BACK"
+
 # ---------------------------------------------------------------- results ---
 
 print

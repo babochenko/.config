@@ -60,6 +60,8 @@ for line in \
   "source ${0:A:h}/../../completions.zsh" \
   'p() { print -r -- "<<$1>>" }' \
   'v() { print -r -- "<<$1>>" }' \
+  'git-list-changes() { print -r -- "<<git-list-changes>>" }' \
+  'gitwt() { print -r -- "<<gitwt>>" }' \
   "cd $SANDBOX/work"
 do zpty -w sh "$line"; done
 
@@ -143,6 +145,16 @@ check "v completes a cwd file"     "readme.md"   "$WORD"
 
 type_keys $'p re\t'
 check "p ignores cwd files"        "re"          "$WORD"
+
+suite "the command word itself completes the same way"
+# these functions print their own name, so WORD is proof the shell really ran
+# the expanded command rather than whatever was typed
+
+type_keys $'gitlc\t'
+check "gitlc runs git-list-changes" "git-list-changes" "$WORD"
+
+type_keys $'gwt\t'
+check "gwt runs gitwt"              "gitwt"            "$WORD"
 
 # ---------------------------------------------------------------- results ---
 
