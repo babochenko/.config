@@ -111,6 +111,16 @@ local border = "#657088"
 local keyword = "#61afef"
 local constant = "#c678dd"
 
+-- current line number in the cursor's accent colour; "number" keeps the line
+-- background untouched. Mirrors ghostty's cursor-color, which wins over the
+-- OSC 12 nvim sends for the Cursor group - keep the two in sync by hand.
+local cursor_accent = "#ffcc00"
+
+vim.opt.cursorline = true
+vim.opt.cursorlineopt = "number"
+
+hl_group("CursorLineNr", { fg = cursor_accent, bold = true })
+
 hl_group("TelescopeBorder", { fg = border, bg = "#1c1f26" })
 hl_group("@module", { fg = neutral })
 hl_group("@property", { fg = neutral })
