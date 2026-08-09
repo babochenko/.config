@@ -127,6 +127,7 @@ autocmd("BufWinEnter", {
     if vim.b[args.buf].folds_initialised then return end
     vim.b[args.buf].folds_initialised = true
 
+    vim.wo.foldignore = ""
     vim.wo.foldmethod = "indent"
     vim.wo.foldenable = true
     vim.wo.foldlevel = 99

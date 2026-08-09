@@ -16,6 +16,11 @@ vim.opt.ignorecase = true
 vim.opt.smartcase = true
 
 vim.opt.foldmethod = "indent"
+-- default is "#", which makes indent folding hand '#' lines the level of their
+-- surroundings instead of their own indent. That is meant for C preprocessor
+-- directives; in shell/python/ruby it silently drops every comment out of its
+-- enclosing fold.
+vim.opt.foldignore = ""
 -- without this, indent folding opens every file fully collapsed
 -- vim.opt.foldlevelstart = 99
 
