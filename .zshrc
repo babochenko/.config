@@ -216,6 +216,10 @@ function gitmm() {
     git push
 }
 
+function gitri() {
+  git rebase -i $@
+}
+
 function gitrc() {
   git add .
   git rebase --continue
