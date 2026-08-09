@@ -33,6 +33,33 @@ vim.api.nvim_create_autocmd("User", {
   end,
 })
 
+-- file position as a bar + percentage, e.g.  ████▌░░░░░  45%
+local BAR_WIDTH   = 10
+local BAR_FULL    = '█'
+local BAR_EMPTY   = '░'
+local BAR_PARTIAL = { '▏', '▎', '▍', '▌', '▋', '▊', '▉' }
+
+local function progress_bar()
+  local cur   = vim.fn.line('.')
+  local total = vim.fn.line('$')
+  local frac  = total > 1 and (cur - 1) / (total - 1) or 1
+
+  local filled = frac * BAR_WIDTH
+  local full   = math.floor(filled)
+
+  local bar = string.rep(BAR_FULL, full)
+  if full < BAR_WIDTH then
+    -- sub-cell remainder, so the bar moves smoothly line by line
+    local idx = math.floor((filled - full) * (#BAR_PARTIAL + 1))
+    bar = bar .. (idx > 0 and BAR_PARTIAL[idx] or BAR_EMPTY)
+    bar = bar .. string.rep(BAR_EMPTY, BAR_WIDTH - full - 1)
+  end
+
+  -- %%%% -> a literal "%%" in the returned string, which the statusline
+  -- renders as one "%"; a bare "%" would be read as a statusline item (E539)
+  return string.format('%s %3d%%%%', bar, math.floor(frac * 100))
+end
+
 require('lualine').setup {
   options = {
     icons_enabled = true,
@@ -58,7 +85,7 @@ require('lualine').setup {
     lualine_b = {'branch', 'diff', 'diagnostics'},
     lualine_c = {'filename'},
     lualine_x = {'encoding', 'fileformat', 'filetype'},
-    lualine_y = {'progress'},
+    lualine_y = {progress_bar},
     lualine_z = {'location'}
   },
   inactive_sectioms = {
