@@ -311,7 +311,17 @@ EnsureLazy().setup({
   { 'folke/which-key.nvim',
     event = "VeryLazy",
     config = function()
-      require('which-key').setup()
+      require('which-key').setup({
+        -- presets.z drops which-key's canned z descriptions; the filter then
+        -- removes the disabled keys themselves, whatever preset supplied them
+        plugins = {
+          presets = { z = false },
+          spelling = { enabled = false },
+        },
+        filter = function(mapping)
+          return not require('ext/folds').is_disabled(mapping.lhs)
+        end,
+      })
     end,
   },
 

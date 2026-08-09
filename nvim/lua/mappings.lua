@@ -14,6 +14,7 @@ local Db = require 'ext/db'
 local CodeRunner = require 'ext/coderunner'
 local Run = require 'ext/run'
 local Clipboard = require 'ext/clipboard'
+local Folds = require 'ext/folds'
 
 local map = vim.keymap.set
 
@@ -53,6 +54,15 @@ local general_helpers = {
   map('n', '<leader>fp', Sys.copy_file_path, { desc = 'show file path' }),
   map('n', '<leader>fP', Sys.copy_file_name, { desc = 'show file name' }),
   map({'n', 'v'}, '<leader>fl', Code.format_file, { desc = 'lint file' }),
+}
+
+for _, key in ipairs(Folds.disabled) do
+    map('n', key, '<Nop>')
+end
+
+local folds = {
+    map('n', 'za', Folds.toggle_all, { desc = 'Toggle all folds in file' }),
+    map('n', 'zs', 'za', { desc = 'Toggle fold under cursor' }),
 }
 
 local buffers = {
