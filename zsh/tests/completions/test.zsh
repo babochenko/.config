@@ -113,6 +113,15 @@ tab "dm"
 # my-docs-main only matches from a boundary deeper in the name
 check "tiers order the results" "dm-tool docs-main my-docs-main" "$(ranked my-docs-main docs-main eventstore dm-tool)"
 
+# The subsequence glob that skips the marking loop must not drop real matches:
+# it is case-insensitive, so a lowercase query still reaches a capitalised name.
+tab "dev"
+check "prefilter is case-insensitive"  "Developer"  "$(ranked Developer eventstore)"
+tab "dvlpr"
+check "  and spans the whole name"     "Developer"  "$(ranked Developer eventstore)"
+tab "dx"
+check "  while still dropping misses"  ""           "$(ranked Developer eventstore)"
+
 # ---------------------------------------------------------- __fuzzy_unique ---
 
 suite "__fuzzy_unique completes a lone match instantly"

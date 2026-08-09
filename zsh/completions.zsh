@@ -37,6 +37,12 @@ function __fuzzy_rank() {
   local body="${(j:.*:)chars}"               # q0 .* q1 .* q2 ...
   local re_any=$'\x01'"$body"                # first letter at any boundary
   local re_anchor='^'$'\x01'"$body"          # first letter at the very start
+  # Every tier below needs the query as an in-order subsequence, so throw the
+  # rest away with one C-speed glob before the per-character marking loop runs.
+  # Matters once the candidate list is every command on PATH, not just a dir.
+  setopt localoptions extendedglob
+  local glob="(#i)*${(j:*:)chars}*"
+  set -- ${(M)@:#$~glob}
   local -a prefixed anchored others
   local cand REPLY
   for cand in "$@"; do
