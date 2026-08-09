@@ -469,7 +469,7 @@ function check() {
   fi
 }
 
-function ytv() {
+function yt-video() {
     if [[ -z "$1" ]]; then
         echo "usage: ytv <youtube-url> [more-urls...]" >&2
         return 1
@@ -482,7 +482,7 @@ function ytv() {
         "$@"
 }
 
-function yta() {
+function yt-audio() {
     if [[ -z "$1" ]]; then
         echo "usage: yta <youtube-url> [more-urls...]" >&2
         return 1
