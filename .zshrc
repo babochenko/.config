@@ -36,7 +36,7 @@ load_fireworks_key() {
 }
 load_fireworks_key >/dev/null 2>&1
 
-alias oc='opencode'
+alias oc='opencode --auto'
 
 export CFGS="$HOME/.config"
 export VIRTUAL_ENV="$HOME/Developer/.venv"
@@ -381,11 +381,24 @@ function check() {
   local _check="[ERROR]"
   local _spot=".java:[line"
   local start=$SECONDS
-  local errors=$(./gradlew --offline --parallel --build-cache \
+  local output rc
+  output=$(./gradlew --offline --parallel --build-cache \
       checkstyleMain checkstyleTest checkstyleTestData checkstyleTestFunctional \
       spotbugsMain spotbugsTest spotbugsTestData spotbugsTestFunctional \
-      2>&1 | grep -F -e "${_check}" -e "${_spot}")
+      2>&1)
+  rc=$?
   local elapsed=$((SECONDS - start))
+  local errors=$(echo "$output" | grep -F -e "${_check}" -e "${_spot}")
+
+  if [[ -z "$errors" && $rc -ne 0 ]]; then
+    echo
+    echo vvvvvvvvvvvvvvv
+    echo "BUILD FAILED (took ${elapsed}s):"
+    echo "$output" | tail -30
+    echo ^^^^^^^^^^^^^^^
+    echo
+    return 1
+  fi
 
   if [[ -z "$errors" ]]; then
     echo
