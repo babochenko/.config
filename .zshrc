@@ -211,7 +211,7 @@ function gitmm() {
         else
             opencode run "resolve merge conflicts, make sure to maintain code style"
         fi
-        git merge --continue --no-edit
+        git add . && git merge --continue --no-edit
     fi
     git push
 }
