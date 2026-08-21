@@ -167,13 +167,13 @@ function gitc() {
     fi
 }
 
-function gitcl() {
+function git-clean() {
     git restore --staged .
     git restore .
     git clean -fd
 }
 
-function gitcp() {
+function git-cherry-pick() {
     git cherry-pick $@
 }
 
