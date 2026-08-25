@@ -85,7 +85,7 @@ alias gitsw='git-switch'
 # compare against something else instead (e.g. `gd master`). read-only:
 # untracked files are collected through a throwaway copy of the index, so the
 # repo is never touched
-function git-diff() {
+function git-status() {
   local base="${1:-HEAD}"
   if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
     echo "unknown revision: $base"
@@ -113,11 +113,11 @@ function git-diff() {
 
   [[ -n "$tmp_index" ]] && rm -f "$tmp_index"
 }
-alias gd='git-diff'
+alias gs='git-status'
 
 function git-cherry-pick()        { git cherry-pick $@; }
 function git-clean()              { git restore --staged .; git restore .; git clean -fd; }
-function git-diff-full()          { nvim -c "DiffviewOpen HEAD"; }
+function git-diff()          { nvim -c "DiffviewOpen HEAD"; }
 function git-list-changes()       { "$CFGS/zsh/git-list-changes.rb" $@; }
 function git-rebase-continue()    { git add .; git rebase --continue; }
 function git-rebase-head()        { git fetch origin && git rebase origin/$(git branch --show-current); }
@@ -128,14 +128,13 @@ function gitcc()                  { git add .; gitc $@; }
 function gitp()                   { gitc $@; git push; }
 function gitpp()                  { gitcc $@; git push && "$CFGS/zsh/git-pr-link.rb"; }
 
-alias gdd='git-diff-full'
+alias gd='git-diff'
 alias gg='git g'
 alias gitri='git-rebase-interactive'
 alias gits='git s'
 alias gitsm='git-switch-master'
 alias gpp='gitpp'
 alias grestore='git-restore'
-alias gs='git s'
 alias pp='gitpp'
 alias push='gitpp'
 
