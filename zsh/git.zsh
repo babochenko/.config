@@ -82,18 +82,40 @@ function git-switch() {
 alias gitsw='git-switch'
 
 # changes of the current branch vs [base | master] - staged, unstaged and
-# untracked files included
+# untracked files included. on the default branch itself, compares to its
+# remote so unpushed commits still show up. read-only: untracked files are
+# collected through a throwaway copy of the index, the repo is never touched
 function git-diff() {
-  local base="${1:-$(master)}"
-  local merge_base=$(git merge-base "$base" HEAD 2>/dev/null) || merge_base="$base"
+  local base="$1"
+  if [[ -z "$base" ]]; then
+    if [[ "$(_git_branch)" == "$(master)" ]]; then
+      base=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null)
+    else
+      base=$(master)
+    fi
+    [[ -z "$base" ]] && base=HEAD
+  fi
 
-  # intent-to-add makes untracked files visible to git diff; undone afterwards
+  local merge_base
+  merge_base=$(git merge-base "$base" HEAD 2>/dev/null)
+  [[ -z "$merge_base" ]] && merge_base="$base"
+
+  local index=${$(git rev-parse --git-path index):A}
+  local tmp_index=""
   local untracked=("${(@f)$(git ls-files --others --exclude-standard)}")
-  [[ -n "$untracked" ]] && git add -N -- $untracked
 
-  git diff --stat "$merge_base"
+  if [[ -n "$untracked" ]] && tmp_index=$(mktemp) && cp "$index" "$tmp_index" 2>/dev/null; then
+    index="$tmp_index"
+    GIT_INDEX_FILE="$index" git add -N -- $untracked
+  fi
 
-  [[ -n "$untracked" ]] && git reset -q -- $untracked
+  if GIT_INDEX_FILE="$index" git diff --quiet "$merge_base"; then
+    echo "no changes vs $base"
+  else
+    GIT_INDEX_FILE="$index" git diff --stat "$merge_base"
+  fi
+
+  [[ -n "$tmp_index" ]] && rm -f "$tmp_index"
 }
 alias gd='git-diff'
 
