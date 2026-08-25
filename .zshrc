@@ -233,8 +233,12 @@ function gitrh() {
     git fetch origin && git rebase origin/$(git branch --show-current)
 }
 
-function py() {
+function ipy() {
      venv && ipython --TerminalInteractiveShell.editing_mode=vi
+}
+
+function py() {
+     venv && python3 $@
 }
 
 function gitsw() {
