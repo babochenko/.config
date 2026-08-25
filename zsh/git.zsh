@@ -44,10 +44,11 @@ function git-merge-master() {
     git fetch && git merge --no-edit origin/$(master)
     if [ $? -ne 0 ]; then
         local model=$(opencode models 2>/dev/null | grep "glm" | head -1 | awk '{print $1}')
+        local prompt="resolve merge conflicts, make sure to maintain code style"
         if [ -n "$model" ]; then
-            opencode run --model "$model" "resolve merge conflicts, make sure to maintain code style"
+            opencode run --model "$model" "$prompt"
         else
-            opencode run "resolve merge conflicts, make sure to maintain code style"
+            opencode run "$prompt"
         fi
         git add . && git merge --continue --no-edit
     fi
