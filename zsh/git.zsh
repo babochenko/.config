@@ -81,19 +81,15 @@ function git-switch() {
 }
 alias gitsw='git-switch'
 
-# changes of the current branch vs [base | master] - staged, unstaged and
-# untracked files included. on the default branch itself, compares to its
-# remote so unpushed commits still show up. read-only: untracked files are
-# collected through a throwaway copy of the index, the repo is never touched
+# uncommitted changes - staged, unstaged and untracked files. pass a base to
+# compare against something else instead (e.g. `gd master`). read-only:
+# untracked files are collected through a throwaway copy of the index, so the
+# repo is never touched
 function git-diff() {
-  local base="$1"
-  if [[ -z "$base" ]]; then
-    if [[ "$(_git_branch)" == "$(master)" ]]; then
-      base=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null)
-    else
-      base=$(master)
-    fi
-    [[ -z "$base" ]] && base=HEAD
+  local base="${1:-HEAD}"
+  if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
+    echo "unknown revision: $base"
+    return 1
   fi
 
   local merge_base
