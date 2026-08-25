@@ -120,6 +120,7 @@ function p() {
 # defines __v / __p and their compdefs for the v and p functions above
 source "$CONFIG/zsh/completions.zsh"
 source "$CONFIG/zsh/git.zsh"
+source "$CONFIG/zsh/git-workspace.zsh"
 
 function ipy() { venv && ipython --TerminalInteractiveShell.editing_mode=vi; }
 function py() { venv && python3 $@; }
