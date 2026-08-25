@@ -81,9 +81,24 @@ function git-switch() {
 }
 alias gitsw='git-switch'
 
+# changes of the current branch vs [base | master] - staged, unstaged and
+# untracked files included
+function git-diff() {
+  local base="${1:-$(master)}"
+  local merge_base=$(git merge-base "$base" HEAD 2>/dev/null) || merge_base="$base"
+
+  # intent-to-add makes untracked files visible to git diff; undone afterwards
+  local untracked=("${(@f)$(git ls-files --others --exclude-standard)}")
+  [[ -n "$untracked" ]] && git add -N -- $untracked
+
+  git diff --stat "$merge_base"
+
+  [[ -n "$untracked" ]] && git reset -q -- $untracked
+}
+alias gd='git-diff'
+
 function git-cherry-pick()        { git cherry-pick $@; }
 function git-clean()              { git restore --staged .; git restore .; git clean -fd; }
-function git-diff()               { git diff main --stat; }
 function git-diff-full()          { nvim -c "DiffviewOpen HEAD"; }
 function git-list-changes()       { "$CFGS/zsh/git-list-changes.rb" $@; }
 function git-rebase-continue()    { git add .; git rebase --continue; }
@@ -95,7 +110,6 @@ function gitcc()                  { git add .; gitc $@; }
 function gitp()                   { gitc $@; git push; }
 function gitpp()                  { gitcc $@; git push && "$CFGS/zsh/git-pr-link.rb"; }
 
-alias gd='git-diff'
 alias gdd='git-diff-full'
 alias gg='git g'
 alias gitri='git-rebase-interactive'
