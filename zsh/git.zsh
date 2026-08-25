@@ -40,6 +40,21 @@ function git-commit() {
 }
 alias gitc='git-commit'
 
+# `git g`, but only 10 commits at a time: LINES makes less treat the screen as
+# 11 rows, so the log opens inline under the prompt and stays navigable with the
+# usual less keys (space/j/k/G, q to quit). extra args are forwarded to git log
+# (e.g. `gg master`, `gg -- some/file`)
+function git-log() {
+  local lines=${GIT_LOG_LINES:-10}
+
+  if [[ ! -t 1 ]]; then
+    git g "$@"
+    return
+  fi
+
+  git g --color=always "$@" | LINES=$((lines + 1)) less -RSXF
+}
+
 function git-merge-master() {
     git fetch && git merge --no-edit origin/$(master)
     if [ $? -ne 0 ]; then
@@ -129,7 +144,7 @@ function gitp()                   { gitc $@; git push; }
 function gitpp()                  { gitcc $@; git push && "$CFGS/zsh/git-pr-link.rb"; }
 
 alias gd='git-diff'
-alias gg='git g'
+alias gg='git-log'
 alias gitri='git-rebase-interactive'
 alias gits='git s'
 alias gitsm='git-switch-master'
