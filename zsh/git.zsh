@@ -1,16 +1,37 @@
-function _git_branch() {
-    git symbolic-ref --short HEAD 2>/dev/null
-}
+function _git_branch() { git symbolic-ref --short HEAD 2>/dev/null; }
+function _git_ticket() { _git_branch | grep -E '[-_]' | sed -E 's/^([^_-]+)[_-]([^_-]+).*/\1-\2/'; }
 
-function _git_ticket() {
-    _git_branch | grep -E '[-_]' | sed -E 's/^([^_-]+)[_-]([^_-]+).*/\1-\2/'
-}
+function git-cherry-pick()        { git cherry-pick $@; }
+function git-clean()              { git restore --staged .; git restore .; git clean -fd; }
+function git-diff()               { git diff main --stat; }
+function git-diff-full()          { nvim -c "DiffviewOpen HEAD"; }
+function git-list-changes()       { "$CFGS/zsh/git-list-changes.rb" $@; }
+function git-rebase-continue()    { git add .; git rebase --continue; }
+function git-rebase-head()        { git fetch origin && git rebase origin/$(git branch --show-current); }
+function git-rebase-interactive() { git rebase -i $@; }
+function git-restore()            { git restore .; }
+function git-switch-master()      { git switch $(master) && git pull; }
+function git-worktree-list()      { git worktree list; }
+function gitcc()                  { git add .; gitc $@; }
+function gitp()                   { gitc $@; git push; }
+function gitpp()                  { gitcc $@; git push && "$CFGS/zsh/git-pr-link.rb"; }
 
-function gd() {
-    nvim -c "DiffviewOpen HEAD"
-}
+alias gd='git-diff'
+alias gdd='git-diff-full'
+alias gg='git g'
+alias gitri='git-rebase-interactive'
+alias gits='git s'
+alias gitsm='git-switch-master'
+alias gitwl='git-worktree-list'
+alias gpp='gitpp'
+alias grestore='git-restore'
+alias gs='git s'
+alias pp='gitpp'
+alias push='gitpp'
 
-function gh() {
+function master() { git symbolic-ref --short refs/remotes/origin/HEAD | cut -d/ -f2; }
+
+function git-history() {
   local file="" mode="history" arg=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -33,6 +54,7 @@ function gh() {
     nvim -c "DiffviewFileHistory $file"
   fi
 }
+alias gh='git-history'
 
 function git-commit() {
     if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
@@ -46,20 +68,6 @@ function git-commit() {
     fi
 }
 alias gitc='git-commit'
-
-function git-clean() { git restore --staged .; git restore .; git clean -fd; }
-function git-cherry-pick() { git cherry-pick $@; }
-function gitcc() { git add .; gitc $@; }
-function gitp() { gitc $@; git push; }
-function gitpp() { gitcc $@; git push && "$CFGS/zsh/git-pr-link.rb"; }
-
-alias gg='git g'
-alias pp='gitpp'
-alias gpp='gitpp'
-alias push='gitpp'
-alias grestore='git restore .'
-
-function master() { git symbolic-ref --short refs/remotes/origin/HEAD | cut -d/ -f2; }
 
 function git-merge-master() {
     git fetch && git merge --no-edit origin/$(master)
@@ -75,14 +83,6 @@ function git-merge-master() {
     git push
 }
 alias gitmm='git-merge-master'
-
-# git stuff
-function git-rebase-interactive() { git rebase -i $@; }
-alias gitri='git-rebase-interactive'
-function git-rebase-continue() { git add .; git rebase --continue; }
-function git-switch-master() { git switch $(master) && git pull; }
-alias gitsm='git-switch-master'
-function git-rebase-head() { git fetch origin && git rebase origin/$(git branch --show-current); }
 
 function git-switch() {
   local branch="$1"
@@ -107,7 +107,6 @@ function git-switch() {
     git stash apply
   fi
 }
-
 alias gitsw='git-switch'
 
 function gitwt() {
@@ -207,9 +206,3 @@ function gitwra() {
   done
 }
 
-function git-worktree-list() { git worktree list; }
-alias gitwl='git-worktree-list'
-function git-list-changes() { "$CFGS/zsh/git-list-changes.rb" $@; }
-
-alias gs='git s'
-alias gits='git s'
