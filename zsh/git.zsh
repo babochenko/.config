@@ -1,34 +1,5 @@
 function _git_branch() { git symbolic-ref --short HEAD 2>/dev/null; }
 function _git_ticket() { _git_branch | grep -E '[-_]' | sed -E 's/^([^_-]+)[_-]([^_-]+).*/\1-\2/'; }
-
-function git-cherry-pick()        { git cherry-pick $@; }
-function git-clean()              { git restore --staged .; git restore .; git clean -fd; }
-function git-diff()               { git diff main --stat; }
-function git-diff-full()          { nvim -c "DiffviewOpen HEAD"; }
-function git-list-changes()       { "$CFGS/zsh/git-list-changes.rb" $@; }
-function git-rebase-continue()    { git add .; git rebase --continue; }
-function git-rebase-head()        { git fetch origin && git rebase origin/$(git branch --show-current); }
-function git-rebase-interactive() { git rebase -i $@; }
-function git-restore()            { git restore .; }
-function git-switch-master()      { git switch $(master) && git pull; }
-function git-worktree-list()      { git worktree list; }
-function gitcc()                  { git add .; gitc $@; }
-function gitp()                   { gitc $@; git push; }
-function gitpp()                  { gitcc $@; git push && "$CFGS/zsh/git-pr-link.rb"; }
-
-alias gd='git-diff'
-alias gdd='git-diff-full'
-alias gg='git g'
-alias gitri='git-rebase-interactive'
-alias gits='git s'
-alias gitsm='git-switch-master'
-alias gitwl='git-worktree-list'
-alias gpp='gitpp'
-alias grestore='git-restore'
-alias gs='git s'
-alias pp='gitpp'
-alias push='gitpp'
-
 function master() { git symbolic-ref --short refs/remotes/origin/HEAD | cut -d/ -f2; }
 
 function git-history() {
@@ -205,4 +176,32 @@ function gitwra() {
     git worktree remove "$wt" && echo "removed $wt"
   done
 }
+
+function git-cherry-pick()        { git cherry-pick $@; }
+function git-clean()              { git restore --staged .; git restore .; git clean -fd; }
+function git-diff()               { git diff main --stat; }
+function git-diff-full()          { nvim -c "DiffviewOpen HEAD"; }
+function git-list-changes()       { "$CFGS/zsh/git-list-changes.rb" $@; }
+function git-rebase-continue()    { git add .; git rebase --continue; }
+function git-rebase-head()        { git fetch origin && git rebase origin/$(git branch --show-current); }
+function git-rebase-interactive() { git rebase -i $@; }
+function git-restore()            { git restore .; }
+function git-switch-master()      { git switch $(master) && git pull; }
+function git-worktree-list()      { git worktree list; }
+function gitcc()                  { git add .; gitc $@; }
+function gitp()                   { gitc $@; git push; }
+function gitpp()                  { gitcc $@; git push && "$CFGS/zsh/git-pr-link.rb"; }
+
+alias gd='git-diff'
+alias gdd='git-diff-full'
+alias gg='git g'
+alias gitri='git-rebase-interactive'
+alias gits='git s'
+alias gitsm='git-switch-master'
+alias gitwl='git-worktree-list'
+alias gpp='gitpp'
+alias grestore='git-restore'
+alias gs='git s'
+alias pp='gitpp'
+alias push='gitpp'
 
