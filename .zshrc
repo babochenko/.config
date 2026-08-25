@@ -155,7 +155,10 @@ function p() {
 # defines __v / __p and their compdefs for the v and p functions above
 source "$CONFIG/zsh/completions.zsh"
 
-function gitc() {
+function ipy() { venv && ipython --TerminalInteractiveShell.editing_mode=vi; }
+function py() { venv && python3 $@; }
+
+function git-commit() {
     if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
         git commit --no-edit
     else
@@ -166,31 +169,13 @@ function gitc() {
         git commit -m "$commit_msg"
     fi
 }
+alias gitc='git-commit'
 
-function git-clean() {
-    git restore --staged .
-    git restore .
-    git clean -fd
-}
-
-function git-cherry-pick() {
-    git cherry-pick $@
-}
-
-function gitcc() {
-    git add .
-    gitc $@
-}
-
-function gitp() {
-    gitc $@
-    git push
-}
-
-function gitpp() {
-    gitcc $@
-    git push && "$CFGS/zsh/git-pr-link.rb"
-}
+function git-clean() { git restore --staged .; git restore .; git clean -fd; }
+function git-cherry-pick() { git cherry-pick $@; }
+function gitcc() { git add .; gitc $@; }
+function gitp() { gitc $@; git push; }
+function gitpp() { gitcc $@; git push && "$CFGS/zsh/git-pr-link.rb"; }
 
 alias gg='git g'
 alias pp='gitpp'
@@ -198,11 +183,9 @@ alias gpp='gitpp'
 alias push='gitpp'
 alias grestore='git restore .'
 
-function master() {
-    git symbolic-ref --short refs/remotes/origin/HEAD | cut -d/ -f2
-}
+function master() { git symbolic-ref --short refs/remotes/origin/HEAD | cut -d/ -f2; }
 
-function gitmm() {
+function git-merge-master() {
     git fetch && git merge --no-edit origin/$(master)
     if [ $? -ne 0 ]; then
         local model=$(opencode models 2>/dev/null | grep "glm" | head -1 | awk '{print $1}')
@@ -215,33 +198,17 @@ function gitmm() {
     fi
     git push
 }
+alias gitmm='git-merge-master'
 
-function gitri() {
-  git rebase -i $@
-}
+# git stuff
+function git-rebase-interactive() { git rebase -i $@; }
+alias gitri='git-rebase-interactive'
+function git-rebase-continue() { git add .; git rebase --continue; }
+function git-switch-master() { git switch $(master) && git pull; }
+alias gitsm='git-switch-master'
+function git-rebase-head() { git fetch origin && git rebase origin/$(git branch --show-current); }
 
-function gitrc() {
-  git add .
-  git rebase --continue
-}
-
-function gitsm() {
-    git switch $(master) && git pull
-}
-
-function gitrh() {
-    git fetch origin && git rebase origin/$(git branch --show-current)
-}
-
-function ipy() {
-     venv && ipython --TerminalInteractiveShell.editing_mode=vi
-}
-
-function py() {
-     venv && python3 $@
-}
-
-function gitsw() {
+function git-switch() {
   local branch="$1"
   if [[ -z "$branch" ]]; then
     echo 'Usage: gitsw <branch>  - applies all pending changes on top of another branch'
@@ -264,6 +231,8 @@ function gitsw() {
     git stash apply
   fi
 }
+
+alias gitsw='git-switch'
 
 function gitwt() {
   local name="$1"
@@ -379,6 +348,7 @@ function git-list-changes() {
 }
 
 alias gs='git s'
+alias gits='git s'
 
 function check() {
   echo "Running checkstyle..."
