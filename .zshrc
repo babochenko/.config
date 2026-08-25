@@ -339,13 +339,9 @@ function gitwra() {
   done
 }
 
-function gitwl() {
-    git worktree list
-}
-
-function git-list-changes() {
-    "$CFGS/zsh/git-list-changes.rb" $@
-}
+function git-worktree-list() { git worktree list; }
+alias gitwl='git-worktree-list'
+function git-list-changes() { "$CFGS/zsh/git-list-changes.rb" $@; }
 
 alias gs='git s'
 alias gits='git s'
