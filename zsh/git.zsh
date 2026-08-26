@@ -133,7 +133,7 @@ function git-status() {
         grn = "\033[32m"; red = "\033[31m"; gry = "\033[38;5;244m\033[3m"; rst = "\033[0m"
         plus = (ins+0 > 0) ? grn "+" ins rst : sprintf("%3s","")
         minus = (del+0 > 0) ? red "-" del rst : sprintf("%3s","")
-        lines = lines sprintf(" %s %s %s (%s%s/%s)\n", plus, minus, filename, gry, dir, rst)
+        lines = lines sprintf(" %s %s %s %s(%s/)%s\n", plus, minus, filename, gry, dir, rst)
         t_ins += ins+0; t_del += del+0; t_files++
       }
       END {
