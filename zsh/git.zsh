@@ -123,7 +123,26 @@ function git-status() {
   if GIT_INDEX_FILE="$index" git diff --quiet "$merge_base"; then
     echo "no changes vs $base"
   else
-    GIT_INDEX_FILE="$index" git diff --stat "$merge_base"
+    GIT_INDEX_FILE="$index" git diff --numstat "$merge_base" | awk '
+      {
+        ins = $1; del = $2
+        path = ""; for (i=3; i<=NF; i++) path = path (i>3 ? " " : "") $i
+        n = split(path, parts, "/"); filename = parts[n]
+        dir = ""; for (i=1; i<n; i++) dir = dir (i>1 ? "/" : "") parts[i]
+        if (length(dir) > 66) dir = ".../" substr(dir, length(dir) - 62)
+        grn = "\033[32m"; red = "\033[31m"; gry = "\033[38;5;244m\033[3m"; rst = "\033[0m"
+        plus = (ins+0 > 0) ? grn "+" ins rst : sprintf("%3s","")
+        minus = (del+0 > 0) ? red "-" del rst : sprintf("%3s","")
+        lines = lines sprintf(" %s %s %s (%s%s/%s)\n", plus, minus, filename, gry, dir, rst)
+        t_ins += ins+0; t_del += del+0; t_files++
+      }
+      END {
+        if (t_files > 0) {
+        printf " %d file%s changed, %d insertion%s(+), %d deletion%s(-)\n", t_files, (t_files==1?"":"s"), t_ins, (t_ins==1?"":"s"), t_del, (t_del==1?"":"s")
+        printf "%s", lines
+        }
+      }
+    '
   fi
 
   [[ -n "$tmp_index" ]] && rm -f "$tmp_index"
