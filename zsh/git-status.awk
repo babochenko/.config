@@ -41,7 +41,7 @@ END {
         ins = f[1]+0; del = f[2]+0; filename = f[3]; dir = f[4]; deleted = f[5]+0
         plus = (ins > 0) ? grn "+" sprintf("%-*d", max_ins-1, ins) rst : sprintf("%*s", max_ins, "")
         minus = (del > 0) ? red "-" sprintf("%-*d", max_del-1, del) rst : sprintf("%*s", max_del, "")
-        fname = (deleted) ? red "\033[3m" filename rst : filename
+        fname = (deleted) ? gry filename rst : filename
         printf "  %s %s %s %s(%s/)%s\n", plus, minus, fname, gry, dir, rst
       }
     }
