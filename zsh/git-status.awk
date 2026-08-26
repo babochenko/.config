@@ -9,8 +9,9 @@
   else grp = 1
   g_count[grp]++
   idx = g_count[grp]
-  g_rows[grp, idx] = ins "\t" del "\t" filename "\t" dir
-  g_names[grp, idx] = filename
+  deleted = (ins == 0 && del > 0) ? 1 : 0
+  g_rows[grp, idx] = ins "\t" del "\t" filename "\t" dir "\t" deleted
+  g_names[grp, idx] = deleted filename
   w = length(ins+0) + 1; if (w > max_ins) max_ins = w
   w = length(del+0) + 1; if (w > max_del) max_del = w
   t_ins += ins+0; t_del += del+0
@@ -37,10 +38,11 @@ END {
           }
       for (i = 1; i <= count; i++) {
         split(g_rows[g, i], f, "\t")
-        ins = f[1]+0; del = f[2]+0; filename = f[3]; dir = f[4]
+        ins = f[1]+0; del = f[2]+0; filename = f[3]; dir = f[4]; deleted = f[5]+0
         plus = (ins > 0) ? grn "+" sprintf("%-*d", max_ins-1, ins) rst : sprintf("%*s", max_ins, "")
         minus = (del > 0) ? red "-" sprintf("%-*d", max_del-1, del) rst : sprintf("%*s", max_del, "")
-        printf "  %s %s %s %s(%s/)%s\n", plus, minus, filename, gry, dir, rst
+        fname = (deleted) ? red "\033[3m" filename rst : filename
+        printf "  %s %s %s %s(%s/)%s\n", plus, minus, fname, gry, dir, rst
       }
     }
   }
