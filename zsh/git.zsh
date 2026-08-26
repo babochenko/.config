@@ -145,7 +145,10 @@ function git-status() {
       END {
         if (t_files > 0) {
           grn = "\033[32m"; red = "\033[31m"; gry = "\033[38;5;244m\033[3m"; rst = "\033[0m"
-          printf " %d file%s changed, %d insertion%s(+), %d deletion%s(-)\n", t_files, (t_files==1?"":"s"), t_ins, (t_ins==1?"":"s"), t_del, (t_del==1?"":"s")
+          if (t_files > 1)
+            printf " %d files changed: %s+%d%s %s-%d%s\n", t_files, grn, t_ins, rst, red, t_del, rst
+          else
+            printf " 1 file changed\n"
           g_label[1] = ""; g_label[2] = "main"; g_label[3] = "test"
           for (g = 1; g <= 3; g++) {
             count = g_count[g]
