@@ -96,6 +96,11 @@ function git-switch() {
 }
 alias gitsw='git-switch'
 
+function git-switch-create() {
+  git switch -c $@
+}
+alias gitsc='git-switch-create'
+
 # uncommitted changes - staged, unstaged and untracked files. pass a base to
 # compare against something else instead (e.g. `gd master`). read-only:
 # untracked files are collected through a throwaway copy of the index, so the
