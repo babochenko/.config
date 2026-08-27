@@ -11,4 +11,8 @@ dont have that error
 -- after every change seems ok for you, commit and push
 -- never run full build or tests - it takes too much time. I will run them
 later manually
+-- never, under any circumstance, force push or rebase commits. always preserve
+git commit history! even if reverting code, just revert in a new commit.
+unless EXPLICITLY requested by the user to rebase or rename existing commits
+in a branch
 
