@@ -145,8 +145,8 @@ function check() {
   local start=$SECONDS
   local output rc
   output=$(./gradlew --offline --parallel --build-cache \
-      checkstyleMain \
-      spotbugsMain \
+      checkstyleMain checkstyleTest checkstyleTestData checkstyleTestFunctional \
+      spotbugsMain spotbugsTest spotbugsTestData spotbugsTestFunctional \
       2>&1)
   rc=$?
   local elapsed=$((SECONDS - start))
