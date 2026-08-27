@@ -144,7 +144,7 @@ function check() {
   local _spot=".java:[line"
   local start=$SECONDS
   local output rc
-  output=$(./gradlew --offline --parallel --build-cache \
+  output=$(./gradlew --parallel --build-cache \
       checkstyleMain checkstyleTest checkstyleTestData checkstyleTestFunctional \
       spotbugsMain spotbugsTest spotbugsTestData spotbugsTestFunctional \
       2>&1)
