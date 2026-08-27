@@ -146,10 +146,7 @@ function gitpp()                  { gitcc $@; git push && "$CFGS/zsh/git-pr-link
 alias gd='git-diff'
 alias gg='git-log'
 alias gitri='git-rebase-interactive'
-alias gits='git s'
 alias gitsm='git-switch-master'
-alias gpp='gitpp'
 alias grestore='git-restore'
 alias pp='gitpp'
-alias push='gitpp'
 
