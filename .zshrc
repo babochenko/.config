@@ -41,7 +41,7 @@ load_fireworks_key() {
 }
 load_fireworks_key >/dev/null 2>&1
 
-alias oc='opencode --auto'
+alias oc='opencode --auto --agent myagent'
 
 export CFGS="$HOME/.config"
 export VIRTUAL_ENV="$HOME/Developer/.venv"
