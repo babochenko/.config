@@ -139,11 +139,11 @@ Environment overrides everything in `config.json`.
 | | |
 |---|---|
 | `OPENDASH_MODEL` / `model` | default `provider/model` for new instances |
-| `OPENDASH_AGENT` / `agent` | default opencode agent |
+| `OPENDASH_AGENT` / `agent` | opencode agent (default `myagent`, set in `config.json`) |
 | `JIRA_BASE_URL` `JIRA_EMAIL` `JIRA_API_TOKEN` | jira polling |
 | `OPENDASH_EDITOR` | editor for writing tasks (default `nvim`, else `$EDITOR`) |
 | `OPENDASH_PERMISSION` | JSON object of tool permissions for instances |
-| `OPENDASH_AUTO=1` | opt into the full unattended permission set |
+| `OPENDASH_AUTO=0` | make instances read-only instead of unattended |
 | `OPENDASH_CONFIG` | alternative config.json path |
 | `OPENDASH_STATE` | state dir (default `~/.local/state/opendash`) |
 | `OPENDASH_TMUX_SOCKET` | tmux socket name (default `opendash`) |
@@ -162,11 +162,49 @@ Environment overrides everything in `config.json`.
 - **Opening** an instance runs `opencode attach` in a private tmux server
   (socket `opendash`), which is what makes `option+q` interceptable and keeps
   your scroll position between visits.
-- Instances allow read-only tools by default and leave edits, shell commands
-  and other potentially destructive actions asking for approval. Set
-  `OPENDASH_AUTO=1` to allow the full unattended tool set, like
-  `opencode --auto`, or provide a JSON object through `OPENDASH_PERMISSION`.
-  `question` is left asking — the dashboard surfaces it as **needs you**.
+- **Instances run as `opencode --auto --agent myagent` would.** There is no
+  per-instance `opencode` process to pass flags to, so the two halves are set
+  where they actually live: `--auto` becomes `OPENCODE_PERMISSION` on the
+  shared server (tools allowed up front, since nobody is watching to approve
+  them), and `--agent` is sent with the opening prompt, which is what puts the
+  session on `myagent`. Both are defaults you can change — `OPENDASH_AUTO=0`
+  for read-only instances, `OPENDASH_PERMISSION` for something in between, and
+  `agent` in `config.json` or `--agent` per instance. `question` is always left
+  asking, and the dashboard surfaces it as **needs you**.
+
+## What `d` actually removes
+
+Removing an instance stops its work and forgets it, but does not delete the
+conversation and does not kill any long-lived process:
+
+| | |
+|---|---|
+| the running turn | **aborted** — the message ends in `MessageAbortedError` |
+| tool subprocesses | die with the aborted turn |
+| the `oc-`/`sh-` tmux views | killed |
+| the instance record | deleted from `instances/` |
+| the opencode session | **kept** — still in `opencode session list` |
+| the shared `opencode serve` | **untouched** — it hosts your other instances |
+
+There is no per-instance process to kill: every instance lives inside the one
+shared server. To check by hand:
+
+```sh
+pgrep -fl "opencode serve"                     # the shared server, still there
+pgrep -P "$(jq -r .pid ~/.local/state/opendash/server.json)"   # live tool children
+tmux -L opendash ls                            # views; the removed one is gone
+cd <the instance's dir> && opencode session list   # conversation still listed
+```
+
+`opencode session list` is directory-scoped, so run it from the directory the
+instance was working in. To see how a run ended:
+
+```sh
+sqlite3 -readonly ~/.local/share/opencode/opencode.db "
+  select json_extract(data,'\$.error.name'),
+         json_extract(data,'\$.time.completed') is not null as finished
+  from message where session_id='ses_…' and json_extract(data,'\$.role')='assistant'"
+```
 
 ## When something gets stuck
 

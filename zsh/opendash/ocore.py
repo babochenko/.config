@@ -59,10 +59,16 @@ AUTO_PERMISSION = json.dumps({
 
 
 def permission_json() -> str:
-    """Return validated permissions; dangerous unattended access is opt-in."""
+    """Validated permissions for background instances.
+
+    Instances are started the way `opencode --auto --agent myagent` would be, so
+    tools are allowed up front -- nobody is watching to approve them. Set
+    OPENDASH_AUTO=0 for read-only instances, or OPENDASH_PERMISSION to a JSON
+    object for anything in between.
+    """
     raw = os.environ.get("OPENDASH_PERMISSION")
     if raw is None:
-        return AUTO_PERMISSION if os.environ.get("OPENDASH_AUTO") == "1" else READ_PERMISSION
+        return READ_PERMISSION if os.environ.get("OPENDASH_AUTO") == "0" else AUTO_PERMISSION
     try:
         value = json.loads(raw)
     except json.JSONDecodeError as e:
