@@ -72,6 +72,8 @@ function __fuzzy_compadd() {
   compadd -U -Q -V fuzzy -- "${reply[@]}"
 }
 
+typeset -g __fuzzy_auto=0
+
 # Take every section's candidates at once: if the whole completion has exactly
 # one distinct match, insert it immediately (no listing, no second TAB) and
 # return 0 so the caller can skip the per-section groups. Returns 1 otherwise.
@@ -79,6 +81,7 @@ function __fuzzy_compadd() {
 function __fuzzy_unique() {
   local -a reply
   __fuzzy_rank "$@"
+  (( __fuzzy_auto )) && return 1
   # (u) dedups: the same name in two sections still inserts the same text.
   local -a matches=(${(u)reply})
   (( ${#matches} == 1 )) || return 1
@@ -96,17 +99,18 @@ function __fuzzy_group() {
   local -a reply
   __fuzzy_rank "$@"
   (( ${#reply} )) || return
-  # First TAB just lists; a second consecutive TAB (the previous listing is still
-  # on screen -> old_list is "shown") starts menu selection to cycle matches.
+  # Start menu selection immediately.  This makes the first TAB select the first
+  # match instead of requiring a second TAB after the listing was displayed.
   # We never use `unambiguous`: fuzzy matches share no common prefix, so it would
   # replace the typed word with the empty common prefix and wipe it ("con" -> "").
-  if [[ "$compstate[old_list]" == shown ]]; then
-    compstate[insert]=menu
-  else
-    # Insert nothing so the typed word stays intact and can be corrected by hand.
-    # `list force` guarantees the listing shows.
+  if (( __fuzzy_auto )); then
+    # While typing, list matches without putting the completion menu into an
+    # active state that can consume the next typed character.
     compstate[insert]=''
     compstate[list]='list force'
+  else
+    # Explicit TAB starts at the first ranked match, not the menu's last item.
+    compstate[insert]=menu:1
   fi
   # -X gives the group a header line; -V keeps our order and separates it from
   # the other groups. -Q since candidates are already quoted-literal. Wrap the
@@ -166,3 +170,20 @@ function __cmds() {
 
 compdef __cmds -command-
 
+# Refresh project choices after each printable character typed as the argument
+# to p() or v().  `list-choices` only redraws the candidates; __fuzzy_unique still
+# inserts a lone match immediately, just as it does when TAB is pressed.
+function __fuzzy_self_insert() {
+  zle .self-insert
+  [[ "$CURSOR" -eq "${#BUFFER}" ]] || return
+  [[ "$BUFFER" == p\ * || "$BUFFER" == v\ * ]] || return
+  local word="${BUFFER#* }"
+  [[ -n "$word" && "$word" != *\ * ]] || return
+  __fuzzy_auto=1
+  zle list-choices
+  __fuzzy_auto=0
+}
+
+zle -N __fuzzy_self_insert
+bindkey -M emacs -R ' -~' __fuzzy_self_insert
+bindkey -M viins -R ' -~' __fuzzy_self_insert

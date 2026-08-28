@@ -124,19 +124,25 @@ check "directory in the cwd"       "notes"       "$WORD"
 type_keys $'p nv\t'
 check "shortcut and cwd, one name" "nvim"        "$WORD"
 
-suite "one TAB, several matches: lists, leaves the word alone"
+suite "project choices appear while typing"
+
+type_keys $'p d'
+check "typing keeps the partial project" "d" "$WORD"
+contains "typing shows project choices" "=== shortcuts ===" "$SCREEN"
+
+suite "one TAB, several matches: selects the first match"
 
 type_keys $'p d\t'
-check "typed word survives"        "d"                    "$WORD"
+check "first match inserted"       "Developer"            "$WORD"
 contains "shortcuts group shown"   "=== shortcuts ==="    "$SCREEN"
 contains "  with its matches"      "Developer  Downloads" "$SCREEN"
 contains "~/Developer group shown" "=== ~/Developer ==="  "$SCREEN"
 contains "  with its matches"      "my-docs"              "$SCREEN"
 
-suite "second TAB: menu-selects the first match"
+suite "second TAB: cycles to the next match"
 
 type_keys $'p d\t\t'
-check "first match inserted"       "Developer"   "$WORD"
+check "second match inserted"       "Downloads"   "$WORD"
 
 suite "v and p offer different things"
 

@@ -155,17 +155,17 @@ check "  is still inserted"             "config"      "${(j: :)ADDED}"
 
 # ----------------------------------------------------------- __fuzzy_group ---
 
-suite "__fuzzy_group lists, then menus on the second TAB"
+suite "__fuzzy_group menu-selects on the first TAB"
 
 tab "d"
 __fuzzy_group shortcuts "=== shortcuts ===" Developer Downloads nvim
-check "first TAB inserts nothing"     ""                     "$compstate[insert]"
-check "  and forces the listing"      "list force"           "$compstate[list]"
+check "first TAB starts the menu"      "menu:1"               "$compstate[insert]"
+check "  does not force a listing"     ""                     "$compstate[list]"
 check "  under the group tag"         "shortcuts:Developer Downloads" "${GROUPS[1]}"
 
 tab "d" shown
 __fuzzy_group shortcuts "=== shortcuts ===" Developer Downloads nvim
-check "second TAB starts the menu"    "menu"                 "$compstate[insert]"
+check "second TAB keeps the menu"      "menu:1"               "$compstate[insert]"
 
 tab "zzz"
 __fuzzy_group shortcuts "=== shortcuts ===" Developer Downloads
@@ -200,7 +200,7 @@ check "cwd-only hit inserts"           "notes"       "${(j: :)ADDED}"
 tab "d"
 __p
 check "several hits list as groups"    "shortcuts:Developer Downloads developer:my-docs" "${(j: :)GROUPS}"
-check "  without inserting"            ""            "$compstate[insert]"
+check "  starts with the first match"    "menu:1"      "$compstate[insert]"
 
 tab "re"
 __p
