@@ -99,10 +99,19 @@ Pass `-t` to set it explicitly.
 - in an **instance**, it detaches — the agent carries on working;
 - in a **`t` terminal**, it closes the terminal if the prompt is idle, and
   only detaches if something is still running, so a long build is never
-  killed by accident. "Still running" is decided by `idle-check.sh` comparing
-  pids on the pane's tty, not by the process name — `./gradlew test` makes tmux
-  report the pane as `bash`, which a name test would read as an idle prompt and
-  close out from under the build.
+  killed by accident. "Still running" is decided by `idle-check.sh` from the
+  foreground process group on the pane's tty, not from the process name —
+  `./gradlew test` makes tmux report the pane as `bash`, and a shell *function*
+  that shells out (`check`) reports `zsh`, either of which a name test reads as
+  an idle prompt and closes out from under the build. The check closes a session
+  only when it positively sees the shell holding the terminal with nothing else
+  running; anything it cannot read is treated as busy. Its last decision is
+  written to `~/.local/state/opendash/idle-check.last` if you ever need to see
+  why it went the way it did.
+
+Note that tmux loads key bindings when its **server** starts, so a change to
+this behaviour only reaches a server that is already running once every view is
+closed (or after `Q`).
 
 A terminal detached while busy then **stays open indefinitely** — it keeps the
 shell and its scrollback, and finishing the command does not close it. Press
