@@ -1120,6 +1120,20 @@ def attach_terminal(item: dict) -> None:
     _tmux_attach(name)
 
 
+def run_terminal_command(item: dict, command: str) -> None:
+    """Run a shell function in the instance's terminal without attaching it."""
+    sid = item["session_id"]
+    name = tmux_name(sid, "sh")
+    directory = item.get("directory") or str(Path.home())
+    if tmux_exists(sid, "sh"):
+        r = tmux("send-keys", "-t", f"={name}", command, "Enter")
+    else:
+        r = tmux("new-session", "-d", "-s", name, "-c", directory,
+                  "zsh", "-lic", f"{command}; exit")
+    if r.returncode != 0:
+        raise ApiError(f"tmux: {(r.stderr or '').strip() or 'could not run command'}")
+
+
 def _session_url(name: str) -> str | None:
     r = tmux("show-options", "-v", "-t", name, "@opendash_url")
     return r.stdout.strip() or None if r.returncode == 0 else None

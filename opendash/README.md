@@ -83,6 +83,7 @@ Pass `-t` to set it explicitly.
 | `j` `k` / `↓` `↑` | move the cursor (`g` / `G` for first / last) |
 | `J` `K` | move the selected instance down / up the list |
 | `enter`, `o` or `l` | open the instance and talk to it |
+| `c` | code actions: `h` runs `check`, `m` runs `gitmm` in the background |
 | `t` | terminal in the instance's working directory |
 | `n` | new instance — asks for the directory, then opens nvim for the task |
 | `f` | follow up: send another message without opening it |

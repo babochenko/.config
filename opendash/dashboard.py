@@ -327,6 +327,7 @@ HELP = [
     ("J K", "move the selected instance down / up the list"),
     ("g / G", "first / last"),
     ("enter, o or l", "open the instance (option+q comes back here)"),
+    ("c", "code actions: h check, m merge master (runs in the background)"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
     ("", "or just detaches if something is still running)"),
     ("n", "new instance — asks for the directory, then a worktree"),
@@ -343,6 +344,12 @@ HELP = [
     ("S", "restart the shared opencode server"),
     ("q or ctrl+c", "leave the dashboard — every instance keeps working"),
     ("Q", "quit: stop all instances and the shared server too"),
+]
+
+CODE_ACTIONS = [
+    ("h", "run check in the instance's directory"),
+    ("m", "merge master in the instance's directory"),
+    ("esc", "cancel"),
 ]
 
 
@@ -366,6 +373,33 @@ def help_overlay(stdscr) -> None:
     del win
     stdscr.touchwin()
     stdscr.refresh()
+
+
+def code_actions_overlay(stdscr) -> str | None:
+    """Show code actions and return the selected action, if any."""
+    maxy, maxx = stdscr.getmaxyx()
+    h, w = len(CODE_ACTIONS) + 4, min(maxx - 4, 72)
+    y0, x0 = max(0, (maxy - h) // 2), max(0, (maxx - w) // 2)
+    win = curses.newwin(h, w, y0, x0)
+    win.bkgd(" ", curses.color_pair(C_DIM))
+    win.border()
+    printw(win, 0, 2, " code actions ", curses.color_pair(C_ACCENT) | curses.A_BOLD)
+    choice = None
+    for i, (key, desc) in enumerate(CODE_ACTIONS):
+        printw(win, i + 2, 3, f"{key:<16}", curses.color_pair(C_TICKET) | curses.A_BOLD)
+        printw(win, i + 2, 20, desc)
+    win.refresh()
+    with blocking(stdscr):
+        try:
+            ch = stdscr.get_wch()
+            if isinstance(ch, str) and ch in ("h", "m"):
+                choice = ch
+        except curses.error:
+            pass
+    del win
+    stdscr.touchwin()
+    stdscr.refresh()
+    return choice
 
 
 # ------------------------------------------------------------------- rendering
@@ -593,6 +627,16 @@ def run(stdscr, start_dir: str) -> None:
             _open(stdscr, data, cur)
         elif ch == "t" and cur:
             _open(stdscr, data, cur, terminal=True)
+        elif ch == "c" and cur:
+            action = code_actions_overlay(stdscr)
+            if action:
+                command = "check" if action == "h" else "gitmm"
+                try:
+                    ocore.run_terminal_command(cur, command)
+                    flash(stdscr, f" started {command}", C_OK)
+                except Exception as e:
+                    error_pause(stdscr, f"failed: {e}")
+                data.refresh_now()
         elif ch == "n":
             where = ask(stdscr, " dir :", last_dir)
             if where is not None:
