@@ -10,7 +10,8 @@ def main
   repo = ENV['X_BITBUCKET_REPOSITORY']
   abort unless repo
 
-  dir = Pathname.pwd.basename.to_s
+  dir = `git worktree list --porcelain`.lines.first[/^worktree (.+)$/, 1]&.then { |p| Pathname.new(p).basename.to_s }
+  dir ||= Pathname.pwd.basename.to_s
 
   if (pr = find_open_pr_for_branch(branch))
     puts "PR: \e[34mhttps://bitbucket.org/#{repo}/#{dir}/pull-requests/#{pr[:id]}\e[0m"
