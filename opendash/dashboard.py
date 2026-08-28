@@ -3,7 +3,7 @@
 opendash -- curses dashboard for background opencode instances.
 
 Two lines per instance: what it was asked to do, and what it has done so far.
-Arrows or hjkl to move, enter to open the instance, option+q inside to come back.
+Arrows or hjkl to move, enter or o to open the instance, option+q inside to come back.
 """
 from __future__ import annotations
 
@@ -326,7 +326,7 @@ HELP = [
     ("j k · ↓ ↑", "move the cursor between instances"),
     ("J K", "move the selected instance down / up the list"),
     ("g / G", "first / last"),
-    ("enter or l", "open the instance (option+q comes back here)"),
+    ("enter, o or l", "open the instance (option+q comes back here)"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
     ("", "or just detaches if something is still running)"),
     ("n", "new instance — asks for the directory, then a worktree"),
@@ -589,7 +589,7 @@ def run(stdscr, start_dir: str) -> None:
             sel = 0
         elif ch == "G":
             sel = max(0, len(items) - 1)
-        elif ch in ("\n", "\r", "l") and cur:
+        elif ch in ("\n", "\r", "l", "o") and cur:
             _open(stdscr, data, cur)
         elif ch == "t" and cur:
             _open(stdscr, data, cur, terminal=True)
