@@ -277,14 +277,20 @@ def _split_model(model: str | None):
 
 def send_prompt(session_id: str, text: str, directory: str,
                 model: str | None = None, agent: str | None = None) -> None:
+    """Append a message to a session and let the server work on it.
+
+    model/agent are sent only when given. Naming a model in a prompt *switches*
+    the session to it, so follow-ups pass neither and leave the session on
+    whatever model and agent it is currently using -- including a switch made
+    by hand inside the opencode TUI. Defaults are resolved once, at creation.
+    """
     url = server_url()
     body: dict = {"parts": [{"type": "text", "text": text}]}
-    m = _split_model(model or CONFIG.get("model"))
+    m = _split_model(model)
     if m:
         body["model"] = m
-    a = agent or CONFIG.get("agent")
-    if a:
-        body["agent"] = a
+    if agent:
+        body["agent"] = agent
     q = urllib.parse.urlencode({"directory": directory})
     http(f"{url}/session/{session_id}/prompt_async?{q}", "POST", body, timeout=20)
 

@@ -574,8 +574,9 @@ def run(stdscr, start_dir: str) -> None:
             msg = ask(stdscr, " follow up:")
             if msg:
                 try:
-                    ocore.send_prompt(cur["session_id"], msg, cur.get("directory") or last_dir,
-                                      cur.get("model"), cur.get("agent"))
+                    # no model/agent: keep the session on whatever it is using
+                    ocore.send_prompt(cur["session_id"], msg,
+                                      cur.get("directory") or last_dir)
                     flash(stdscr, " sent", C_OK)
                 except Exception as e:
                     error_pause(stdscr, f"failed: {e}")
