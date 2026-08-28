@@ -442,6 +442,9 @@ def snapshot(records: list[dict]) -> list[dict]:
 
             # only the assistant's own parts -- otherwise the newest "text"
             # part is the prompt we just sent, and line 2 echoes line 1
+            if not item.get("exists", True):
+                item["state"] = "unknown"      # session deleted out from under us
+
             item["activity"] = _activity(
                 con.execute(
                     "select p.data, p.time_created from part p"

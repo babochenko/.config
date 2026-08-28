@@ -26,7 +26,8 @@ work. Line 2 is what it has actually been doing, and line 3 is the directory it
 works in. All of it comes from opencode's own database, not from guessing.
 
 Status icons: `⠹` spinner (working), `◆` needs you (blocked on a permission or
-a question), `◔` queued, `●` idle, `✖` errored, `○` session gone.
+a question), `◔` queued, `●` idle, `✖` errored, `○` session gone. Anything
+blocked on you sorts to the top, then whatever is working, then most recent.
 
 ## Running it
 
@@ -34,7 +35,9 @@ a question), `◔` queued, `●` idle, `✖` errored, `○` session gone.
 opendash                        # the dashboard (alias is in .zshrc)
 ```
 
-Nothing to install; it is a zsh script plus two Python files (stdlib only).
+Nothing to install: `opendash` is a zsh script that runs `dashboard.py` (the
+curses UI) or `ocore.py` (server, sessions, db, jira). Python is stdlib-only.
+Needs `opencode`, `python3` and `tmux` on PATH.
 
 ```sh
 opendash new "PROJ-1204 make the retry backoff configurable"   # start one here
@@ -42,6 +45,7 @@ opendash new -d ~/dev/payments -m anthropic/claude-sonnet-5 "…"
 opendash list                   # plain text, no curses
 opendash abort <session-id>     # interrupt a run
 opendash rm <session-id>        # stop it and drop it from the list
+opendash quit                   # stop every instance and the shared server
 opendash server [status|start|stop]
 ```
 
@@ -74,6 +78,10 @@ Pass `-t` to set it explicitly.
   only detaches if something is still running, so a long build is never
   killed by accident.
 
+macOS sends `option+q` either as `M-q` or as the literal `œ`, depending on
+Ghostty's `macos-option-as-alt`; both are bound, so it works either way and no
+Ghostty config change is needed.
+
 ### Leaving vs quitting
 
 `ctrl+c` leaves the dashboard and everything keeps running in the background —
@@ -81,10 +89,6 @@ close the terminal, come back later, run `opendash` and it is all still there.
 `q` is a real quit: it asks, then stops every instance and the shared server
 (`opendash quit` does the same from a script). The conversations are kept, so
 reopening still lists the work, idle and ready to continue.
-
-macOS sends `option+q` either as `M-q` or as the literal `œ`, depending on
-Ghostty's `macos-option-as-alt`; both are bound, so it works with or without
-that setting.
 
 ## Jira status
 
@@ -109,6 +113,26 @@ The token is also read from the macOS keychain if you keep it there:
 ```sh
 security add-generic-password -s jira-api-token -a "$USER" -w
 ```
+
+Untested against a live Jira — there were no credentials on this machine when
+it was written. If the status pill stays blank, look at
+`~/.local/state/opendash/jira.json`: each ticket caches either a `status` and
+`category`, or the `error` that came back.
+
+## Configuration
+
+Environment overrides everything in `config.json`.
+
+| | |
+|---|---|
+| `OPENDASH_MODEL` / `model` | default `provider/model` for new instances |
+| `OPENDASH_AGENT` / `agent` | default opencode agent |
+| `JIRA_BASE_URL` `JIRA_EMAIL` `JIRA_API_TOKEN` | jira polling |
+| `OPENDASH_PERMISSION` | JSON object of tool permissions for instances |
+| `OPENDASH_CONFIG` | alternative config.json path |
+| `OPENDASH_STATE` | state dir (default `~/.local/state/opendash`) |
+| `OPENDASH_TMUX_SOCKET` | tmux socket name (default `opendash`) |
+| `OPENDASH_PYTHON` | python to run (default `python3`) |
 
 ## How it works
 
@@ -164,3 +188,29 @@ startup problems land in `server.log`; opencode's own log is
 Instances are ordinary opencode sessions, so opencode's CLI still sees them —
 `opencode session list`, `opencode --session <id>` — and deleting
 `~/.local/state/opendash/` only loses the ticket/task notes, not the work.
+
+## Design notes
+
+Things that were tried and rejected, so they do not get retried:
+
+- **`esc` to leave an instance, only in "normal mode".** opencode's prompt
+  reports a `block` cursor the whole time it is idle (checked with
+  `tmux display -p '#{cursor_shape}'`), so there is no mode for tmux to detect,
+  and grabbing `esc` would steal the key opencode uses to interrupt a run.
+  Hence a dedicated `option+q`. Modal state *is* detectable while an external
+  `$EDITOR` is open (`#{pane_current_command}` is `nvim`, cursor `block` vs
+  `bar`) — that window is just too narrow to be useful.
+- **`ctrl+w` as the leave key** — opencode already uses it for
+  delete-word-back. Of the plain ctrl keys only `q`, `s`, `o`, `h` and `y` are
+  unused by opencode.
+- **Driving instances through `opencode --session … --prompt …` in tmux.**
+  `--prompt` does not submit when resuming a session, and it would tie the
+  agent's life to the tmux pane. Posting to `/session/{id}/prompt_async` on the
+  shared server instead is what makes the work outlive the terminal.
+- **`GET /session/status` and `/api/session/{id}/permission`** both come back
+  empty for another process's sessions. Run state comes from the db (last
+  assistant message without `time.completed`), and blocked runs from
+  `GET /permission?directory=…`, which is directory-scoped.
+- **A bare `OPENCODE_PERMISSION="allow"`.** opencode merges that value into an
+  object, so a string is spread into characters and every opencode client then
+  fails config validation. It has to be a JSON object.
