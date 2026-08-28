@@ -157,6 +157,14 @@ class Data:
                 pass
             self._stop.wait(JIRA_EVERY)
 
+    def reorder(self, a_sid: str, b_sid: str) -> None:
+        """Reflect a manual move at once, without waiting for the next poll."""
+        with self.lock:
+            pos = {it["session_id"]: n for n, it in enumerate(self.items)}
+            if a_sid in pos and b_sid in pos:
+                i, j = pos[a_sid], pos[b_sid]
+                self.items[i], self.items[j] = self.items[j], self.items[i]
+
     def read(self):
         with self.lock:
             return list(self.items), dict(self.jira), self.server_up, self.error
@@ -311,7 +319,8 @@ def flash(stdscr, message: str, pair: int = C_ACCENT) -> None:
 
 
 HELP = [
-    ("j k · J K · ↓ ↑", "move between instances"),
+    ("j k · ↓ ↑", "move the cursor between instances"),
+    ("J K", "move the selected instance down / up the list"),
     ("g / G", "first / last"),
     ("enter or l", "open the instance (option+q comes back here)"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
@@ -395,8 +404,8 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt) -> None:
             printw(stdscr, body_bot - 1, maxx - 4, "↓", dim)
 
     printw(stdscr, maxy - 2, 1, "─" * max(0, maxx - 2), dim)
-    footer = ("j/k move · enter open · t term · n new · f follow up · a abort · "
-              "d remove · r rename · / filter · ? keys · q leave · Q quit all")
+    footer = ("j/k move · J/K reorder · ⏎ open · t term · n new · f follow · "
+              "a abort · d remove · r rename · / filter · ? keys · q leave · Q quit")
     if filt:
         footer = f"filter: {filt}   (esc clears) · " + footer
     printw(stdscr, maxy - 1, 1, footer, dim)
@@ -537,10 +546,20 @@ def run(stdscr, start_dir: str) -> None:
                     error_pause(stdscr, f"failed: {e}")
                 data.stop()
                 return
-        elif ch in ("j", "J"):
+        elif ch == "j":
             sel = min(sel + 1, max(0, len(items) - 1))
-        elif ch in ("k", "K"):
+        elif ch == "k":
             sel = max(sel - 1, 0)
+        elif ch in ("J", "K") and cur:
+            delta = 1 if ch == "J" else -1
+            target = sel + delta
+            if filt:
+                flash(stdscr, " clear the filter to reorder")
+            elif 0 <= target < len(items):
+                neighbour = items[target]["session_id"]
+                if ocore.move_instance(cur["session_id"], delta):
+                    data.reorder(cur["session_id"], neighbour)
+                    sel = target
         elif ch == "g":
             sel = 0
         elif ch == "G":

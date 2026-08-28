@@ -31,7 +31,7 @@ new options
       --agent NAME   opencode agent
 
 in the dashboard
-  j k J K / arrows  move    enter  open the instance      t  terminal in its dir
+  j k / arrows  cursor    J K  reorder      enter  open      t  terminal in its dir
   n  new        f  follow up        a  abort              d  remove
   /  filter     r  rename          R  refresh         ?  keys
 

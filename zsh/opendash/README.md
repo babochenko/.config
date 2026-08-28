@@ -33,6 +33,10 @@ holds still while you move through it and a new one appears at the bottom
 without shifting the rows above it. State never reorders anything — the header
 counts what needs you (`1 needs you`) and the `◆` icon marks it in place.
 
+`J` / `K` move the selected instance down / up. The arrangement is kept in the
+instance record, so it survives restarts; reordering is disabled while a filter
+is active, since the rows you see are not the whole list.
+
 ## Running it
 
 ```sh
@@ -61,7 +65,8 @@ Pass `-t` to set it explicitly.
 
 | key | |
 |---|---|
-| `j` `k` · `J` `K` · `↓` `↑` | move (`g` / `G` for first / last) |
+| `j` `k` / `↓` `↑` | move the cursor (`g` / `G` for first / last) |
+| `J` `K` | move the selected instance down / up the list |
 | `enter` or `l` | open the instance and talk to it |
 | `t` | terminal in the instance's working directory |
 | `n` | new instance — asks for the directory, then opens nvim for the task |

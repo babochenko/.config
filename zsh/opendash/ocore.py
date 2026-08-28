@@ -538,17 +538,50 @@ def snapshot(records: list[dict]) -> list[dict]:
     return sort_items(out)
 
 
+def order_key(rec: dict) -> float:
+    """Where an instance sits in the list.
+
+    Start time by default, so a new instance lands at the bottom. Moving one by
+    hand swaps its key with its neighbour's, which keeps every key in the same
+    numeric space -- no renumbering of the whole list, and the arrangement
+    survives a restart because it lives in the instance record.
+    """
+    manual = rec.get("order")
+    if isinstance(manual, (int, float)) and not isinstance(manual, bool):
+        return float(manual)
+    return float(rec.get("created") or rec.get("time_created") or 0)
+
+
 def sort_items(items: list[dict]) -> list[dict]:
-    """Oldest first, in the order the instances were started.
+    """Start order, unless you have moved things around with J/K.
 
     Deliberately not ordered by state or activity: the list has to hold still
     while you navigate it, and a row that jumps as its agent works is a row you
-    select by accident. Starting order also means a new instance appears at the
-    bottom without shifting anything above it.
+    select by accident.
     """
-    items.sort(key=lambda i: (i.get("created") or i.get("time_created") or 0,
-                              i.get("session_id") or ""))
+    items.sort(key=lambda i: (order_key(i), i.get("session_id") or ""))
     return items
+
+
+def move_instance(session_id: str, delta: int) -> bool:
+    """Move an instance up (-1) or down (+1) the list. False if it cannot."""
+    records = sorted(instance_records(), key=order_key)
+    index = next((n for n, r in enumerate(records)
+                  if r["session_id"] == session_id), None)
+    if index is None:
+        return False
+    target = index + delta
+    if not 0 <= target < len(records):
+        return False
+    keys = [order_key(records[index]), order_key(records[target])]
+    for rec, key in ((records[index], keys[1]), (records[target], keys[0])):
+        path = INSTANCES / f"{rec['session_id']}.json"
+        stored = _read_json(path)
+        if stored is None:
+            return False
+        stored["order"] = key
+        _write_json(path, stored)
+    return True
 
 
 def pending_attention(items: list[dict]) -> dict[str, str]:
