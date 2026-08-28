@@ -1,4 +1,0 @@
-{
-  "$comment": "defaults for opendash instances; env vars and ~/.config/opendash/config.json win over this",
-  "agent": "myagent"
-}
