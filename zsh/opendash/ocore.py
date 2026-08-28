@@ -785,7 +785,10 @@ def _is_shell_name(name: str) -> bool:
 
 
 def terminal_activity(items: list[dict]) -> dict[str, str]:
-    """{session_id: command} for `t` terminals still running something.
+    """{session_id: command} for instances with a `t` terminal open.
+
+    The command is "" when the terminal is idle, and an instance with no
+    terminal at all is simply absent from the result.
 
     One tmux call covers every instance, and ps is only consulted when there
     are terminals open at all.
@@ -809,7 +812,8 @@ def terminal_activity(items: list[dict]) -> dict[str, str]:
     if not panes:
         return {}
     jobs = _foreground_jobs({tty: pid for tty, (_, pid) in panes.items()})
-    return {sid: jobs[tty] for tty, (sid, _) in panes.items() if tty in jobs}
+    # every open terminal is reported; "" means it is sitting at an idle prompt
+    return {sid: jobs.get(tty, "") for tty, (sid, _) in panes.items()}
 
 
 def _foreground_jobs(panes: dict[str, int]) -> dict[str, str]:

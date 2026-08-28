@@ -462,10 +462,17 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx) -> None:
     # separate from the agent's state -- an idle agent can have a busy terminal
     headline_end = status_x
     running = item.get("terminal")
-    if running:
-        term_text = f"{SPINNER[frame % len(SPINNER)]} ❯{clip(running, TERM_W)}"
+    if running is not None:
+        if running:
+            icon, label = SPINNER[frame % len(SPINNER)], clip(running, TERM_W)
+            icon_pair, label_pair = C_TICKET, C_TICKET
+        else:
+            icon, label = ICONS["idle"], "idle"
+            icon_pair, label_pair = C_OK, C_DIM
+        term_text = f"{icon} ❯{label}"
         headline_end = status_x - 2 - len(term_text)
-        printw(stdscr, y, headline_end, term_text, curses.color_pair(C_TICKET))
+        printw(stdscr, y, headline_end, icon, curses.color_pair(icon_pair) | curses.A_BOLD)
+        printw(stdscr, y, headline_end + 2, f"❯{label}", curses.color_pair(label_pair))
 
     printw(stdscr, y, x, clip(ocore._headline(item), max(4, headline_end - x - 2)),
            title_attr)
