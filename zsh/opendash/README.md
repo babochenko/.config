@@ -285,6 +285,28 @@ sqlite3 -readonly ~/.local/share/opencode/opencode.db "
   from message where session_id='ses_…' and json_extract(data,'\$.role')='assistant'"
 ```
 
+## An instance that never starts
+
+opencode reads its config when the **server** starts, so an agent defined
+afterwards is unknown to a server that is already running. Prompting with it
+gets an HTTP 204 and then dies server-side, which showed up as an instance
+sitting in `queued — waiting for the model` forever while a message typed into
+the agent itself worked fine — the TUI sends whichever agent it has selected.
+
+opendash now checks the agent against the running server before creating
+anything and says so:
+
+```
+the running opencode server does not know agent 'myagent' (it knows: build,
+compaction, …). It was probably started before the agent was defined --
+restart it with S in the dashboard or `opendash server stop`.
+```
+
+An instance that produces nothing at all within 25 seconds is also reported as
+an error rather than staying queued, so any other launch failure surfaces
+instead of looking like patience. `opencode.log` has the server's reason
+(`message="prompt_async failed"`).
+
 ## When something gets stuck
 
 Everything routine goes through `opendash`, but two independent layers sit

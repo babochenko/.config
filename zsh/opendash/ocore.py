@@ -386,12 +386,42 @@ def send_prompt(session_id: str, text: str, directory: str,
     http(f"{url}/session/{session_id}/prompt_async?{q}", "POST", body, timeout=20)
 
 
+def server_agents(url: str) -> set[str]:
+    """Agent names the running server knows about."""
+    try:
+        listing = http(f"{url}/agent", timeout=5)
+    except ApiError:
+        return set()
+    if not isinstance(listing, list):
+        return set()
+    return {a.get("name") for a in listing if isinstance(a, dict) and a.get("name")}
+
+
+def _check_agent(url: str, agent: str | None) -> None:
+    """opencode reads its config when the server starts, so an agent defined
+    afterwards is unknown to a long-running server. Prompting with it gets a
+    204 and then dies server-side, which used to look like an instance sitting
+    in "queued" forever -- so refuse up front and say what to do about it.
+    """
+    if not agent:
+        return
+    known = server_agents(url)
+    if known and agent not in known:
+        raise ApiError(
+            f"the running opencode server does not know agent '{agent}' "
+            f"(it knows: {', '.join(sorted(known))}). It was probably started "
+            f"before the agent was defined -- restart it with S in the dashboard "
+            f"or `opendash server stop`."
+        )
+
+
 def new_instance(task: str, ticket: str | None = None, directory: str | None = None,
                  model: str | None = None, agent: str | None = None,
                  worktree: str | None = None) -> dict:
     """Start an instance. With `worktree`, the agent works on a branch of that
     name in `../<repo>-<branch>` rather than in the project directory itself."""
     url = server_url()
+    _check_agent(url, agent or CONFIG.get("agent"))
     directory = str(Path(directory or os.getcwd()).expanduser().resolve())
     tree = branch = repo = None
     if worktree:
@@ -496,6 +526,9 @@ def remove_instance(session_id: str, force: bool = False) -> None:
 # ------------------------------------------------------------------ db reading
 
 _IDLE_TITLE_RE = re.compile(r"^New session - \d{4}-")
+
+# how long a brand-new instance may show nothing before we call it a failure
+LAUNCH_GRACE_MS = 25_000
 
 
 def _connect():
@@ -605,7 +638,15 @@ def snapshot(records: list[dict]) -> list[dict]:
                 (sid,),
             ).fetchone()
             if not last:
-                item["state"] = "queued"
+                # nothing at all came back: after a grace period that is a
+                # failed launch, not a queue -- prompt_async reports success
+                # and can still die server-side
+                started = rec.get("created") or item.get("time_created") or 0
+                stalled = started and now_ms() - started > LAUNCH_GRACE_MS
+                item["state"] = "error" if stalled else "queued"
+                if stalled:
+                    item["error"] = ("the prompt never started; see "
+                                     "~/.local/share/opencode/log/opencode.log")
                 item["last_activity"] = item.get("time_updated") or rec.get("created")
             else:
                 role, completed, error, msg_ts = last
