@@ -327,7 +327,7 @@ HELP = [
     ("J K", "move the selected instance down / up the list"),
     ("g / G", "first / last"),
     ("enter, o or l", "open the instance (option+q comes back here)"),
-    ("c", "code actions: h check, m merge master (runs in the background)"),
+    ("c", "code actions: h check, m merge master, p commit and push"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
     ("", "or just detaches if something is still running)"),
     ("n", "new instance — asks for the directory, then a worktree"),
@@ -349,6 +349,7 @@ HELP = [
 CODE_ACTIONS = [
     ("h", "run check in the instance's directory"),
     ("m", "merge master in the instance's directory"),
+    ("p", "ask the agent to commit and push current changes"),
     ("esc", "cancel"),
 ]
 
@@ -392,7 +393,7 @@ def code_actions_overlay(stdscr) -> str | None:
     with blocking(stdscr):
         try:
             ch = stdscr.get_wch()
-            if isinstance(ch, str) and ch in ("h", "m"):
+            if isinstance(ch, str) and ch in ("h", "m", "p"):
                 choice = ch
         except curses.error:
             pass
@@ -630,10 +631,18 @@ def run(stdscr, start_dir: str) -> None:
         elif ch == "c" and cur:
             action = code_actions_overlay(stdscr)
             if action:
-                command = "check" if action == "h" else "gitmm"
                 try:
-                    ocore.run_terminal_command(cur, command)
-                    flash(stdscr, f" started {command}", C_OK)
+                    if action == "p":
+                        ocore.send_prompt(
+                            cur["session_id"],
+                            "Commit and push the current changes.",
+                            cur.get("directory") or last_dir,
+                        )
+                        flash(stdscr, " asked agent to commit and push", C_OK)
+                    else:
+                        command = "check" if action == "h" else "gitmm"
+                        ocore.run_terminal_command(cur, command)
+                        flash(stdscr, f" started {command}", C_OK)
                 except Exception as e:
                     error_pause(stdscr, f"failed: {e}")
                 data.refresh_now()
