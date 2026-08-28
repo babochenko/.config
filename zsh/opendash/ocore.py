@@ -44,18 +44,32 @@ CONFIG_PATHS = [
     HERE / "config.json",
 ]
 
-# opencode asks before running tools by default; instances run unattended, so
-# grant up front (mirrors `opencode --auto`). opencode merges this into its
-# permission object, so it has to be a JSON object -- a bare "allow" string is
-# spread into characters and makes every client fail config validation.
-# `question` and `doom_loop` are deliberately left at their defaults: when the
-# agent really needs a human the dashboard shows it as "needs you".
-AUTO_PERMISSION = os.environ.get("OPENDASH_PERMISSION", json.dumps({
+READ_PERMISSION = json.dumps({
+    k: "allow" for k in (
+        "read", "glob", "grep", "list", "todowrite", "webfetch", "websearch",
+        "lsp", "skill",
+    )
+}))
+AUTO_PERMISSION = json.dumps({
     k: "allow" for k in (
         "read", "edit", "glob", "grep", "list", "bash", "task",
         "external_directory", "todowrite", "webfetch", "websearch", "lsp", "skill",
     )
-}))
+})
+
+
+def permission_json() -> str:
+    """Return validated permissions; dangerous unattended access is opt-in."""
+    raw = os.environ.get("OPENDASH_PERMISSION")
+    if raw is None:
+        return AUTO_PERMISSION if os.environ.get("OPENDASH_AUTO") == "1" else READ_PERMISSION
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ApiError("OPENDASH_PERMISSION must be a JSON object") from e
+    if not isinstance(value, dict):
+        raise ApiError("OPENDASH_PERMISSION must be a JSON object")
+    return raw
 
 
 def _load_config() -> dict:
@@ -156,10 +170,27 @@ def server_info() -> dict | None:
     return _read_json(SERVER_JSON)
 
 
+def _server_process_owned(info: dict) -> bool:
+    """Avoid signaling a reused PID from stale server metadata."""
+    pid = info.get("pid")
+    if not pid:
+        return False
+    try:
+        result = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "command="],
+            capture_output=True, text=True, timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    command = result.stdout.strip()
+    return result.returncode == 0 and "serve" in command and "opencode" in command
+
+
 def server_url(start: bool = True) -> str | None:
     """URL of the shared headless opencode server, starting it if needed."""
     info = server_info()
-    if info and info.get("url") and _server_alive(info["url"]):
+    if (info and info.get("url") and _server_process_owned(info)
+            and _server_alive(info["url"])):
         return info["url"]
     if not start:
         return None
@@ -170,7 +201,7 @@ def _start_server() -> str:
     STATE.mkdir(parents=True, exist_ok=True)
     port = _free_port()
     env = os.environ.copy()
-    env.setdefault("OPENCODE_PERMISSION", AUTO_PERMISSION)
+    env.setdefault("OPENCODE_PERMISSION", permission_json())
     with open(SERVER_LOG, "ab") as log:
         log.write(f"\n=== opendash starting server on :{port} at {time.ctime()} ===\n".encode())
         log.flush()
@@ -197,7 +228,7 @@ def stop_server() -> bool:
     if not info:
         return False
     pid = info.get("pid")
-    if pid:
+    if pid and _server_process_owned(info):
         try:
             os.kill(pid, 15)
         except (ProcessLookupError, PermissionError):
@@ -276,8 +307,14 @@ def new_instance(task: str, ticket: str | None = None, directory: str | None = N
         "agent": agent or CONFIG.get("agent"),
         "created": now_ms(),
     }
-    _write_json(INSTANCES / f"{sid}.json", rec)
-    send_prompt(sid, task, directory, rec["model"], rec["agent"])
+    record_path = INSTANCES / f"{sid}.json"
+    _write_json(record_path, rec)
+    try:
+        send_prompt(sid, task, directory, rec["model"], rec["agent"])
+    except Exception:
+        abort_instance(sid)
+        record_path.unlink(missing_ok=True)
+        raise
     return rec
 
 
@@ -295,7 +332,7 @@ def quit_all() -> int:
     """Quit for real: stop every instance and the shared server.
 
     Instance records are kept, so reopening the dashboard still lists the work
-    (idle, with its conversation intact) -- use `x` to drop one for good.
+    (idle, with its conversation intact) -- use `d` to drop one for good.
     """
     records = instance_records()
     for rec in records:

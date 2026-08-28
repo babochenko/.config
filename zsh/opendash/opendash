@@ -32,7 +32,7 @@ new options
 
 in the dashboard
   j k / arrows  move        enter  open the instance      t  terminal in its dir
-  n  new        f  follow up        a  abort              x  remove
+  n  new        f  follow up        a  abort              d  remove
   /  filter     r  refresh          ?  keys
 
   q       leave the dashboard; every instance keeps working in the background

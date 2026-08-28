@@ -62,8 +62,8 @@ Pass `-t` to set it explicitly.
 | `t` | terminal in the instance's working directory |
 | `n` | new instance — asks for the directory, then opens nvim for the task |
 | `f` | follow up: send another message without opening it |
-| `a` | abort what the instance is doing right now |
-| `x` | stop it and remove it from the dashboard |
+| `a` | abort what the instance is doing right now (asks first) |
+| `d` | stop it and remove it from the dashboard (asks first) |
 | `/` | filter by ticket, title or directory (`esc` clears) |
 | `r` `S` `?` | refresh · restart the server · keys |
 | `q` or `ctrl+c` | leave the dashboard — every instance keeps working |

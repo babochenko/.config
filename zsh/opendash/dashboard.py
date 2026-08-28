@@ -256,6 +256,13 @@ def confirm(stdscr, message: str) -> bool:
     return isinstance(ch, str) and ch.lower() == "y"
 
 
+def quit_message() -> str:
+    """Describe the global quit operation without depending on the filter."""
+    records = ocore.instance_records()
+    count = len(records)
+    return f" quit and stop {count} instance(s)?"
+
+
 def compose(stdscr, directory: str) -> str | None:
     """Write the task in nvim, so it can be as long as it needs to be.
 
@@ -314,8 +321,8 @@ HELP = [
     ("n", "new instance — asks for the directory, then opens nvim"),
     ("", "for the task; save to start it, :cq or empty to cancel"),
     ("f", "follow up: send another message without opening it"),
-    ("a", "abort whatever the instance is doing right now"),
-    ("x", "stop and remove from the dashboard (session is kept)"),
+    ("a", "abort whatever the instance is doing right now (asks first)"),
+    ("d", "stop and remove from the dashboard, asks first (session is kept)"),
     ("/", "filter by ticket or title;  esc clears"),
     ("r", "refresh now"),
     ("S", "restart the shared opencode server"),
@@ -390,7 +397,7 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt) -> None:
 
     printw(stdscr, maxy - 2, 1, "─" * max(0, maxx - 2), dim)
     footer = ("j/k move · enter open · t term · n new · f follow up · a abort · "
-              "x remove · / filter · ? keys · q leave · Q quit all")
+              "d remove · / filter · ? keys · q leave · Q quit all")
     if filt:
         footer = f"filter: {filt}   (esc clears) · " + footer
     printw(stdscr, maxy - 1, 1, footer, dim)
@@ -522,10 +529,8 @@ def run(stdscr, start_dir: str) -> None:
             data.stop()
             return
         elif ch == "Q":
-            live = [i for i in items if i["state"] in ("working", "queued", "attention")]
-            question = (f" quit and stop {len(items)} instance(s)"
-                        + (f", {len(live)} still working?" if live else "?"))
-            if not items or confirm(stdscr, question):
+            question = quit_message()
+            if question.endswith("0 instance(s)?") or confirm(stdscr, question):
                 flash(stdscr, " stopping instances…")
                 try:
                     ocore.quit_all()
@@ -576,10 +581,12 @@ def run(stdscr, start_dir: str) -> None:
                     error_pause(stdscr, f"failed: {e}")
                 data.refresh_now()
         elif ch == "a" and cur:
-            ocore.abort_instance(cur["session_id"])
-            flash(stdscr, " aborted")
-            data.refresh_now()
-        elif ch == "x" and cur:
+            label = cur.get("ticket") or ocore._headline(cur)[:40]
+            if confirm(stdscr, f" abort what “{label}” is doing?"):
+                ocore.abort_instance(cur["session_id"])
+                flash(stdscr, " aborted")
+                data.refresh_now()
+        elif ch == "d" and cur:
             label = cur.get("ticket") or ocore._headline(cur)[:40]
             if confirm(stdscr, f" remove “{label}” from the dashboard?"):
                 ocore.remove_instance(cur["session_id"])
