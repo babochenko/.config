@@ -74,8 +74,8 @@ Pass `-t` to set it explicitly.
 | `a` | abort what the instance is doing right now (asks first) |
 | `d` | stop it and remove it from the dashboard (asks first) |
 | `/` | filter by ticket, title or directory (`esc` clears) |
-| `r` | rename the instance — the ticket is kept |
-| `R` `S` `?` | refresh · restart the server · keys |
+| `r` / `R` | rename the instance — `r` edits the current name, `R` starts from an empty prompt. The ticket is kept either way, and submitting nothing does nothing |
+| `S` `?` | restart the server · keys |
 | `q` or `ctrl+c` | leave the dashboard — every instance keeps working |
 | `Q` | quit for real: stop all instances and the shared server |
 

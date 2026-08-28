@@ -331,8 +331,9 @@ HELP = [
     ("a", "abort whatever the instance is doing right now (asks first)"),
     ("d", "stop and remove from the dashboard, asks first (session is kept)"),
     ("/", "filter by ticket or title;  esc clears"),
-    ("r", "rename this instance — the ticket is kept"),
-    ("R", "refresh now (it already polls every 1.5s)"),
+    ("r", "rename this instance, editing the current name"),
+    ("R", "rename it starting from an empty prompt"),
+    ("", "either way the ticket is kept, and empty input does nothing"),
     ("S", "restart the shared opencode server"),
     ("q or ctrl+c", "leave the dashboard — every instance keeps working"),
     ("Q", "quit: stop all instances and the shared server too"),
@@ -405,7 +406,7 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt) -> None:
 
     printw(stdscr, maxy - 2, 1, "─" * max(0, maxx - 2), dim)
     footer = ("j/k move · J/K reorder · ⏎ open · t term · n new · f follow · "
-              "a abort · d remove · r rename · / filter · ? keys · q leave · Q quit")
+              "a abort · d remove · r/R rename · / filter · ? keys · q leave · Q quit")
     if filt:
         footer = f"filter: {filt}   (esc clears) · " + footer
     printw(stdscr, maxy - 1, 1, footer, dim)
@@ -610,8 +611,8 @@ def run(stdscr, start_dir: str) -> None:
             if confirm(stdscr, f" remove “{label}” from the dashboard?"):
                 ocore.remove_instance(cur["session_id"])
                 data.refresh_now()
-        elif ch == "r" and cur:
-            name = ask(stdscr, " title:", ocore._headline(cur))
+        elif ch in ("r", "R") and cur:
+            name = ask(stdscr, " title:", ocore._headline(cur) if ch == "r" else "")
             if name:
                 try:
                     ocore.rename_instance(cur["session_id"], name)
@@ -619,9 +620,6 @@ def run(stdscr, start_dir: str) -> None:
                 except Exception as e:
                     error_pause(stdscr, f"failed: {e}")
                 data.refresh_now()
-        elif ch == "R":
-            data.refresh_now()
-            flash(stdscr, " refreshing…")
         elif ch == "S":
             if confirm(stdscr, " restart the shared opencode server?"):
                 flash(stdscr, " restarting server…")
