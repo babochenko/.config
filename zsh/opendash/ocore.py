@@ -406,13 +406,22 @@ def _check_agent(url: str, agent: str | None) -> None:
     if not agent:
         return
     known = server_agents(url)
-    if known and agent not in known:
+    if not known or agent in known:
+        return
+    listing = subprocess.run([opencode_bin(), "agent", "list"],
+                             capture_output=True, text=True, timeout=30)
+    defined = f"{agent} (" in listing.stdout          # e.g. "myagent (primary)"
+    if defined:
         raise ApiError(
-            f"the running opencode server does not know agent '{agent}' "
-            f"(it knows: {', '.join(sorted(known))}). It was probably started "
-            f"before the agent was defined -- restart it with S in the dashboard "
-            f"or `opendash server stop`."
+            f"the running opencode server does not know agent '{agent}'; it was "
+            f"started before the agent was defined. Restart it with S in the "
+            f"dashboard, or `opendash server stop`."
         )
+    raise ApiError(
+        f"agent '{agent}' is not defined on this machine (the server knows: "
+        f"{', '.join(sorted(known))}). Define it in ~/.config/opencode/"
+        f"opencode.json, or set a different one in config.json / OPENDASH_AGENT."
+    )
 
 
 def new_instance(task: str, ticket: str | None = None, directory: str | None = None,
