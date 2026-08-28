@@ -15,4 +15,6 @@ later manually
 git commit history! even if reverting code, just revert in a new commit.
 unless EXPLICITLY requested by the user to rebase or rename existing commits
 in a branch
+-- commit and push ONLY the changes that you introduced! There might be work
+done in parallel by another agent in the same repository
 
