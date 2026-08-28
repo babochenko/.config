@@ -60,7 +60,7 @@ Pass `-t` to set it explicitly.
 | `j` `k` / `↓` `↑` | move (`g` / `G` for first / last) |
 | `enter` or `l` | open the instance and talk to it |
 | `t` | terminal in the instance's working directory |
-| `n` | new instance — asks for the task, then the directory |
+| `n` | new instance — asks for the directory, then opens nvim for the task |
 | `f` | follow up: send another message without opening it |
 | `a` | abort what the instance is doing right now |
 | `x` | stop it and remove it from the dashboard |
@@ -89,6 +89,18 @@ close the terminal, come back later, run `opendash` and it is all still there.
 `q` is a real quit: it asks, then stops every instance and the shared server
 (`opendash quit` does the same from a script). The conversations are kept, so
 reopening still lists the work, idle and ready to continue.
+
+### Starting a task
+
+`n` asks for the directory first — prefilled with wherever you launched
+`opendash`, editable — and then opens nvim on an empty buffer for the request
+itself, so it can be as long as you like. Save to start the instance; `:cq` or
+saving nothing cancels. The buffer is a scratch file named after the target
+directory, so nvim's statusline tells you where the work will happen.
+
+The editor is `nvim` if it is on PATH, else `$EDITOR`; override with
+`OPENDASH_EDITOR`. Follow-ups (`f`) stay on a quick single-line prompt — for
+anything longer, open the instance and use opencode's own composer.
 
 ## Jira status
 
@@ -128,6 +140,7 @@ Environment overrides everything in `config.json`.
 | `OPENDASH_MODEL` / `model` | default `provider/model` for new instances |
 | `OPENDASH_AGENT` / `agent` | default opencode agent |
 | `JIRA_BASE_URL` `JIRA_EMAIL` `JIRA_API_TOKEN` | jira polling |
+| `OPENDASH_EDITOR` | editor for writing tasks (default `nvim`, else `$EDITOR`) |
 | `OPENDASH_PERMISSION` | JSON object of tool permissions for instances |
 | `OPENDASH_CONFIG` | alternative config.json path |
 | `OPENDASH_STATE` | state dir (default `~/.local/state/opendash`) |

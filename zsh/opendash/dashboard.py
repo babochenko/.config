@@ -10,8 +10,11 @@ from __future__ import annotations
 import contextlib
 import curses
 import os
+import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unicodedata
@@ -253,6 +256,37 @@ def confirm(stdscr, message: str) -> bool:
     return isinstance(ch, str) and ch.lower() == "y"
 
 
+def compose(stdscr, directory: str) -> str | None:
+    """Write the task in nvim, so it can be as long as it needs to be.
+
+    Returns None if the editor was abandoned (`:cq`) or nothing was written.
+    """
+    editor = (os.environ.get("OPENDASH_EDITOR") or shutil.which("nvim")
+              or os.environ.get("EDITOR") or "vi")
+    with tempfile.TemporaryDirectory(prefix="opendash-") as tmp:
+        # the filename shows up in nvim's statusline, naming the target dir
+        path = Path(tmp) / f"task-in-{Path(directory).name or 'task'}.md"
+        path.write_text("")
+        curses.def_prog_mode()
+        curses.endwin()
+        rc, err = 1, None
+        try:
+            rc = subprocess.run([*shlex.split(editor), str(path)],
+                                cwd=directory).returncode
+        except OSError as e:
+            err = f"{editor}: {e}"
+        finally:
+            curses.reset_prog_mode()
+            stdscr.clear()
+            stdscr.refresh()
+        if err:
+            error_pause(stdscr, err)
+            return None
+        if rc != 0:
+            return None
+        return path.read_text().strip() or None
+
+
 def error_pause(stdscr, message: str) -> None:
     """Show a failure and wait for a keypress before redrawing."""
     flash(stdscr, f" {message} — press any key"[:240], C_ERR)
@@ -277,7 +311,8 @@ HELP = [
     ("enter or l", "open the instance (option+q comes back here)"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
     ("", "or just detaches if something is still running)"),
-    ("n", "new instance — asks for the task, then the directory"),
+    ("n", "new instance — asks for the directory, then opens nvim"),
+    ("", "for the task; save to start it, :cq or empty to cancel"),
     ("f", "follow up: send another message without opening it"),
     ("a", "abort whatever the instance is doing right now"),
     ("x", "stop and remove from the dashboard (session is kept)"),
@@ -511,18 +546,24 @@ def run(stdscr, start_dir: str) -> None:
         elif ch == "t" and cur:
             _open(stdscr, data, cur, terminal=True)
         elif ch == "n":
-            task = ask(stdscr, " task:")
-            if task:
-                where = ask(stdscr, " dir :", last_dir)
-                if where is not None:
-                    where = where or last_dir
+            where = ask(stdscr, " dir :", last_dir)
+            if where is not None:
+                where = os.path.expanduser(where.strip() or last_dir)
+                if not Path(where).is_dir():
+                    error_pause(stdscr, f"no such directory: {where}")
+                else:
                     last_dir = where
-                    flash(stdscr, " starting instance…")
-                    try:
-                        rec = ocore.new_instance(task, directory=where)
-                        flash(stdscr, f" started {rec.get('ticket') or rec['session_id'][-8:]}", C_OK)
-                    except Exception as e:
-                        error_pause(stdscr, f"failed: {e}")
+                    task = compose(stdscr, where)
+                    if not task:
+                        flash(stdscr, " cancelled — nothing written")
+                    else:
+                        flash(stdscr, " starting instance…")
+                        try:
+                            rec = ocore.new_instance(task, directory=where)
+                            flash(stdscr, f" started "
+                                  f"{rec.get('ticket') or rec['session_id'][-8:]}", C_OK)
+                        except Exception as e:
+                            error_pause(stdscr, f"failed: {e}")
                     data.refresh_now()
         elif ch == "f" and cur:
             msg = ask(stdscr, " follow up:")

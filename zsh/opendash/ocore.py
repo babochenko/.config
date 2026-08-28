@@ -745,8 +745,11 @@ def _headline(item: dict) -> str:
     title = item.get("title")
     if title:
         return _strip_ticket(" ".join(str(title).split()), ticket) or str(title)
-    task = _strip_ticket(" ".join(str(item.get("task") or "").split()), ticket)
-    return task or "(no task)"
+    # tasks are written in an editor and are often several lines; until
+    # opencode has generated its own title, show just the first line
+    task = str(item.get("task") or "")
+    first = next((ln.strip() for ln in task.splitlines() if ln.strip()), "")
+    return _strip_ticket(" ".join(first.split()), ticket) or "(no task)"
 
 
 def _progress(item: dict) -> str:
