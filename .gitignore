@@ -6,6 +6,7 @@
 !/nvim/
 !/zsh/
 !/opencode/
+!/opendash/
 
 # Unignore all files inside them (recursively)
 !/ghostty/**
@@ -13,6 +14,7 @@
 !/nvim/**
 !/zsh/**
 !/opencode/system-prompt.txt
+!/opendash/**
 
 !.gitignore
 !.zshrc
