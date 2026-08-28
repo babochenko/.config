@@ -373,6 +373,35 @@ Instances are ordinary opencode sessions, so opencode's CLI still sees them —
 `opencode session list`, `opencode --session <id>` — and deleting
 `~/.local/state/opendash/` only loses the ticket/task notes, not the work.
 
+## Tests
+
+```sh
+./tests/run            # everything, lower levels first
+./tests/run --fast     # skip the levels that drive tmux and the ui
+./tests/run test_db    # one module, or one case: test_db.States
+```
+
+Stdlib `unittest`, nothing to install. Each level builds its own world under a
+temp directory — its own state dir, its own stand-in opencode database, its own
+tmux socket — so a run never touches your real instances.
+
+| | |
+|---|---|
+| `test_unit` | pure functions: tickets, headlines, ordering, permissions, clipping |
+| `test_mocked` | the http layer stubbed out: failed prompts, server ownership |
+| `test_db` | `snapshot()` against a stand-in database: every state, todos, activity, reordering, renaming |
+| `test_git` | worktrees against a real repository: naming, branch reuse, removal keeping the branch, dirty refusal |
+| `test_tmux` | real panes: what `option+q` decides, and what a `t` terminal reports |
+| `test_tui` | the dashboard in a terminal, driven by keystrokes and asserted against the screen |
+
+`OPENDASH_NO_SERVER=1` opens the dashboard without starting or contacting a
+server, which is how the ui level runs on its own.
+
+Three real bugs came out of writing these: a zombie process counted as a
+running job (so an idle terminal looked busy and `option+q` would not close
+it), `esc` taking a second to clear the filter because of ncurses' `ESCDELAY`,
+and the dashboard refusing to open at all when the server could not start.
+
 ## Design notes
 
 Things that were tried and rejected, so they do not get retried:

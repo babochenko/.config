@@ -1,0 +1,51 @@
+#!/usr/bin/env zsh
+#
+# opendash test suite, lower levels first.
+#
+#   ./tests/run           everything
+#   ./tests/run --fast    skip the levels that drive tmux and the ui
+#   ./tests/run test_db   one module (or a single case: test_db.States)
+
+emulate -L zsh
+setopt err_return no_unset
+
+here=${0:A:h}
+py=${OPENDASH_PYTHON:-python3}
+
+fast=0
+targets=()
+for arg in "$@"; do
+  case $arg in
+    --fast) fast=1 ;;
+    -h|--help)
+      print "usage: tests/run [--fast] [module|module.Case ...]"
+      print "  1 test_unit    pure functions"
+      print "  2 test_db      snapshot against a stand-in opencode database"
+      print "  3 test_git     worktrees against a real repository"
+      print "  4 test_tmux    idle-check and terminal detection in real panes"
+      print "  5 test_tui     the curses dashboard, driven in a terminal"
+      print "  - test_mocked  units that need the http layer mocked"
+      return 0 ;;
+    *) targets+=$arg ;;
+  esac
+done
+
+if (( ${#targets} == 0 )); then
+  targets=(test_unit test_mocked test_db test_git)
+  (( fast )) || targets+=(test_tmux test_tui)
+fi
+
+failed=0
+for target in $targets; do
+  print "\n── $target ────────────────────────────────────────────"
+  if ! (cd $here && $py -m unittest -q $target); then
+    failed=1
+  fi
+done
+
+print
+if (( failed )); then
+  print "some tests failed"
+  return 1
+fi
+print "all tests passed"

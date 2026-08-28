@@ -5,7 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parent))
+from support import ROOT  # noqa: F401  (puts opendash on sys.path)
+
 import dashboard
 import ocore
 
@@ -33,12 +34,17 @@ class CoreTests(unittest.TestCase):
             finally:
                 ocore.INSTANCES = old_instances
 
-    def test_permission_defaults_are_read_only(self):
+    def test_permission_defaults_are_unattended(self):
         with patch.dict("os.environ", {}, clear=True):
             permissions = json.loads(ocore.permission_json())
         self.assertEqual(permissions["read"], "allow")
+        self.assertEqual(permissions["bash"], "allow")
+        self.assertEqual(permissions["edit"], "allow")
+
+    def test_read_only_is_available_on_request(self):
+        with patch.dict("os.environ", {"OPENDASH_AUTO": "0"}, clear=True):
+            permissions = json.loads(ocore.permission_json())
         self.assertNotIn("bash", permissions)
-        self.assertNotIn("edit", permissions)
 
     def test_invalid_permission_value_is_rejected(self):
         with patch.dict("os.environ", {"OPENDASH_PERMISSION": "allow"}, clear=True):

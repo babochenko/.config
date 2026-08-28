@@ -1054,6 +1054,8 @@ def _foreground_jobs(panes: dict[str, int]) -> dict[str, str]:
         shell_pid = panes.get(tty)
         if shell_pid is None or "+" not in stat:      # "+" is the foreground group
             continue
+        if "Z" in stat or args.startswith("("):       # a zombie is not a running job
+            continue
         if not (pid.isdigit() and pgid.isdigit()) or int(pid) == shell_pid:
             continue
         # the group leader is what was typed; anything else it spawned is detail

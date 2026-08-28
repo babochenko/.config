@@ -42,6 +42,7 @@ snapshot=$(ps -t "$tty" -o pid=,pgid=,stat=,args= 2>/dev/null)
 
 # Close only when the shell itself holds the terminal and nothing else does.
 printf '%s\n' "$snapshot" | awk -v me="$me" '
+    $3 ~ /Z/               { next }          # a zombie is not a running job
     $3 ~ /\+/ && $1 == me  { shell_has_terminal = 1 }
     $3 ~ /\+/ && $1 != me  { something_running = 1 }
     END { exit !(shell_has_terminal && !something_running) }

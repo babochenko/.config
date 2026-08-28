@@ -708,12 +708,18 @@ def main() -> int:
         return 2
     if not os.environ.get("TERM"):
         os.environ["TERM"] = "xterm-256color"
+    # ncurses waits a full second on a bare escape to see whether a sequence is
+    # coming, which makes esc-to-clear-the-filter feel broken
+    os.environ.setdefault("ESCDELAY", "25")
     start_dir = os.getcwd()
-    try:
-        ocore.server_url()
-    except ocore.ApiError as e:
-        print(f"opendash: cannot start opencode server: {e}")
-        return 1
+    # A server that will not start is not a reason to refuse to open: the header
+    # reports it and S retries. OPENDASH_NO_SERVER skips the attempt entirely,
+    # which is what the tests use to drive the ui on its own.
+    if os.environ.get("OPENDASH_NO_SERVER") != "1":
+        try:
+            ocore.server_url()
+        except ocore.ApiError as e:
+            print(f"opendash: opencode server did not start: {e}", file=sys.stderr)
     curses.wrapper(run, start_dir)
     return 0
 
