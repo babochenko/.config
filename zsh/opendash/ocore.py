@@ -693,13 +693,11 @@ def jira_refresh(tickets: list[str], ttl: float = 300.0) -> dict:
 
 # ------------------------------------------------------------------------ tmux
 
-# Close outright only for a `t` terminal (session named sh-*) whose prompt is
-# idle. Everything else -- an opencode TUI, a terminal with a build running --
-# only detaches. Checking the session name matters: an opencode pane is started
-# via `sh -c`, so tmux may report its pane_current_command as "sh" too.
-_IDLE_SHELL = ('#{||:#{m:*sh,#{pane_current_command}},'
-               '#{==:#{pane_current_command},fish}}')
-_CLOSABLE = f'#{{&&:#{{m:sh-*,#{{session_name}}}},{_IDLE_SHELL}}}'
+# option+q closes a `t` terminal only when its prompt is idle, and detaches
+# from anything else -- an opencode TUI, or a terminal with a build running.
+# The test lives in a shell script because it has to compare pids: see the
+# comments in idle-check.sh for why a process-name test is not good enough.
+IDLE_CHECK = HERE / "idle-check.sh"
 
 
 def _tmux_conf() -> Path:
@@ -711,7 +709,9 @@ def _tmux_conf() -> Path:
     work survives. macOS sends option+q either as M-q (with
     `macos-option-as-alt`) or as the literal "oe" ligature, so both are bound.
     """
-    leave = f"if-shell -F '{_CLOSABLE}' 'kill-session' 'detach-client'"
+    check = IDLE_CHECK
+    args = '"#{session_name}" "#{pane_tty}" "#{pane_pid}"'
+    leave = f"if-shell '{check} {args}' 'kill-session' 'detach-client'"
     body = f"""
 set -g status on
 set -g status-position bottom
@@ -775,6 +775,79 @@ def _decorate(name: str, label: str, hint: str) -> None:
         ("status-right-length", "48"),
     ):
         tmux("set-option", "-t", name, opt, val)
+
+
+_SHELL_NAMES = ("sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh")
+
+
+def _is_shell_name(name: str) -> bool:
+    return name in _SHELL_NAMES or name.endswith("sh")
+
+
+def terminal_activity(items: list[dict]) -> dict[str, str]:
+    """{session_id: command} for `t` terminals still running something.
+
+    One tmux call covers every instance, and ps is only consulted when there
+    are terminals open at all.
+    """
+    names = {tmux_name(i["session_id"], "sh"): i["session_id"] for i in items}
+    if not names:
+        return {}
+    listing = tmux("list-panes", "-a", "-F",
+                   "#{session_name}\t#{pane_tty}\t#{pane_pid}")
+    if listing.returncode != 0:
+        return {}
+    panes: dict[str, tuple[str, int]] = {}       # tty -> (session id, shell pid)
+    for line in listing.stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 3:
+            continue
+        name, tty, shell_pid = parts
+        session_id = names.get(name)
+        if session_id and shell_pid.isdigit():
+            panes[tty.rsplit("/", 1)[-1]] = (session_id, int(shell_pid))
+    if not panes:
+        return {}
+    jobs = _foreground_jobs({tty: pid for tty, (_, pid) in panes.items()})
+    return {sid: jobs[tty] for tty, (sid, _) in panes.items() if tty in jobs}
+
+
+def _foreground_jobs(panes: dict[str, int]) -> dict[str, str]:
+    """tty -> the foreground job's command, for panes that are not idle.
+
+    Same pid-based rule as idle-check.sh, and for the same reason: a pane
+    running ./gradlew reports its current command as "bash", so a name test
+    would call a busy terminal idle.
+    """
+    try:
+        out = subprocess.run(["ps", "-o", "tty=,pid=,pgid=,stat=,args=", "-A"],
+                             capture_output=True, text=True, timeout=4).stdout
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    found: dict[str, str] = {}
+    for line in out.splitlines():
+        parts = line.split(None, 4)
+        if len(parts) < 5:
+            continue
+        tty, pid, pgid, stat, args = parts
+        shell_pid = panes.get(tty)
+        if shell_pid is None or "+" not in stat:      # "+" is the foreground group
+            continue
+        if not (pid.isdigit() and pgid.isdigit()) or int(pid) == shell_pid:
+            continue
+        # the group leader is what was typed; anything else it spawned is detail
+        if pid == pgid or tty not in found:
+            found[tty] = _typed_command(args)
+    return found
+
+
+def _typed_command(args: str) -> str:
+    argv = args.split()
+    if not argv:
+        return ""
+    if _is_shell_name(Path(argv[0]).name) and len(argv) > 1:
+        argv = argv[1:]              # "/bin/sh ./gradlew test" -> "./gradlew test"
+    return " ".join([Path(argv[0]).name] + argv[1:])
 
 
 def attach(item: dict) -> None:

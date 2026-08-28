@@ -28,6 +28,7 @@ TICK_MS = 120          # ui tick; also the spinner rate
 
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 AGE_W = 5              # right-aligned age column
+TERM_W = 10            # how much of a running terminal command to show
 
 ICONS = {
     "working":   None,        # animated spinner
@@ -129,6 +130,9 @@ class Data:
                 items = ocore.snapshot(ocore.instance_records())
                 info = ocore.server_info()
                 up = bool(info and ocore._server_alive(info["url"], timeout=1.5))
+                terminals = ocore.terminal_activity(items)
+                for it in items:
+                    it["terminal"] = terminals.get(it["session_id"])
                 blocked = ocore.pending_attention(items) if up else {}
                 for it in items:
                     note = blocked.get(it["session_id"])
@@ -453,7 +457,18 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx) -> None:
     status_x = age_x - 2 - len(status_text)
     printw(stdscr, y, status_x, status_text, status_pair | curses.A_BOLD)
     printw(stdscr, y, age_x + max(0, AGE_W - len(age)), age, curses.color_pair(C_DIM))
-    printw(stdscr, y, x, clip(ocore._headline(item), max(4, status_x - x - 2)), title_attr)
+
+    # a `t` terminal still running something gets its own spinner and command,
+    # separate from the agent's state -- an idle agent can have a busy terminal
+    headline_end = status_x
+    running = item.get("terminal")
+    if running:
+        term_text = f"{SPINNER[frame % len(SPINNER)]} ❯{clip(running, TERM_W)}"
+        headline_end = status_x - 2 - len(term_text)
+        printw(stdscr, y, headline_end, term_text, curses.color_pair(C_TICKET))
+
+    printw(stdscr, y, x, clip(ocore._headline(item), max(4, headline_end - x - 2)),
+           title_attr)
 
     # line 2: what has actually been done, then the counters
     meta = []

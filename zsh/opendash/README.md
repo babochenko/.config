@@ -28,6 +28,12 @@ works in. All of it comes from opencode's own database, not from guessing.
 Status icons: `⠹` spinner (working), `◆` needs you (blocked on a permission or
 a question), `◔` queued, `●` idle, `✖` errored, `○` session gone.
 
+A `t` terminal with something still running gets its own spinner and the
+command as you typed it, next to the state — `⠸ ❯gradlew t…`, trimmed to ten
+characters. It is deliberately separate from the agent's own state, because an
+idle agent can easily have a busy terminal. It clears when the command
+finishes; the terminal itself stays open.
+
 Instances are listed in the order they were started, oldest first, so the list
 holds still while you move through it and a new one appears at the bottom
 without shifting the rows above it. State never reorders anything — the header
@@ -86,7 +92,10 @@ Pass `-t` to set it explicitly.
 - in an **instance**, it detaches — the agent carries on working;
 - in a **`t` terminal**, it closes the terminal if the prompt is idle, and
   only detaches if something is still running, so a long build is never
-  killed by accident.
+  killed by accident. "Still running" is decided by `idle-check.sh` comparing
+  pids on the pane's tty, not by the process name — `./gradlew test` makes tmux
+  report the pane as `bash`, which a name test would read as an idle prompt and
+  close out from under the build.
 
 A terminal detached while busy then **stays open indefinitely** — it keeps the
 shell and its scrollback, and finishing the command does not close it. Press
