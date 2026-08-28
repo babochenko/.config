@@ -35,8 +35,8 @@ in the dashboard
   n  new        f  follow up        a  abort              x  remove
   /  filter     r  refresh          ?  keys
 
-  ctrl+c  leave the dashboard; every instance keeps working in the background
-  q       quit for real: stop all the instances and the shared server too
+  q       leave the dashboard; every instance keeps working in the background
+  Q       quit for real: stop all the instances and the shared server too
 
   option+q inside an instance returns to the dashboard; the instance keeps
   working. In a `t` terminal, option+q closes it when the prompt is idle and

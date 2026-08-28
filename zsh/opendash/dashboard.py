@@ -319,8 +319,8 @@ HELP = [
     ("/", "filter by ticket or title;  esc clears"),
     ("r", "refresh now"),
     ("S", "restart the shared opencode server"),
-    ("ctrl+c", "leave the dashboard — every instance keeps working"),
-    ("q", "quit: stop all instances and the shared server too"),
+    ("q or ctrl+c", "leave the dashboard — every instance keeps working"),
+    ("Q", "quit: stop all instances and the shared server too"),
 ]
 
 
@@ -390,7 +390,7 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt) -> None:
 
     printw(stdscr, maxy - 2, 1, "─" * max(0, maxx - 2), dim)
     footer = ("j/k move · enter open · t term · n new · f follow up · a abort · "
-              "x remove · / filter · ? keys · ^c leave · q quit all")
+              "x remove · / filter · ? keys · q leave · Q quit all")
     if filt:
         footer = f"filter: {filt}   (esc clears) · " + footer
     printw(stdscr, maxy - 1, 1, footer, dim)
@@ -518,10 +518,10 @@ def run(stdscr, start_dir: str) -> None:
             else:
                 continue
 
-        if ch == "\x03":                            # ctrl+c: leave it all running
+        if ch in ("q", "\x03"):                     # leave; instances keep running
             data.stop()
             return
-        elif ch == "q":
+        elif ch == "Q":
             live = [i for i in items if i["state"] in ("working", "queued", "attention")]
             question = (f" quit and stop {len(items)} instance(s)"
                         + (f", {len(live)} still working?" if live else "?"))

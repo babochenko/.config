@@ -66,8 +66,8 @@ Pass `-t` to set it explicitly.
 | `x` | stop it and remove it from the dashboard |
 | `/` | filter by ticket, title or directory (`esc` clears) |
 | `r` `S` `?` | refresh · restart the server · keys |
-| `ctrl+c` | leave the dashboard — every instance keeps working |
-| `q` | quit for real: stop all instances and the shared server |
+| `q` or `ctrl+c` | leave the dashboard — every instance keeps working |
+| `Q` | quit for real: stop all instances and the shared server |
 
 ### option+q
 
@@ -84,11 +84,11 @@ Ghostty config change is needed.
 
 ### Leaving vs quitting
 
-`ctrl+c` leaves the dashboard and everything keeps running in the background —
-close the terminal, come back later, run `opendash` and it is all still there.
-`q` is a real quit: it asks, then stops every instance and the shared server
-(`opendash quit` does the same from a script). The conversations are kept, so
-reopening still lists the work, idle and ready to continue.
+`q` (or `ctrl+c`) leaves the dashboard and everything keeps running in the
+background — close the terminal, come back later, run `opendash` and it is all
+still there. `Q` is a real quit: it asks, then stops every instance and the
+shared server (`opendash quit` does the same from a script). The conversations
+are kept, so reopening still lists the work, idle and ready to continue.
 
 ### Starting a task
 
