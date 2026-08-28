@@ -135,8 +135,6 @@ class Data:
                     if note:
                         it["state"] = "attention"
                         it["attention"] = note
-                if blocked:
-                    ocore.sort_items(items)     # attention outranks working
                 with self.lock:
                     self.items, self.server_up, self.error = items, up, None
                     self.stamp = time.time()

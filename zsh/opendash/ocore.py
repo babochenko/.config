@@ -539,9 +539,15 @@ def snapshot(records: list[dict]) -> list[dict]:
 
 
 def sort_items(items: list[dict]) -> list[dict]:
-    """Anything blocked on you first, then live work, then most recent."""
-    rank = {"attention": 0, "working": 1}
-    items.sort(key=lambda i: (rank.get(i.get("state"), 2), -(i.get("last_activity") or 0)))
+    """Oldest first, in the order the instances were started.
+
+    Deliberately not ordered by state or activity: the list has to hold still
+    while you navigate it, and a row that jumps as its agent works is a row you
+    select by accident. Starting order also means a new instance appears at the
+    bottom without shifting anything above it.
+    """
+    items.sort(key=lambda i: (i.get("created") or i.get("time_created") or 0,
+                              i.get("session_id") or ""))
     return items
 
 

@@ -26,8 +26,12 @@ work. Line 2 is what it has actually been doing, and line 3 is the directory it
 works in. All of it comes from opencode's own database, not from guessing.
 
 Status icons: `⠹` spinner (working), `◆` needs you (blocked on a permission or
-a question), `◔` queued, `●` idle, `✖` errored, `○` session gone. Anything
-blocked on you sorts to the top, then whatever is working, then most recent.
+a question), `◔` queued, `●` idle, `✖` errored, `○` session gone.
+
+Instances are listed in the order they were started, oldest first, so the list
+holds still while you move through it and a new one appears at the bottom
+without shifting the rows above it. State never reorders anything — the header
+counts what needs you (`1 needs you`) and the `◆` icon marks it in place.
 
 ## Running it
 
