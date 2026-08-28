@@ -65,6 +65,7 @@ opendash new "PROJ-1204 make the retry backoff configurable"   # start one here
 opendash new -d ~/dev/payments -m anthropic/claude-sonnet-5 "…"
 opendash new -w TIX-001-fix-tests "…"   # in a worktree ../<repo>-<branch>
 opendash list                   # plain text, no curses
+opendash doctor                # check that instances can actually start
 opendash abort <session-id>     # interrupt a run
 opendash rm <session-id>        # stop it and drop it from the list
 opendash quit                   # stop every instance and the shared server
@@ -285,6 +286,22 @@ sqlite3 -readonly ~/.local/share/opencode/opencode.db "
   from message where session_id='ses_…' and json_extract(data,'\$.role')='assistant'"
 ```
 
+## Stopping the server
+
+`opendash server stop` (and `Q`) end the process that hosts the agents. What
+survives is everything on disk: the instance records, and every conversation,
+todo list and cost in opencode's own database. Reopening the dashboard restarts
+the server and lists them all again, ready to continue with `f` or by opening
+them.
+
+What does not survive is a run that was **in flight** — that agent was mid-turn
+in the process you killed. Those show as `interrupted when the server stopped —
+send a follow-up to carry on` rather than spinning forever, because a run
+belongs to the process that started it: an unfinished message older than the
+current server cannot still be running.
+
+Worktrees, branches and `t` terminals are untouched by a server restart.
+
 ## An instance that never starts
 
 opencode reads its config when the **server** starts, so an agent defined
@@ -303,9 +320,21 @@ restart it with S in the dashboard or `opendash server stop`.
 ```
 
 An instance that produces nothing at all within 25 seconds is also reported as
-an error rather than staying queued, so any other launch failure surfaces
-instead of looking like patience. `opencode.log` has the server's reason
-(`message="prompt_async failed"`).
+an error rather than staying queued, and the row shows the server's own reason,
+read out of `opencode.log` — `prompt_async` answers 204 and can still die
+afterwards, so its log is the only place the cause exists.
+
+`opendash doctor` checks the whole chain in the order an instance needs it —
+binaries, server, the agents it knows, the configured agent and model, the
+database — and then actually sends a test prompt and waits for a reply:
+
+```
+  ok   server agents          build, compaction, …, myagent
+  ok   configured agent       myagent
+  ok   test run started       the agent replied
+```
+
+Run it on a machine where instances will not start; it names the broken link.
 
 ## When something gets stuck
 

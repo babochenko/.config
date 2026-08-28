@@ -21,6 +21,7 @@ opendash - background opencode instances
   opendash abort <session-id>...  interrupt what an instance is doing
   opendash rm <session-id>...     stop an instance and drop it from the list
   opendash quit                   stop every instance and the shared server
+  opendash doctor [-d DIR]        check that instances can actually start
   opendash server [status|start|stop]
                                   the shared background opencode server
 
@@ -43,7 +44,8 @@ in the dashboard
   working. In a `t` terminal, option+q closes it when the prompt is idle and
   detaches instead when something is still running.
 
-  OPENDASH_AUTO=1 opts into unattended edit and shell permissions.
+  Instances run unattended like `opencode --auto`; OPENDASH_AUTO=0 makes them
+  read-only instead.
 USAGE
 }
 
@@ -63,6 +65,7 @@ case ${1-} in
   list|ls)             shift; exec $py "$here/ocore.py" list "$@" ;;
   rm|remove)           shift; exec $py "$here/ocore.py" rm "$@" ;;
   quit)                shift; exec $py "$here/ocore.py" quit "$@" ;;
+  doctor)              shift; exec $py "$here/ocore.py" doctor "$@" ;;
   abort|stop)          shift; exec $py "$here/ocore.py" abort "$@" ;;
   server)              shift; exec $py "$here/ocore.py" server "$@" ;;
   -h|--help|help)      usage ;;

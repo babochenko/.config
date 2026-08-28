@@ -106,6 +106,42 @@ def opencode_bin() -> str:
     return shutil.which("opencode") or str(Path.home() / ".opencode/bin/opencode")
 
 
+def opencode_log() -> Path:
+    return Path.home() / ".local/share/opencode/log/opencode.log"
+
+
+def launch_failure(session_id: str, window: int = 400_000) -> str | None:
+    """The server's own reason a run never started.
+
+    prompt_async answers 204 and can still die afterwards, and the only record
+    of why is opencode's log -- so read it rather than making the dashboard say
+    something vague.
+    """
+    log = opencode_log()
+    try:
+        size = log.stat().st_size
+        with log.open("rb") as handle:
+            handle.seek(max(0, size - window))
+            tail = handle.read().decode(errors="replace")
+    except OSError:
+        return None
+    line = None
+    for candidate in tail.splitlines():
+        if session_id in candidate and "level=ERROR" in candidate:
+            line = candidate
+    if line is None:
+        return None
+
+    def field(name: str) -> str:
+        if f"{name}=" not in line:
+            return ""
+        rest = line.split(f"{name}=", 1)[1]
+        return (rest.split('"', 2)[1] if rest.startswith('"')
+                else rest.split(" ", 1)[0]).strip()
+
+    return " ".join(x for x in (field("message"), field("cause")) if x)[:200] or None
+
+
 def db_path() -> Path:
     if os.environ.get("OPENCODE_DB"):
         return Path(os.environ["OPENCODE_DB"])
@@ -603,6 +639,10 @@ def snapshot(records: list[dict]) -> list[dict]:
     except ApiError:
         return [dict(r, state="unknown", title=None, todos=[], activity=("none", "")) for r in records]
 
+    # a run in flight belongs to the process that started it: an unfinished
+    # message older than the current server was killed with the old one
+    server_started = (server_info() or {}).get("started")
+
     out = []
     try:
         for rec in records:
@@ -654,8 +694,8 @@ def snapshot(records: list[dict]) -> list[dict]:
                 stalled = started and now_ms() - started > LAUNCH_GRACE_MS
                 item["state"] = "error" if stalled else "queued"
                 if stalled:
-                    item["error"] = ("the prompt never started; see "
-                                     "~/.local/share/opencode/log/opencode.log")
+                    item["error"] = (launch_failure(sid)
+                                     or f"the prompt never started; see {opencode_log()}")
                 item["last_activity"] = item.get("time_updated") or rec.get("created")
             else:
                 role, completed, error, msg_ts = last
@@ -667,6 +707,10 @@ def snapshot(records: list[dict]) -> list[dict]:
                     item["state"] = "queued"
                 elif completed:
                     item["state"] = "idle"
+                elif server_started is None or (msg_ts or 0) < server_started:
+                    item["state"] = "error"
+                    item["error"] = ("interrupted when the server stopped — "
+                                     "send a follow-up to carry on")
                 else:
                     item["state"] = "working"
 
@@ -1210,6 +1254,87 @@ def _cmd_quit(args) -> int:
     return 0
 
 
+def _cmd_doctor(args) -> int:
+    """Check everything an instance needs, in the order it needs it."""
+    ok = True
+
+    def line(good: bool, label: str, detail: str = "") -> None:
+        nonlocal ok
+        ok = ok and good
+        print(f"  {'ok  ' if good else 'FAIL'} {label:<22} {detail}")
+
+    for tool in ("opencode", "tmux", "git"):
+        path = shutil.which(tool) or (opencode_bin() if tool == "opencode" else None)
+        line(bool(path and Path(path).exists()), tool, path or "not on PATH")
+
+    try:
+        url = server_url()
+        info = server_info() or {}
+        line(True, "server", f"{url} pid={info.get('pid')}")
+    except ApiError as e:
+        line(False, "server", str(e))
+        return 1
+
+    agents = server_agents(url)
+    line(bool(agents), "server agents", ", ".join(sorted(agents)) or "none reported")
+
+    wanted = CONFIG.get("agent")
+    if wanted:
+        try:
+            _check_agent(url, wanted)
+            line(True, "configured agent", wanted)
+        except ApiError as e:
+            line(False, "configured agent", str(e))
+    else:
+        line(True, "configured agent", "none (opencode default)")
+
+    line(True, "configured model", CONFIG.get("model") or "none (opencode default)")
+    line(db_path().exists(), "opencode db", str(db_path()))
+    line(True, "instances", str(len(instance_records())))
+
+    print("\n  sending a test prompt…")
+    directory = str(Path(args.dir or "/tmp").resolve())
+    session = http(f"{url}/session?{urllib.parse.urlencode({'directory': directory})}",
+                   "POST", {}, timeout=20) or {}
+    sid = session.get("id")
+    if not sid:
+        line(False, "test session", "server did not return a session")
+        return 1
+    try:
+        body: dict = {"parts": [{"type": "text", "text": "Reply with just: OK"}]}
+        m = _split_model(CONFIG.get("model"))
+        if m:
+            body["model"] = m
+        if wanted:
+            body["agent"] = wanted
+        http(f"{url}/session/{sid}/prompt_async"
+             f"?{urllib.parse.urlencode({'directory': directory})}", "POST", body, timeout=20)
+        deadline = time.time() + 30
+        replied = False
+        while time.time() < deadline:
+            con = _connect()
+            try:
+                count = con.execute("select count(*) from message where session_id = ?"
+                                    " and json_extract(data,'$.role') = 'assistant'",
+                                    (sid,)).fetchone()[0]
+            finally:
+                con.close()
+            if count:
+                replied = True
+                break
+            time.sleep(1)
+        line(replied, "test run started",
+             "the agent replied" if replied
+             else (launch_failure(sid) or "nothing came back; see " + str(opencode_log())))
+    finally:
+        try:
+            http(f"{url}/session/{sid}", "DELETE", timeout=8)
+        except ApiError:
+            pass
+    print("\n  all good" if ok else "\n  something above needs fixing")
+    return 0 if ok else 1
+
+
 def _cmd_server(args) -> int:
     if args.action == "start":
         print(server_url())
@@ -1253,6 +1378,10 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("quit", help="stop every instance and the shared server")
     p.set_defaults(fn=_cmd_quit)
+
+    p = sub.add_parser("doctor", help="check that instances can actually start")
+    p.add_argument("-d", "--dir", help="directory to test in (default /tmp)")
+    p.set_defaults(fn=_cmd_doctor)
 
     p = sub.add_parser("server", help="manage the shared opencode server")
     p.add_argument("action", nargs="?", default="status",
