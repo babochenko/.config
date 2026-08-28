@@ -311,7 +311,7 @@ def flash(stdscr, message: str, pair: int = C_ACCENT) -> None:
 
 
 HELP = [
-    ("j / k / ↓ / ↑", "move between instances"),
+    ("j k · J K · ↓ ↑", "move between instances"),
     ("g / G", "first / last"),
     ("enter or l", "open the instance (option+q comes back here)"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
@@ -537,9 +537,9 @@ def run(stdscr, start_dir: str) -> None:
                     error_pause(stdscr, f"failed: {e}")
                 data.stop()
                 return
-        elif ch == "j":
+        elif ch in ("j", "J"):
             sel = min(sel + 1, max(0, len(items) - 1))
-        elif ch == "k":
+        elif ch in ("k", "K"):
             sel = max(sel - 1, 0)
         elif ch == "g":
             sel = 0

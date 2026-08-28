@@ -61,7 +61,7 @@ Pass `-t` to set it explicitly.
 
 | key | |
 |---|---|
-| `j` `k` / `↓` `↑` | move (`g` / `G` for first / last) |
+| `j` `k` · `J` `K` · `↓` `↑` | move (`g` / `G` for first / last) |
 | `enter` or `l` | open the instance and talk to it |
 | `t` | terminal in the instance's working directory |
 | `n` | new instance — asks for the directory, then opens nvim for the task |
@@ -82,6 +82,12 @@ Pass `-t` to set it explicitly.
 - in a **`t` terminal**, it closes the terminal if the prompt is idle, and
   only detaches if something is still running, so a long build is never
   killed by accident.
+
+A terminal detached while busy then **stays open indefinitely** — it keeps the
+shell and its scrollback, and finishing the command does not close it. Press
+`t` again to read the output, and `option+q` at the idle prompt to close it for
+real. It also goes away with `d` on the instance, with `Q`, or by hand:
+`tmux -L opendash kill-session -t sh-<id>`.
 
 macOS sends `option+q` either as `M-q` or as the literal `œ`, depending on
 Ghostty's `macos-option-as-alt`; both are bound, so it works either way and no
