@@ -694,6 +694,9 @@ def _open(stdscr, data, item, terminal: bool = False) -> None:
         err = f"{type(e).__name__}: {e}"
     finally:
         curses.reset_prog_mode()
+        # tmux/curses can leave an escape sequence from scrolling in typeahead;
+        # do not let the dashboard treat it as the next navigation command.
+        curses.flushinp()
         stdscr.clear()
         stdscr.refresh()
     if err:
