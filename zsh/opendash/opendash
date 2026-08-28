@@ -27,6 +27,7 @@ opendash - background opencode instances
 new options
   -t, --ticket ID    jira ticket (otherwise picked up from the task text/url)
   -d, --dir PATH     working directory                    (default: cwd)
+  -w, --worktree B   work on branch B in ../<repo>-B      (branch is kept on rm)
   -m, --model P/M    provider/model                       (default: opencode's)
       --agent NAME   opencode agent
 

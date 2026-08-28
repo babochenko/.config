@@ -329,11 +329,13 @@ HELP = [
     ("enter or l", "open the instance (option+q comes back here)"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
     ("", "or just detaches if something is still running)"),
-    ("n", "new instance — asks for the directory, then opens nvim"),
-    ("", "for the task; save to start it, :cq or empty to cancel"),
+    ("n", "new instance — asks for the directory, then a worktree"),
+    ("", "branch (blank to skip), then opens nvim for the task;"),
+    ("", "save to start it, :cq or an empty buffer cancels"),
     ("f", "follow up: send another message without opening it"),
     ("a", "abort whatever the instance is doing right now (asks first)"),
-    ("d", "stop and remove from the dashboard, asks first (session is kept)"),
+    ("d", "stop and remove from the dashboard, asks first (the opencode"),
+    ("", "session is kept, and a worktree is removed but its branch is not)"),
     ("/", "filter by ticket or title;  esc clears"),
     ("r", "rename this instance, editing the current name"),
     ("R", "rename it starting from an empty prompt"),
@@ -599,18 +601,24 @@ def run(stdscr, start_dir: str) -> None:
                     error_pause(stdscr, f"no such directory: {where}")
                 else:
                     last_dir = where
-                    task = compose(stdscr, where)
-                    if not task:
-                        flash(stdscr, " cancelled — nothing written")
-                    else:
-                        flash(stdscr, " starting instance…")
-                        try:
-                            rec = ocore.new_instance(task, directory=where)
-                            flash(stdscr, f" started "
-                                  f"{rec.get('ticket') or rec['session_id'][-8:]}", C_OK)
-                        except Exception as e:
-                            error_pause(stdscr, f"failed: {e}")
-                    data.refresh_now()
+                    tree = ask(stdscr, " tree :", "")   # branch name, blank to skip
+                    if tree is not None:
+                        tree = tree.strip()
+                        task = compose(stdscr, where)
+                        if not task:
+                            flash(stdscr, " cancelled — nothing written")
+                        else:
+                            flash(stdscr, " creating worktree…" if tree
+                                  else " starting instance…")
+                            try:
+                                rec = ocore.new_instance(task, directory=where,
+                                                         worktree=tree or None)
+                                flash(stdscr, f" started "
+                                      f"{rec.get('ticket') or rec['session_id'][-8:]}",
+                                      C_OK)
+                            except Exception as e:
+                                error_pause(stdscr, f"failed: {e}")
+                        data.refresh_now()
         elif ch == "f" and cur:
             msg = ask(stdscr, " follow up:")
             if msg:
@@ -630,9 +638,24 @@ def run(stdscr, start_dir: str) -> None:
                 data.refresh_now()
         elif ch == "d" and cur:
             label = cur.get("ticket") or ocore._headline(cur)[:40]
-            if confirm(stdscr, f" remove “{label}” from the dashboard?"):
-                ocore.remove_instance(cur["session_id"])
-                data.refresh_now()
+            tree = cur.get("worktree")
+            question = f" remove “{label}” from the dashboard?"
+            if tree:
+                question = (f" remove “{label}” and its worktree "
+                            f"{Path(tree).name}? the branch is kept:")
+            if confirm(stdscr, question):
+                force = False
+                if tree and ocore.worktree_dirty(cur):
+                    force = confirm(stdscr, " worktree has uncommitted changes — "
+                                            "discard them?")
+                if tree and ocore.worktree_dirty(cur) and not force:
+                    flash(stdscr, " kept — commit or stash first")
+                else:
+                    try:
+                        ocore.remove_instance(cur["session_id"], force=force)
+                    except Exception as e:
+                        error_pause(stdscr, f"{e}")
+                    data.refresh_now()
         elif ch in ("r", "R") and cur:
             name = ask(stdscr, " title:", ocore._headline(cur) if ch == "r" else "")
             if name:

@@ -63,6 +63,7 @@ Needs `opencode`, `python3` and `tmux` on PATH.
 ```sh
 opendash new "PROJ-1204 make the retry backoff configurable"   # start one here
 opendash new -d ~/dev/payments -m anthropic/claude-sonnet-5 "…"
+opendash new -w TIX-001-fix-tests "…"   # in a worktree ../<repo>-<branch>
 opendash list                   # plain text, no curses
 opendash abort <session-id>     # interrupt a run
 opendash rm <session-id>        # stop it and drop it from the list
@@ -155,9 +156,19 @@ are kept, so reopening still lists the work, idle and ready to continue.
 
 ### Starting a task
 
-`n` asks for the directory first — prefilled with wherever you launched
-`opendash`, editable — and then opens nvim on an empty buffer for the request
-itself, so it can be as long as you like. Save to start the instance; `:cq` or
+`n` asks three things: the directory (prefilled with wherever you launched
+`opendash`), then a worktree branch, then the request itself in nvim.
+
+Leave the branch blank and the agent works in the directory you gave. Name it
+and opendash adds a worktree beside the project — branch `TIX-001-fix-tests`
+in `codes` becomes `../codes-TIX-001-fix-tests` — and the agent, its `t`
+terminal and the path on the row all point there instead. An existing branch of
+that name is checked out rather than refused, so you can pick work back up. The
+branch forks from the remote's default branch (`origin/HEAD`, else
+`origin/master`, `origin/main`, else `HEAD`), after a best-effort `git fetch`.
+
+The request itself is written in nvim on an empty buffer, so it can be as long
+as you like. Save to start the instance; `:cq` or
 saving nothing cancels. The buffer is a scratch file named after the target
 directory, so nvim's statusline tells you where the work will happen.
 
@@ -246,7 +257,13 @@ conversation and does not kill any long-lived process:
 | the `oc-`/`sh-` tmux views | killed |
 | the instance record | deleted from `instances/` |
 | the opencode session | **kept** — still in `opencode session list` |
+| the worktree | removed |
+| **its branch** | **kept, untouched** — check it out again whenever |
 | the shared `opencode serve` | **untouched** — it hosts your other instances |
+
+Uncommitted changes in the worktree stop the removal and say so; answering the
+second prompt discards them (`opendash rm -f` from a script). The branch is
+never touched either way, so committed work is always still there.
 
 There is no per-instance process to kill: every instance lives inside the one
 shared server. To check by hand:

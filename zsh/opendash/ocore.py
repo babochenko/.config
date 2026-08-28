@@ -259,6 +259,91 @@ def extract_ticket(text: str) -> str | None:
     return m.group(1) if m else None
 
 
+# ------------------------------------------------------------------- worktrees
+
+
+def git(cwd: str | Path, *args: str, timeout: float = 120) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", str(cwd), *args],
+                          capture_output=True, text=True, timeout=timeout)
+
+
+def _git_fail(result: subprocess.CompletedProcess, what: str) -> ApiError:
+    detail = (result.stderr or result.stdout or "").strip().splitlines()
+    return ApiError(f"{what}: {detail[-1] if detail else 'git failed'}"[:200])
+
+
+def repo_root(directory: str | Path) -> Path:
+    """The main worktree's root, even when called from inside a worktree."""
+    common = git(directory, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if common.returncode != 0 or not common.stdout.strip():
+        raise ApiError(f"not a git repository: {directory}")
+    return Path(common.stdout.strip()).parent
+
+
+def _base_ref(root: Path) -> str:
+    """What a new branch should fork from: the remote's default branch."""
+    head = git(root, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
+    if head.returncode == 0 and head.stdout.strip():
+        return head.stdout.strip().split("refs/remotes/", 1)[-1]
+    for candidate in ("origin/master", "origin/main"):
+        if git(root, "rev-parse", "--verify", "--quiet", candidate).returncode == 0:
+            return candidate
+    return "HEAD"
+
+
+def create_worktree(directory: str | Path, name: str) -> tuple[str, str, str]:
+    """Add a worktree named `name`, on a branch of the same name.
+
+    Follows the gitwt convention -- `../<repo>-<name>` beside the repo -- and
+    reuses an existing branch of that name rather than failing, so a worktree
+    can be recreated for work already started. Returns
+    (worktree path, branch, repo root).
+    """
+    if git(directory, "check-ref-format", "--branch", name).returncode != 0:
+        raise ApiError(f"not a usable branch name: {name}")
+    root = repo_root(directory)
+    target = root.parent / f"{root.name}-{name}"
+
+    if target.is_dir():
+        listing = git(root, "worktree", "list", "--porcelain")
+        if f"worktree {target}" in listing.stdout:
+            return str(target), name, str(root)
+        raise ApiError(f"{target} exists and is not a worktree of {root.name}")
+
+    git(root, "fetch", "origin", timeout=60)          # best effort; offline is fine
+    if git(root, "show-ref", "--verify", "--quiet", f"refs/heads/{name}").returncode == 0:
+        add = git(root, "worktree", "add", str(target), name)
+    else:
+        add = git(root, "worktree", "add", "-b", name, str(target), _base_ref(root))
+    if add.returncode != 0:
+        raise _git_fail(add, "git worktree add")
+    return str(target), name, str(root)
+
+
+def worktree_dirty(record: dict) -> bool:
+    worktree = record.get("worktree")
+    if not worktree or not Path(worktree).is_dir():
+        return False
+    status = git(worktree, "status", "--porcelain")
+    return status.returncode == 0 and bool(status.stdout.strip())
+
+
+def remove_worktree(record: dict, force: bool = False) -> None:
+    """Remove the instance's worktree. The branch is left completely alone."""
+    worktree = record.get("worktree")
+    if not worktree:
+        return
+    repo = record.get("repo") or worktree
+    if not Path(worktree).exists():
+        git(repo, "worktree", "prune")
+        return
+    args = ["worktree", "remove"] + (["--force"] if force else []) + [worktree]
+    result = git(repo, *args)
+    if result.returncode != 0:
+        raise _git_fail(result, "git worktree remove")
+    git(repo, "worktree", "prune")
+
+
 # ------------------------------------------------------------------- instances
 
 
@@ -302,9 +387,16 @@ def send_prompt(session_id: str, text: str, directory: str,
 
 
 def new_instance(task: str, ticket: str | None = None, directory: str | None = None,
-                 model: str | None = None, agent: str | None = None) -> dict:
+                 model: str | None = None, agent: str | None = None,
+                 worktree: str | None = None) -> dict:
+    """Start an instance. With `worktree`, the agent works on a branch of that
+    name in `../<repo>-<branch>` rather than in the project directory itself."""
     url = server_url()
     directory = str(Path(directory or os.getcwd()).expanduser().resolve())
+    tree = branch = repo = None
+    if worktree:
+        tree, branch, repo = create_worktree(directory, worktree)
+        directory = tree                      # everything happens in there
     q = urllib.parse.urlencode({"directory": directory})
     session = http(f"{url}/session?{q}", "POST", {}, timeout=20)
     if not session or not session.get("id"):
@@ -318,6 +410,9 @@ def new_instance(task: str, ticket: str | None = None, directory: str | None = N
         "model": model or CONFIG.get("model"),
         "agent": agent or CONFIG.get("agent"),
         "created": now_ms(),
+        "worktree": tree,
+        "branch": branch,
+        "repo": repo,
     }
     record_path = INSTANCES / f"{sid}.json"
     _write_json(record_path, rec)
@@ -382,12 +477,20 @@ def quit_all() -> int:
     return len(records)
 
 
-def remove_instance(session_id: str) -> None:
-    """Stop the run and drop it from the dashboard. The opencode session itself
-    is kept, so the conversation stays available in opencode's history."""
+def remove_instance(session_id: str, force: bool = False) -> None:
+    """Stop the run and drop it from the dashboard.
+
+    The opencode session is kept, so the conversation stays available in
+    opencode's history. A worktree is removed, but its branch is deliberately
+    left untouched, so the work is still there to check out again. Uncommitted
+    changes make git refuse; `force` discards them.
+    """
+    path = INSTANCES / f"{session_id}.json"
+    record = _read_json(path) or {}
     abort_instance(session_id)
     tmux_kill(session_id)
-    (INSTANCES / f"{session_id}.json").unlink(missing_ok=True)
+    remove_worktree(record, force=force)     # raises rather than lose changes
+    path.unlink(missing_ok=True)
 
 
 # ------------------------------------------------------------------ db reading
@@ -1021,7 +1124,7 @@ def _cmd_new(args) -> int:
         print("opendash new: need a task description", file=sys.stderr)
         return 2
     rec = new_instance(task, ticket=args.ticket, directory=args.dir,
-                       model=args.model, agent=args.agent)
+                       model=args.model, agent=args.agent, worktree=args.worktree)
     print(f"{rec['session_id']}  {rec.get('ticket') or '-'}  {rec['directory']}")
     return 0
 
@@ -1040,7 +1143,7 @@ def _cmd_list(args) -> int:
 
 def _cmd_rm(args) -> int:
     for sid in args.session_id:
-        remove_instance(sid)
+        remove_instance(sid, force=args.force)
         print(f"removed {sid}")
     return 0
 
@@ -1081,6 +1184,8 @@ def main(argv=None) -> int:
     p.add_argument("-d", "--dir")
     p.add_argument("-m", "--model")
     p.add_argument("--agent")
+    p.add_argument("-w", "--worktree", metavar="BRANCH",
+                   help="work on this branch in ../<repo>-<branch>")
     p.set_defaults(fn=_cmd_new)
 
     p = sub.add_parser("list", help="list instances")
@@ -1088,6 +1193,8 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("rm", help="stop and forget instances")
     p.add_argument("session_id", nargs="+")
+    p.add_argument("-f", "--force", action="store_true",
+                   help="discard uncommitted changes in the worktree")
     p.set_defaults(fn=_cmd_rm)
 
     p = sub.add_parser("abort", help="interrupt a running instance")
