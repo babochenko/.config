@@ -28,11 +28,18 @@ works in. All of it comes from opencode's own database, not from guessing.
 Status icons: `⠹` spinner (working), `◆` needs you (blocked on a permission or
 a question), `◔` queued, `●` idle, `✖` errored, `○` session gone.
 
-A `t` terminal with something still running gets its own spinner and the
-command as you typed it, next to the state — `⠸ ❯gradlew t…`, trimmed to ten
-characters. It is deliberately separate from the agent's own state, because an
-idle agent can easily have a busy terminal. It clears when the command
-finishes; the terminal itself stays open.
+A row also carries the state of its `t` terminal, next to the agent's own,
+because an idle agent can easily have a busy terminal:
+
+| | |
+|---|---|
+| no terminal open | nothing shown |
+| running something | `⠸ ❯gradlew t…` — spinner plus the command as typed, trimmed to ten characters |
+| finished | `● ❯idle` — the terminal is still open, just at a prompt |
+
+The command comes from the foreground process group on the pane's tty, so a
+shell *function* that shells out (your `check`) reports the underlying
+`./gradlew`, not `zsh`.
 
 Instances are listed in the order they were started, oldest first, so the list
 holds still while you move through it and a new one appears at the bottom
