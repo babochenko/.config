@@ -324,6 +324,34 @@ def new_instance(task: str, ticket: str | None = None, directory: str | None = N
     return rec
 
 
+def rename_instance(session_id: str, title: str) -> None:
+    """Give an instance a name of your own.
+
+    The ticket lives in our own record and is left alone -- it has its own
+    column in the dashboard, so only the description changes.
+
+    The name is kept locally *and* pushed to opencode, so it survives whatever
+    opencode would have generated for the session title and also shows up in
+    opencode's own session list.
+    """
+    title = " ".join(title.split())
+    if not title:
+        return
+    path = INSTANCES / f"{session_id}.json"
+    rec = _read_json(path)
+    if rec:
+        rec["title_override"] = title
+        _write_json(path, rec)
+    url = server_url(start=False)
+    if not url:
+        return
+    q = urllib.parse.urlencode({"directory": (rec or {}).get("directory") or str(Path.home())})
+    try:
+        http(f"{url}/session/{session_id}?{q}", "PATCH", {"title": title}, timeout=8)
+    except ApiError:
+        pass                      # the local name still applies
+
+
 def abort_instance(session_id: str) -> None:
     url = server_url(start=False)
     if not url:
@@ -785,9 +813,10 @@ def _strip_ticket(text: str, ticket: str | None) -> str:
 def _headline(item: dict) -> str:
     """Line 1 text: opencode's own generated title, else the task we sent."""
     ticket = item.get("ticket")
-    title = item.get("title")
-    if title:
-        return _strip_ticket(" ".join(str(title).split()), ticket) or str(title)
+    # a name you set by hand wins over the one opencode generated
+    for title in (item.get("title_override"), item.get("title")):
+        if title:
+            return _strip_ticket(" ".join(str(title).split()), ticket) or str(title)
     # tasks are written in an editor and are often several lines; until
     # opencode has generated its own title, show just the first line
     task = str(item.get("task") or "")

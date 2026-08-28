@@ -324,7 +324,8 @@ HELP = [
     ("a", "abort whatever the instance is doing right now (asks first)"),
     ("d", "stop and remove from the dashboard, asks first (session is kept)"),
     ("/", "filter by ticket or title;  esc clears"),
-    ("r", "refresh now"),
+    ("r", "rename this instance — the ticket is kept"),
+    ("R", "refresh now (it already polls every 1.5s)"),
     ("S", "restart the shared opencode server"),
     ("q or ctrl+c", "leave the dashboard — every instance keeps working"),
     ("Q", "quit: stop all instances and the shared server too"),
@@ -397,7 +398,7 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt) -> None:
 
     printw(stdscr, maxy - 2, 1, "─" * max(0, maxx - 2), dim)
     footer = ("j/k move · enter open · t term · n new · f follow up · a abort · "
-              "d remove · / filter · ? keys · q leave · Q quit all")
+              "d remove · r rename · / filter · ? keys · q leave · Q quit all")
     if filt:
         footer = f"filter: {filt}   (esc clears) · " + footer
     printw(stdscr, maxy - 1, 1, footer, dim)
@@ -592,7 +593,16 @@ def run(stdscr, start_dir: str) -> None:
             if confirm(stdscr, f" remove “{label}” from the dashboard?"):
                 ocore.remove_instance(cur["session_id"])
                 data.refresh_now()
-        elif ch == "r":
+        elif ch == "r" and cur:
+            name = ask(stdscr, " title:", ocore._headline(cur))
+            if name:
+                try:
+                    ocore.rename_instance(cur["session_id"], name)
+                    flash(stdscr, " renamed", C_OK)
+                except Exception as e:
+                    error_pause(stdscr, f"failed: {e}")
+                data.refresh_now()
+        elif ch == "R":
             data.refresh_now()
             flash(stdscr, " refreshing…")
         elif ch == "S":
