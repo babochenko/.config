@@ -94,6 +94,25 @@ shell and its scrollback, and finishing the command does not close it. Press
 real. It also goes away with `d` on the instance, with `Q`, or by hand:
 `tmux -L opendash kill-session -t sh-<id>`.
 
+`t` always returns to the *same* terminal for a given instance — the tmux
+session is named `sh-<id>` after the instance, so pressing it again reattaches
+to the one shell, mid-command and all, and never spawns a second. Two
+dashboards pressing `t` at once attach as two clients to that same session and
+mirror each other.
+
+What does accumulate is one idle shell per instance, roughly 5 MB each, plus
+the tmux server at about 4 MB and up to `history-limit` (50 000 lines) of
+scrollback per pane — bounded, but worth clearing out if you leave dozens
+around. Views whose instance you removed outside the dashboard would linger
+unreferenced; to find them:
+
+```sh
+comm -13 \
+  <(ls ~/.local/state/opendash/instances/*.json | xargs -n1 basename \
+      | sed 's/\.json$//' | rev | cut -c1-8 | rev | sort) \
+  <(tmux -L opendash ls -F '#{session_name}' | sed 's/^[a-z]*-//' | sort -u)
+```
+
 macOS sends `option+q` either as `M-q` or as the literal `œ`, depending on
 Ghostty's `macos-option-as-alt`; both are bound, so it works either way and no
 Ghostty config change is needed.
