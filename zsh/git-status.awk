@@ -16,6 +16,7 @@
   w = length(del+0) + 1; if (w > max_del) max_del = w
   t_ins += ins+0; t_del += del+0
   t_files++
+  t_rows[t_files] = ins "\t" del "\t" filename "\t" dir "\t" deleted
 }
 END {
   if (t_files > 0) {
@@ -24,8 +25,29 @@ END {
       printf " %d files changed: %s+%d%s %s-%d%s\n", t_files, grn, t_ins, rst, red, t_del, rst
     else
       printf " 1 file changed\n"
-    g_label[1] = ""; g_label[2] = "main"; g_label[3] = "test"
-    for (g = 1; g <= 3; g++) {
+
+    if (tree) {
+      # git diff emits paths in lexical order, so adjacent rows share a
+      # directory and can be rendered as one compact group.
+      previous_dir = "__unset__"
+      for (i = 1; i <= t_files; i++) {
+        split(t_rows[i], f, "\t")
+        ins = f[1]+0; del = f[2]+0; filename = f[3]; dir = f[4]; deleted = f[5]+0
+        if (dir != previous_dir) {
+          label = (dir == "") ? "." : dir "/"
+          printf " %s| %s%s%s\n", gry, gry, label, rst
+          previous_dir = dir
+        }
+        plus = (ins > 0) ? grn "+" sprintf("%-*d", max_ins-1, ins) rst : sprintf("%*s", max_ins, "")
+        minus = (del > 0) ? red "-" sprintf("%-*d", max_del-1, del) rst : sprintf("%*s", max_del, "")
+        fname = (deleted) ? gry filename rst : filename
+        printf "  %s|%s %s %s %s\n", gry, rst, plus, minus, fname
+      }
+    }
+
+    if (!tree) {
+      g_label[1] = ""; g_label[2] = "main"; g_label[3] = "test"
+      for (g = 1; g <= 3; g++) {
       count = g_count[g]
       if (!count) continue
       if (g > 1) printf "\n"
@@ -45,5 +67,6 @@ END {
         printf "  %s %s %s %s(%s/)%s\n", plus, minus, fname, gry, dir, rst
       }
     }
+  }
   }
 }

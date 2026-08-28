@@ -106,7 +106,12 @@ alias gitsc='git-switch-create'
 # untracked files are collected through a throwaway copy of the index, so the
 # repo is never touched
 function git-status() {
-  local base="${1:-HEAD}"
+  local tree=0 base="HEAD"
+  if [[ "${1-}" == "--tree" ]]; then
+    tree=1
+    shift
+  fi
+  [[ $# -gt 0 ]] && base="$1"
   if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
     echo "unknown revision: $base"
     return 1
@@ -128,12 +133,14 @@ function git-status() {
   if GIT_INDEX_FILE="$index" git diff --quiet "$merge_base"; then
     echo "no changes vs $base"
   else
-    GIT_INDEX_FILE="$index" git diff --numstat "$merge_base" | awk -f "$CFGS/zsh/git-status.awk"
+    GIT_INDEX_FILE="$index" git diff --numstat "$merge_base" |
+      awk -v tree="$tree" -f "$CFGS/zsh/git-status.awk"
   fi
 
   [[ -n "$tmp_index" ]] && rm -f "$tmp_index"
 }
 alias gs='git-status'
+alias gss='git-status --tree'
 
 function git-cherry-pick()        { git cherry-pick $@; }
 function git-clean()              { git restore --staged .; git restore .; git clean -fd; }
@@ -154,4 +161,3 @@ alias gitri='git-rebase-interactive'
 alias gitsm='git-switch-master'
 alias grestore='git-restore'
 alias pp='gitpp'
-
