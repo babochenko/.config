@@ -41,6 +41,8 @@ in the dashboard
   option+q inside an instance returns to the dashboard; the instance keeps
   working. In a `t` terminal, option+q closes it when the prompt is idle and
   detaches instead when something is still running.
+
+  OPENDASH_AUTO=1 opts into unattended edit and shell permissions.
 USAGE
 }
 

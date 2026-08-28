@@ -142,6 +142,7 @@ Environment overrides everything in `config.json`.
 | `JIRA_BASE_URL` `JIRA_EMAIL` `JIRA_API_TOKEN` | jira polling |
 | `OPENDASH_EDITOR` | editor for writing tasks (default `nvim`, else `$EDITOR`) |
 | `OPENDASH_PERMISSION` | JSON object of tool permissions for instances |
+| `OPENDASH_AUTO=1` | opt into the full unattended permission set |
 | `OPENDASH_CONFIG` | alternative config.json path |
 | `OPENDASH_STATE` | state dir (default `~/.local/state/opendash`) |
 | `OPENDASH_TMUX_SOCKET` | tmux socket name (default `opendash`) |
@@ -160,10 +161,11 @@ Environment overrides everything in `config.json`.
 - **Opening** an instance runs `opencode attach` in a private tmux server
   (socket `opendash`), which is what makes `option+q` interceptable and keeps
   your scroll position between visits.
-- Instances get `OPENCODE_PERMISSION` set to allow tools up front, like
-  `opencode --auto`, since nobody is watching. `question` is left asking — the
-  dashboard surfaces it as **needs you**. Override with `OPENDASH_PERMISSION`
-  (a JSON object).
+- Instances allow read-only tools by default and leave edits, shell commands
+  and other potentially destructive actions asking for approval. Set
+  `OPENDASH_AUTO=1` to allow the full unattended tool set, like
+  `opencode --auto`, or provide a JSON object through `OPENDASH_PERMISSION`.
+  `question` is left asking — the dashboard surfaces it as **needs you**.
 
 ## When something gets stuck
 

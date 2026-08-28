@@ -49,7 +49,7 @@ READ_PERMISSION = json.dumps({
         "read", "glob", "grep", "list", "todowrite", "webfetch", "websearch",
         "lsp", "skill",
     )
-}))
+})
 AUTO_PERMISSION = json.dumps({
     k: "allow" for k in (
         "read", "edit", "glob", "grep", "list", "bash", "task",
@@ -887,7 +887,7 @@ def _cmd_server(args) -> int:
         print("stopped" if stop_server() else "no server recorded")
     else:
         info = server_info()
-        if info and _server_alive(info["url"]):
+        if info and _server_process_owned(info) and _server_alive(info["url"]):
             print(f"up   {info['url']}  pid={info.get('pid')}")
         else:
             print("down")
