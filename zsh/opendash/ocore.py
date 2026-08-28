@@ -733,7 +733,27 @@ bind-key -n œ {leave}
     STATE.mkdir(parents=True, exist_ok=True)
     if not TMUX_CONF.exists() or TMUX_CONF.read_text() != body:
         TMUX_CONF.write_text(body)
+    _sync_running_server()
     return TMUX_CONF
+
+
+_CONF_SYNCED = False
+
+
+def _sync_running_server() -> None:
+    """Push the current bindings onto a tmux server that is already up.
+
+    tmux only reads its config when the server starts, so a server left over
+    from an older opendash keeps whatever bindings it started with -- which is
+    how a fixed option+q can appear not to be fixed. Sourcing the config makes
+    it self-healing instead of needing every view closed first.
+    """
+    global _CONF_SYNCED
+    if _CONF_SYNCED:
+        return
+    _CONF_SYNCED = True
+    subprocess.run(["tmux", "-L", TMUX_SOCKET, "source-file", str(TMUX_CONF)],
+                   capture_output=True, text=True, env=_tmux_env())
 
 
 def _tmux_env() -> dict:

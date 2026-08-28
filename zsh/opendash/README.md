@@ -109,9 +109,12 @@ Pass `-t` to set it explicitly.
   written to `~/.local/state/opendash/idle-check.last` if you ever need to see
   why it went the way it did.
 
-Note that tmux loads key bindings when its **server** starts, so a change to
-this behaviour only reaches a server that is already running once every view is
-closed (or after `Q`).
+tmux only reads its config when its **server** starts, so a server left over
+from an older opendash would otherwise keep the bindings it started with — which
+is how a fixed `option+q` can look unfixed. opendash now sources the current
+config onto a running server, so it heals itself; and because the decision lives
+in `idle-check.sh`, which is read at each keypress, changing that logic never
+needs a restart at all.
 
 A terminal detached while busy then **stays open indefinitely** — it keeps the
 shell and its scrollback, and finishing the command does not close it. Press
