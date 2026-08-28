@@ -139,8 +139,8 @@ function git-status() {
 
   [[ -n "$tmp_index" ]] && rm -f "$tmp_index"
 }
-alias gs='git-status'
-alias gss='git-status --tree'
+alias gss='git-status'
+alias gs='git-status --tree'
 
 function git-cherry-pick()        { git cherry-pick $@; }
 function git-clean()              { git restore --staged .; git restore .; git clean -fd; }

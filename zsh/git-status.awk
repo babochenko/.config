@@ -20,7 +20,7 @@
 }
 END {
   if (t_files > 0) {
-    grn = "\033[32m"; red = "\033[31m"; gry = "\033[38;5;244m\033[3m"; rst = "\033[0m"
+    grn = "\033[32m"; red = "\033[31m"; grey = "\033[38;5;244m"; gry = grey "\033[3m"; rst = "\033[0m"
     if (t_files > 1)
       printf " %d files changed: %s+%d%s %s-%d%s\n", t_files, grn, t_ins, rst, red, t_del, rst
     else
@@ -35,13 +35,13 @@ END {
         ins = f[1]+0; del = f[2]+0; filename = f[3]; dir = f[4]; deleted = f[5]+0
         if (dir != previous_dir) {
           label = (dir == "") ? "." : dir "/"
-          printf " %s| %s%s%s\n", gry, gry, label, rst
+          printf " %s| %s%s%s\n", grey, gry, label, rst
           previous_dir = dir
         }
         plus = (ins > 0) ? grn "+" sprintf("%-*d", max_ins-1, ins) rst : sprintf("%*s", max_ins, "")
         minus = (del > 0) ? red "-" sprintf("%-*d", max_del-1, del) rst : sprintf("%*s", max_del, "")
         fname = (deleted) ? gry filename rst : filename
-        printf "  %s|%s %s %s %s\n", gry, rst, plus, minus, fname
+        printf "  %s|%s %s %s %s\n", grey, rst, plus, minus, fname
       }
     }
 
