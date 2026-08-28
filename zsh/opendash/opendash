@@ -1,0 +1,67 @@
+#!/usr/bin/env zsh
+#
+# opendash - dashboard for opencode instances running in the background.
+#
+# Instances live in a detached `opencode serve` process, so they keep working
+# after you close the shell; run `opendash` again to see them all.
+
+emulate -L zsh
+setopt err_return no_unset
+
+here=${0:A:h}
+py=${OPENDASH_PYTHON:-python3}
+
+usage() {
+  cat <<'USAGE'
+opendash - background opencode instances
+
+  opendash                        open the dashboard
+  opendash new [opts] <task...>   start an instance in the current directory
+  opendash list                   list instances (plain text)
+  opendash abort <session-id>...  interrupt what an instance is doing
+  opendash rm <session-id>...     stop an instance and drop it from the list
+  opendash quit                   stop every instance and the shared server
+  opendash server [status|start|stop]
+                                  the shared background opencode server
+
+new options
+  -t, --ticket ID    jira ticket (otherwise picked up from the task text/url)
+  -d, --dir PATH     working directory                    (default: cwd)
+  -m, --model P/M    provider/model                       (default: opencode's)
+      --agent NAME   opencode agent
+
+in the dashboard
+  j k / arrows  move        enter  open the instance      t  terminal in its dir
+  n  new        f  follow up        a  abort              x  remove
+  /  filter     r  refresh          ?  keys
+
+  ctrl+c  leave the dashboard; every instance keeps working in the background
+  q       quit for real: stop all the instances and the shared server too
+
+  option+q inside an instance returns to the dashboard; the instance keeps
+  working. In a `t` terminal, option+q closes it when the prompt is idle and
+  detaches instead when something is still running.
+USAGE
+}
+
+if ! command -v $py >/dev/null 2>&1; then
+  print -u2 "opendash: $py not found (set OPENDASH_PYTHON)"
+  return 1 2>/dev/null || exit 1
+fi
+
+if ! command -v opencode >/dev/null 2>&1 && [[ ! -x $HOME/.opencode/bin/opencode ]]; then
+  print -u2 "opendash: opencode not found on PATH"
+  return 1 2>/dev/null || exit 1
+fi
+
+case ${1-} in
+  ""|dash|dashboard)   exec $py "$here/dashboard.py" ;;
+  new|n)               shift; exec $py "$here/ocore.py" new "$@" ;;
+  list|ls)             shift; exec $py "$here/ocore.py" list "$@" ;;
+  rm|remove)           shift; exec $py "$here/ocore.py" rm "$@" ;;
+  quit)                shift; exec $py "$here/ocore.py" quit "$@" ;;
+  abort|stop)          shift; exec $py "$here/ocore.py" abort "$@" ;;
+  server)              shift; exec $py "$here/ocore.py" server "$@" ;;
+  -h|--help|help)      usage ;;
+  *) print -u2 "opendash: unknown command '${1}'"; usage; exit 2 ;;
+esac

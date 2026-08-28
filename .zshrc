@@ -43,6 +43,10 @@ load_fireworks_key >/dev/null 2>&1
 
 alias oc='opencode --auto --agent myagent'
 
+# dashboard for opencode instances running in the background
+alias opendash="$CONFIG/zsh/opendash/opendash"
+alias oo="opendash"
+
 export CFGS="$HOME/.config"
 export VIRTUAL_ENV="$HOME/Developer/.venv"
 
