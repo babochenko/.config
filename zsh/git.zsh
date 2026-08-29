@@ -150,7 +150,8 @@ function git-rebase-continue()    { git add .; git rebase --continue; }
 function git-rebase-head()        { git fetch origin && git rebase origin/$(git branch --show-current); }
 function git-show-head()          { git show head; }
 function git-rebase-interactive() { git rebase -i $@; }
-function git-restore()            { git restore .; }
+function git-restore()            { git restore $@; }
+function git-undo()               { git restore --source=$(master) $@; }
 function git-switch-master()      { git switch $(master) && git pull; }
 function gitcc()                  { git add .; gitc $@; }
 function gitp()                   { gitc $@; git push; }
