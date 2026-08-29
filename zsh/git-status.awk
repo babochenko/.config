@@ -35,13 +35,13 @@ END {
         ins = f[1]+0; del = f[2]+0; filename = f[3]; dir = f[4]; deleted = f[5]+0
         if (dir != previous_dir) {
           label = (dir == "") ? "." : dir "/"
-          printf " %s| %s%s%s\n", grey, gry, label, rst
+          printf " %s.%s %s%s\n", grey, rst, gry, label, rst
           previous_dir = dir
         }
         plus = (ins > 0) ? grn "+" sprintf("%-*d", max_ins-1, ins) rst : sprintf("%*s", max_ins, "")
         minus = (del > 0) ? red "-" sprintf("%-*d", max_del-1, del) rst : sprintf("%*s", max_del, "")
         fname = (deleted) ? gry filename rst : filename
-        printf "  %s|%s %s %s %s\n", grey, rst, plus, minus, fname
+        printf " %s..%s %s %s %s\n", grey, rst, plus, minus, fname
       }
     }
 
