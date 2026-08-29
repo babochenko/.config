@@ -133,6 +133,7 @@ class Data:
                 terminals = ocore.terminal_activity(items)
                 for it in items:
                     it["terminal"] = terminals.get(it["session_id"])
+                    it["git"] = ocore.git_summary(it.get("directory") or "")
                 blocked = ocore.pending_attention(items) if up else {}
                 for it in items:
                     note = blocked.get(it["session_id"])
@@ -510,6 +511,31 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx) -> None:
         headline_end = status_x - 2 - len(term_text)
         printw(stdscr, y, headline_end, icon, curses.color_pair(icon_pair) | curses.A_BOLD)
         printw(stdscr, y, headline_end + 2, f"❯{label}", curses.color_pair(label_pair))
+
+    gitinfo = item.get("git") or {}
+    git_parts: list[tuple[str, int]] = []
+    if gitinfo.get("branch"):
+        git_parts.append((gitinfo["branch"], C_OK))
+    if gitinfo.get("ahead"):
+        git_parts.append((f"↑{gitinfo['ahead']}", C_OK))
+    if gitinfo.get("behind"):
+        git_parts.append((f"↓{gitinfo['behind']}", C_ERR))
+    if gitinfo.get("staged"):
+        git_parts.append((f"+{gitinfo['staged']}", C_OK))
+    if gitinfo.get("modified"):
+        git_parts.append((f"~{gitinfo['modified']}", C_WORK))
+    if gitinfo.get("untracked"):
+        git_parts.append((f"?{gitinfo['untracked']}", C_TICKET))
+    if gitinfo.get("adds") or gitinfo.get("dels"):
+        git_parts.extend(((f"+{gitinfo.get('adds', 0)}", C_OK),
+                          (f"-{gitinfo.get('dels', 0)}", C_ERR)))
+    if git_parts:
+        total_width = sum(len(text) for text, _ in git_parts) + len(git_parts) - 1
+        x = max(3, maxx - 2 - total_width)
+        for n, (text, color) in enumerate(git_parts):
+            if n:
+                x = printw(stdscr, y + 2, x, " ", curses.color_pair(C_DIM))
+            x = printw(stdscr, y + 2, x, text, curses.color_pair(color))
 
     printw(stdscr, y, x, clip(ocore._headline(item), max(4, headline_end - x - 2)),
            title_attr)

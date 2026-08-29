@@ -21,6 +21,7 @@ import socket
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -301,6 +302,72 @@ def extract_ticket(text: str) -> str | None:
 def git(cwd: str | Path, *args: str, timeout: float = 120) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(cwd), *args],
                           capture_output=True, text=True, timeout=timeout)
+
+
+def git_summary(directory: str | Path) -> dict:
+    """Match the prompt counts and ``gs`` line totals for a work directory."""
+    empty = {"branch": "", "ahead": 0, "behind": 0, "staged": 0,
+             "modified": 0, "untracked": 0, "adds": 0, "dels": 0}
+    status = git(directory, "status", "--porcelain=v1", "--branch", timeout=5)
+    if status.returncode != 0:
+        return empty
+
+    result = dict(empty)
+    untracked: list[str] = []
+    for line in status.stdout.splitlines():
+        if line.startswith("## "):
+            branch = line[3:]
+            if "..." in branch:
+                branch, tracking = branch.split("...", 1)
+                result["branch"] = branch
+                if "ahead " in tracking:
+                    result["ahead"] = int(tracking.split("ahead ", 1)[1].split("]", 1)[0].split(",", 1)[0])
+                if "behind " in tracking:
+                    result["behind"] = int(tracking.split("behind ", 1)[1].split("]", 1)[0].split(",", 1)[0])
+            else:
+                result["branch"] = branch.split(" [", 1)[0]
+            continue
+        if line.startswith("??"):
+            result["untracked"] += 1
+            untracked.append(line[3:])
+        else:
+            if line[0] != " ":
+                result["staged"] += 1
+            if line[1] != " ":
+                result["modified"] += 1
+
+    # gs uses a throwaway index with intent-to-add, making untracked text files
+    # part of the same numstat total without changing the real index.
+    index = git(directory, "rev-parse", "--path-format=absolute", "--git-path", "index", timeout=5)
+    if index.returncode != 0:
+        return result
+    try:
+        with tempfile.NamedTemporaryFile(prefix="opendash-index-", delete=False) as copy:
+            temp_index = Path(copy.name)
+        source = Path(index.stdout.strip())
+        if source.exists():
+            shutil.copyfile(source, temp_index)
+        env = os.environ.copy()
+        env["GIT_INDEX_FILE"] = str(temp_index)
+        if untracked:
+            subprocess.run(["git", "-C", str(directory), "add", "-N", "--", *untracked],
+                           env=env, capture_output=True, text=True, timeout=5)
+        diff = subprocess.run(["git", "-C", str(directory), "diff", "--numstat", "HEAD"],
+                              env=env, capture_output=True, text=True, timeout=5)
+        if diff.returncode == 0:
+            for line in diff.stdout.splitlines():
+                fields = line.split("\t", 2)
+                if len(fields) >= 2 and fields[0].isdigit() and fields[1].isdigit():
+                    result["adds"] += int(fields[0])
+                    result["dels"] += int(fields[1])
+    except (OSError, subprocess.SubprocessError):
+        pass
+    finally:
+        try:
+            temp_index.unlink()
+        except (UnboundLocalError, OSError):
+            pass
+    return result
 
 
 def _git_fail(result: subprocess.CompletedProcess, what: str) -> ApiError:

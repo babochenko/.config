@@ -114,5 +114,29 @@ class Worktrees(SandboxCase):
         self.assertNotIn("vanished", listing)
 
 
+class Summary(SandboxCase):
+    def setUp(self):
+        super().setUp()
+        self.repo = self.box.dir / "summary"
+        self.repo.mkdir()
+        for args in (("init", "-q", "-b", "main"),
+                     ("config", "user.email", "t@t"),
+                     ("config", "user.name", "t")):
+            run("git", "-C", str(self.repo), *args)
+        (self.repo / "tracked.txt").write_text("one\n")
+        run("git", "-C", str(self.repo), "add", "tracked.txt")
+        run("git", "-C", str(self.repo), "commit", "-qm", "init")
+
+    def test_matches_prompt_counts_and_gs_line_totals(self):
+        (self.repo / "tracked.txt").write_text("one\ntwo\n")
+        (self.repo / "new.txt").write_text("new one\nnew two\n")
+        summary = self.ocore.git_summary(self.repo)
+        self.assertEqual(summary["branch"], "main")
+        self.assertEqual(summary["modified"], 1)
+        self.assertEqual(summary["untracked"], 1)
+        self.assertEqual(summary["adds"], 3)
+        self.assertEqual(summary["dels"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()
