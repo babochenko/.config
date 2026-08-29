@@ -138,6 +138,20 @@ class Models(unittest.TestCase):
         self.assertIsNone(ocore._split_model(None))
 
 
+class GitStatus(unittest.TestCase):
+    def test_runs_the_repo_gs_function(self):
+        result = type("Result", (), {"stdout": "green", "stderr": "", "returncode": 0})()
+        with patch.object(ocore.subprocess, "run", return_value=result) as run:
+            self.assertEqual(ocore.git_status_output("/tmp/project"), ("green", 0))
+        self.assertEqual(run.call_args.args[0], ["zsh", "-lic", "gs"])
+
+    def test_ansi_segments_preserve_git_status_colors(self):
+        self.assertEqual(
+            dashboard._ansi_segments("\033[32m+3\033[0m -1"),
+            [("+3", dashboard.C_OK), (" -1", dashboard.C_DIM)],
+        )
+
+
 class Permissions(unittest.TestCase):
     def test_unattended_by_default_like_opencode_auto(self):
         with patch.dict(os.environ, {}, clear=True):

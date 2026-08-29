@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import curses
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -328,7 +329,7 @@ HELP = [
     ("J K", "move the selected instance down / up the list"),
     ("g / G", "first / last"),
     ("enter, o or l", "open the instance (option+q comes back here)"),
-    ("c", "code actions: h check, m merge master, p commit and push"),
+    ("c", "code actions: h check, m merge master, p commit and push, s git status"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
     ("", "or just detaches if something is still running)"),
     ("n", "new instance — asks for the directory, then a worktree"),
@@ -351,6 +352,7 @@ CODE_ACTIONS = [
     ("h", "run check in the instance's directory"),
     ("m", "merge master in the instance's directory"),
     ("p", "ask the agent to commit and push current changes"),
+    ("s", "show the repository's gs output"),
     ("esc", "cancel"),
 ]
 
@@ -394,7 +396,7 @@ def code_actions_overlay(stdscr) -> str | None:
     with blocking(stdscr):
         try:
             ch = stdscr.get_wch()
-            if isinstance(ch, str) and ch in ("h", "m", "p"):
+            if isinstance(ch, str) and ch in ("h", "m", "p", "s"):
                 choice = ch
         except curses.error:
             pass
@@ -402,6 +404,69 @@ def code_actions_overlay(stdscr) -> str | None:
     stdscr.touchwin()
     stdscr.refresh()
     return choice
+
+
+_ANSI_SGR = re.compile(r"\x1b\[([0-9;]*)m")
+
+
+def _ansi_segments(text: str) -> list[tuple[str, int]]:
+    """Convert the small ANSI palette emitted by git-status.awk to curses."""
+    colors = {"32": C_OK, "31": C_ERR, "38;5;244": C_DIM}
+    segments = []
+    pair = C_DIM
+    pos = 0
+    for match in _ANSI_SGR.finditer(text):
+        if match.start() > pos:
+            segments.append((text[pos:match.start()], pair))
+        code = match.group(1)
+        pair = colors.get(code, C_DIM) if code != "0" else C_DIM
+        pos = match.end()
+    if pos < len(text):
+        segments.append((text[pos:], pair))
+    return segments
+
+
+def git_status_overlay(stdscr, directory: str) -> None:
+    """Show the exact ``gs`` output for a directory in a scrollable modal."""
+    output, _ = ocore.git_status_output(directory)
+    lines = output.splitlines() or ["no output"]
+    maxy, maxx = stdscr.getmaxyx()
+    height = min(maxy - 4, max(7, len(lines) + 4))
+    width = min(maxx - 4, max(40, max(sum(len(segment) for segment, _ in _ansi_segments(line))
+                                      for line in lines) + 8))
+    top = 0
+    while True:
+        win = curses.newwin(height, width, max(0, (maxy - height) // 2),
+                            max(0, (maxx - width) // 2))
+        win.bkgd(" ", curses.color_pair(C_DIM))
+        win.border()
+        printw(win, 0, 2, " git status ", curses.color_pair(C_ACCENT) | curses.A_BOLD)
+        visible = max(1, height - 4)
+        for row, line in enumerate(lines[top:top + visible], 2):
+            x = 3
+            for segment, pair in _ansi_segments(line):
+                x = printw(win, row, x, segment, curses.color_pair(pair))
+        if top > 0:
+            printw(win, 1, width - 4, "↑", curses.color_pair(C_DIM))
+        if top + visible < len(lines):
+            printw(win, height - 2, width - 4, "↓", curses.color_pair(C_DIM))
+        win.refresh()
+        with blocking(stdscr):
+            try:
+                ch = stdscr.get_wch()
+            except curses.error:
+                ch = "\x1b"
+        del win
+        if ch in ("\x1b", "q", "?", "c"):
+            break
+        if ch in ("j", curses.KEY_DOWN):
+            top = min(top + 1, max(0, len(lines) - visible))
+        elif ch in ("k", curses.KEY_UP):
+            top = max(0, top - 1)
+        else:
+            break
+    stdscr.touchwin()
+    stdscr.refresh()
 
 
 # ------------------------------------------------------------------- rendering
@@ -668,6 +733,8 @@ def run(stdscr, start_dir: str) -> None:
                             cur.get("directory") or last_dir,
                         )
                         flash(stdscr, " asked agent to commit and push", C_OK)
+                    elif action == "s":
+                        git_status_overlay(stdscr, cur.get("directory") or last_dir)
                     else:
                         command = "check" if action == "h" else "gitmm"
                         ocore.run_terminal_command(cur, command)

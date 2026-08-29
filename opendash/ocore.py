@@ -370,6 +370,18 @@ def git_summary(directory: str | Path) -> dict:
     return result
 
 
+def git_status_output(directory: str | Path) -> tuple[str, int]:
+    """Run the repository's own ``gs`` function and return its ANSI output."""
+    try:
+        result = subprocess.run(
+            ["zsh", "-lic", "gs"], cwd=str(directory),
+            capture_output=True, text=True, timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        return str(e), 1
+    return (result.stdout or result.stderr).rstrip("\n"), result.returncode
+
+
 def _git_fail(result: subprocess.CompletedProcess, what: str) -> ApiError:
     detail = (result.stderr or result.stdout or "").strip().splitlines()
     return ApiError(f"{what}: {detail[-1] if detail else 'git failed'}"[:200])
