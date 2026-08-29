@@ -40,15 +40,15 @@ class Dashboard(unittest.TestCase):
             {"url": "http://127.0.0.1:1", "port": 1, "pid": 1, "started": started}))
 
         # three instances: idle with a ticket, working, and one in a worktree
-        for n, (sid, ticket, title, working, directory) in enumerate([
-            ("ses_aaaaaaaaaaaaaaaa1", "PROJ-1", "add subtract to calc", False, "/tmp/one"),
-            ("ses_bbbbbbbbbbbbbbbb2", None, "count the lines", True, "/tmp/two"),
+        for n, (sid, ticket, title, working, directory, agent) in enumerate([
+            ("ses_aaaaaaaaaaaaaaaa1", "PROJ-1", "add subtract to calc", False, "/tmp/one", "build"),
+            ("ses_bbbbbbbbbbbbbbbb2", None, "count the lines", True, "/tmp/two", "myagent"),
             ("ses_cccccccccccccccc3", "TIX-9", "fix the tests", False,
-             "/tmp/codes-TIX-9-fix"),
+             "/tmp/codes-TIX-9-fix", "plan"),
         ]):
             (cls.state / "instances" / f"{sid}.json").write_text(json.dumps({
                 "session_id": sid, "ticket": ticket, "task": "the original request",
-                "directory": directory, "model": None, "agent": None,
+                "directory": directory, "model": None, "agent": agent,
                 "created": 1_000 + n, "worktree": directory if ticket == "TIX-9" else None,
                 "branch": "TIX-9-fix" if ticket == "TIX-9" else None,
                 "repo": "/tmp/codes" if ticket == "TIX-9" else None}))
@@ -138,6 +138,11 @@ class Dashboard(unittest.TestCase):
         self.assertIn("working", screen)
         self.assertIn("✓1/1", screen)              # the completed todo
         self.assertIn("/tmp/codes-TIX-9-fix", screen)   # a worktree path
+
+    def test_the_row_shows_the_agent_name(self):
+        screen = self.screen()
+        for agent in ("build", "myagent", "plan"):
+            self.assertIn(agent, screen)
 
     def test_a_working_instance_says_what_it_is_doing(self):
         self.assertIn("npm test", self.screen())

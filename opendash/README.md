@@ -25,10 +25,11 @@ opencode generates for the session, so it sharpens as the agent explores the
 work. Line 2 is what it has actually been doing, and line 3 is the directory it
 works in. All of it comes from opencode's own database, not from guessing.
 
-On the right side of line 3, a git directory shows the same commit counts as
-the shell prompt (`↑` ahead, `↓` behind, `+` staged, `~` modified, `?`
-untracked), followed by the total added/deleted lines from `gs` (`+N -N`).
-The counts include untracked files without changing the repository index.
+On the right side of line 3, the agent name and git directory show the same
+commit counts as the shell prompt (`↑` ahead, `↓` behind, `+` staged, `~`
+modified, `?` untracked), followed by the total added/deleted lines from `gs`
+(`+N -N`). The counts include untracked files without changing the repository
+index.
 
 Status icons: `⠹` spinner (working), `◆` needs you (blocked on a permission or
 a question), `◔` queued, `●` idle, `✖` errored, `○` session gone.

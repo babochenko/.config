@@ -514,6 +514,9 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx) -> None:
 
     gitinfo = item.get("git") or {}
     git_parts: list[tuple[str, int]] = []
+    agent = item.get("agent_live") or item.get("agent")
+    if agent:
+        git_parts.append((str(agent), C_DIM))
     if gitinfo.get("branch"):
         git_parts.append((gitinfo["branch"], C_OK))
     if gitinfo.get("ahead"):
@@ -531,11 +534,11 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx) -> None:
                           (f"-{gitinfo.get('dels', 0)}", C_ERR)))
     if git_parts:
         total_width = sum(len(text) for text, _ in git_parts) + len(git_parts) - 1
-        x = max(3, maxx - 2 - total_width)
+        git_x = max(3, maxx - 2 - total_width)
         for n, (text, color) in enumerate(git_parts):
             if n:
-                x = printw(stdscr, y + 2, x, " ", curses.color_pair(C_DIM))
-            x = printw(stdscr, y + 2, x, text, curses.color_pair(color))
+                git_x = printw(stdscr, y + 2, git_x, " ", curses.color_pair(C_DIM))
+            git_x = printw(stdscr, y + 2, git_x, text, curses.color_pair(color))
 
     printw(stdscr, y, x, clip(ocore._headline(item), max(4, headline_end - x - 2)),
            title_attr)
