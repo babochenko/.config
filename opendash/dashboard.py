@@ -518,7 +518,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx) -> None:
     if agent:
         git_parts.append((str(agent), C_DIM))
     if gitinfo.get("branch"):
-        git_parts.append((gitinfo["branch"], C_OK))
+        git_parts.append((gitinfo["branch"], C_DIM))
     if gitinfo.get("ahead"):
         git_parts.append((f"↑{gitinfo['ahead']}", C_OK))
     if gitinfo.get("behind"):
