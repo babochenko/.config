@@ -146,6 +146,8 @@ function jupyter-notebook() {
     disown
 }
 
+function jupyter-notebook-stop() { pkill -f "jupyter-notebook"; }
+
 function are-you-sure() {
   local prompt="${1:-Are you sure?}"
   read -q "REPLY?${prompt} [y/N] "
