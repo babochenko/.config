@@ -102,6 +102,20 @@ require('lualine').setup {
   extensions = {}
 }
 
+require('render-markdown').setup({
+    latex = {
+        enabled = true,
+        render_modes = false,
+        converter = { 'utftex', 'latex2text' },
+        inline = true,
+        block = true,
+        highlight = 'RenderMarkdownMath',
+        position = 'center',
+        top_pad = 0,
+        bottom_pad = 0,
+    },
+})
+
 local hl_group = function(group, opts)
   vim.api.nvim_set_hl(0, group, opts)
 end
