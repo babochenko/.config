@@ -395,25 +395,31 @@ EnsureLazy().setup({
   },
 
   { 'nvim-treesitter/nvim-treesitter',
-    branch = 'master',
+    branch = 'main',
     lazy = false,
     build = ":TSUpdate",
-    event = "BufReadPost",
-  	opts = {
-  		ensure_installed = {
-            'latex',
-            'css',
-            'html',
-            'http',
-            'lua',
-            'markdown',
-            'markdown_inline',
-            'vim',
-            'vimdoc',
-        },
-        auto_install = true,
-        highlight = { enable = true },
-  	},
+    config = function()
+      local treesitter = require('nvim-treesitter')
+      treesitter.setup()
+      treesitter.install {
+        'latex',
+        'css',
+        'html',
+        'http',
+        'lua',
+        'markdown',
+        'markdown_inline',
+        'vim',
+        'vimdoc',
+      }
+
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = { 'css', 'html', 'http', 'latex', 'lua', 'markdown', 'vim', 'vimdoc' },
+        callback = function(args)
+          vim.treesitter.start(args.buf)
+        end,
+      })
+    end,
   },
 
   { "nvim-lualine/lualine.nvim",
