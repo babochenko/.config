@@ -134,6 +134,18 @@ source "$CONFIG/zsh/git-worktree.zsh"
 function ipy() { venv && ipython --TerminalInteractiveShell.editing_mode=vi; }
 function py() { venv && python3 $@; }
 
+function jupyter-notebook() {
+    venv
+
+    if pgrep -f "jupyter-notebook" >/dev/null; then
+        echo "Jupyter already running"
+        return
+    fi
+
+    nohup jupyter notebook >/dev/null 2>&1 &
+    disown
+}
+
 function are-you-sure() {
   local prompt="${1:-Are you sure?}"
   read -q "REPLY?${prompt} [y/N] "
