@@ -1,5 +1,8 @@
 if #vim.api.nvim_list_uis() == 0 then return end
 
+local OpenDash = require 'ext/opendash'
+OpenDash.setup()
+
 vim.diagnostic.config({
   virtual_text = false,  -- Disable inline virtual text
   signs = true,          -- Keep gutter signs
@@ -84,7 +87,7 @@ require('lualine').setup {
     lualine_a = {'mode'},
     lualine_b = {'branch', 'diff', 'diagnostics'},
     lualine_c = {'filename'},
-    lualine_x = {'encoding', 'fileformat', 'filetype'},
+    lualine_x = {'encoding', 'fileformat', 'filetype', { OpenDash.statusline, color = 'Comment' }},
     lualine_y = {progress_bar},
     lualine_z = {'location'}
   },
@@ -151,4 +154,3 @@ hl_group("@lsp.mod.static.java", { fg = constant })
 
 hl_group("@punctuation.bracket", { fg = neutral })
 hl_group("@punctuation.delimiter", { fg = border })
-

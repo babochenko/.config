@@ -393,6 +393,23 @@ def review_branch(directory: str | Path) -> str:
     return branch
 
 
+def agent_for_directory(directory: str | Path) -> dict | None:
+    """Return the first opendash instance assigned to an exact directory."""
+    target = Path(directory).expanduser().resolve()
+    records = [record for record in instance_records()
+               if Path(record.get("directory", "")).expanduser().resolve() == target]
+    if not records:
+        return None
+    items = snapshot(records)
+    if not items:
+        return None
+    item = items[0]
+    item["agent_name"] = item.get("agent_live") or item.get("agent") or "default"
+    item["preview"] = worked_on(item)
+    item.pop("_file", None)
+    return item
+
+
 def _git_fail(result: subprocess.CompletedProcess, what: str) -> ApiError:
     detail = (result.stderr or result.stdout or "").strip().splitlines()
     return ApiError(f"{what}: {detail[-1] if detail else 'git failed'}"[:200])
@@ -1355,6 +1372,22 @@ def _cmd_abort(args) -> int:
     return 0
 
 
+def _cmd_agent(args) -> int:
+    item = agent_for_directory(args.directory)
+    print(json.dumps(item) if item else "null")
+    return 0
+
+
+def _cmd_prompt(args) -> int:
+    record = next((r for r in instance_records()
+                   if r["session_id"] == args.session_id), None)
+    if not record:
+        print(f"opendash: unknown session: {args.session_id}", file=sys.stderr)
+        return 1
+    send_prompt(args.session_id, " ".join(args.text).strip(), record["directory"])
+    return 0
+
+
 def _cmd_quit(args) -> int:
     print(f"stopped {quit_all()} instance(s) and the shared server")
     return 0
@@ -1481,6 +1514,15 @@ def main(argv=None) -> int:
     p = sub.add_parser("abort", help="interrupt a running instance")
     p.add_argument("session_id", nargs="+")
     p.set_defaults(fn=_cmd_abort)
+
+    p = sub.add_parser("agent", help="find the instance assigned to a directory")
+    p.add_argument("directory")
+    p.set_defaults(fn=_cmd_agent)
+
+    p = sub.add_parser("prompt", help="send a prompt to an instance")
+    p.add_argument("session_id")
+    p.add_argument("text", nargs="+")
+    p.set_defaults(fn=_cmd_prompt)
 
     p = sub.add_parser("quit", help="stop every instance and the shared server")
     p.set_defaults(fn=_cmd_quit)

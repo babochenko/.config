@@ -15,6 +15,7 @@ local CodeRunner = require 'ext/coderunner'
 local Run = require 'ext/run'
 local Clipboard = require 'ext/clipboard'
 local Folds = require 'ext/folds'
+local OpenDash = require 'ext/opendash'
 
 local map = vim.keymap.set
 
@@ -43,7 +44,8 @@ local math = {
 local general_helpers = {
   -- map({'n', 'v', 'c', 'o', 's'}, ',', '<CR>'),
   map('n', 'gb', '%' , { desc = 'goto matching bracket' }),
-  map('n', '<leader>o', Sys.open_system, { desc = 'open this file in system viewer' }),
+  map('n', '<leader>o', OpenDash.chat, { desc = 'chat with the opendash agent' }),
+  map('n', '<leader>O', Sys.open_system, { desc = 'open this file in system viewer' }),
   map('n', '<leader>tm', Sys.toggle_mouse, { silent = true, desc = 'toggle mouse' }),
   map('n', ';', ':', { desc = 'command mode' }),
   map('n', '<Esc>', '<cmd>noh<CR>', { desc = 'general clear highlights' }),
@@ -186,4 +188,3 @@ local marks = {
   map('n', '<leader>fm', Mark.list_marks, { desc = 'Find marks' }),
   map('n', '<leader>fM', Mark.list_all_marks, { desc = 'Find marks everywhere' }),
 }
-

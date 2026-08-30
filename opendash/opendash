@@ -19,6 +19,9 @@ opendash - background opencode instances
   opendash new [opts] <task...>   start an instance in the current directory
   opendash list                   list instances (plain text)
   opendash abort <session-id>...  interrupt what an instance is doing
+  opendash agent <directory>      find the instance assigned to a directory
+  opendash prompt <session-id> <text...>
+                                  send a prompt to an instance
   opendash rm <session-id>...     stop an instance and drop it from the list
   opendash quit                   stop every instance and the shared server
   opendash doctor [-d DIR]        check that instances can actually start
@@ -67,6 +70,8 @@ case ${1-} in
   quit)                shift; exec $py "$here/ocore.py" quit "$@" ;;
   doctor)              shift; exec $py "$here/ocore.py" doctor "$@" ;;
   abort|stop)          shift; exec $py "$here/ocore.py" abort "$@" ;;
+  agent)               shift; exec $py "$here/ocore.py" agent "$@" ;;
+  prompt)              shift; exec $py "$here/ocore.py" prompt "$@" ;;
   server)              shift; exec $py "$here/ocore.py" server "$@" ;;
   -h|--help|help)      usage ;;
   *) print -u2 "opendash: unknown command '${1}'"; usage; exit 2 ;;
