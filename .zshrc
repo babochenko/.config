@@ -104,7 +104,7 @@ function v() {
     elif [[ -n "$file" ]]; then
         _vd "$HOME/Developer/$file" || _vd "$file"
     else
-        nvim
+        nvim $@
     fi
 }
 
