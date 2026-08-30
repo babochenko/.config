@@ -55,7 +55,24 @@ local function current(callback)
   end)
 end
 
-function M.chat()
+local function context(visual)
+  local filename = vim.fn.expand('%:p')
+  if filename == '' then filename = '[No Name]' end
+  local details = { 'Current file: ' .. filename }
+  if visual then
+    local first = math.min(vim.fn.line("'<"), vim.fn.line("'>"))
+    local last = math.max(vim.fn.line("'<"), vim.fn.line("'>"))
+    local lines = vim.fn.getline(first, last)
+    table.insert(details, string.format('Selected lines %d-%d:', first, last))
+    for index, line in ipairs(lines) do
+      table.insert(details, string.format('%d: %s', first + index - 1, line))
+    end
+  end
+  return table.concat(details, '\n')
+end
+
+function M.chat(visual)
+  local prompt_context = context(visual)
   current(function(agents)
     if #agents == 0 then
       vim.notify('no opendash agent for ' .. cwd(), vim.log.levels.INFO)
@@ -66,7 +83,8 @@ function M.chat()
       vim.ui.input({ prompt = agent.agent_name .. ' > ' }, function(text)
         if not text or vim.trim(text) == '' then return end
         vim.notify(agent.agent_name .. ': sending...', vim.log.levels.INFO)
-        run({ 'prompt', agent.session_id, text }, function(result)
+        local prompt = text .. '\n\nContext:\n' .. prompt_context
+        run({ 'prompt', agent.session_id, prompt }, function(result)
           if result.code == 0 then
             refresh()
           else

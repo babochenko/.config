@@ -85,8 +85,10 @@ Pass `-t` to set it explicitly.
 ### Neovim
 
 When Neovim is opened in an instance's working directory, `<Space>o` opens a
-prompt labelled with that instance's agent name and sends the answer to it. If
-multiple agents share the directory, Neovim first opens a selector.
+prompt labelled with that instance's agent name and sends the answer to it,
+including the current filename. In visual mode, it also includes the selected
+line range and contents. If multiple agents share the directory, Neovim first
+opens a selector.
 The lualine status displays the same agent state and response preview as the
 dashboard, including the working spinner. `<Space>O` keeps the system open-file
 action. Neovim uses the `opendash agent` and `opendash prompt` CLI commands, so

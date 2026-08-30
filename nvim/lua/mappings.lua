@@ -45,6 +45,7 @@ local general_helpers = {
   -- map({'n', 'v', 'c', 'o', 's'}, ',', '<CR>'),
   map('n', 'gb', '%' , { desc = 'goto matching bracket' }),
   map('n', '<leader>o', OpenDash.chat, { desc = 'chat with the opendash agent' }),
+  map('v', '<leader>o', function() OpenDash.chat(true) end, { desc = 'chat with the opendash agent about selection' }),
   map('n', '<leader>O', Sys.open_system, { desc = 'open this file in system viewer' }),
   map('n', '<leader>tm', Sys.toggle_mouse, { silent = true, desc = 'toggle mouse' }),
   map('n', ';', ':', { desc = 'command mode' }),
