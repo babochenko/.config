@@ -60,6 +60,15 @@ class Headline(unittest.TestCase):
         self.assertEqual(ocore._headline({}), "(no task)")
 
 
+class AgentName(unittest.TestCase):
+    def test_manual_name_wins_over_live_agent(self):
+        item = {"title_override": "[OPENDASH]", "agent_live": "build", "agent": "myagent"}
+        self.assertEqual(ocore.display_agent(item), "[OPENDASH]")
+
+    def test_live_agent_wins_when_there_is_no_manual_name(self):
+        self.assertEqual(ocore.display_agent({"agent_live": "build", "agent": "myagent"}), "build")
+
+
 class Line2(unittest.TestCase):
     def test_working_prefers_the_in_progress_todo(self):
         item = {"state": "working", "activity": ("running", "bash npm test"),

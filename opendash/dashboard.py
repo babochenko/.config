@@ -580,7 +580,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx) -> None:
 
     gitinfo = item.get("git") or {}
     git_parts: list[tuple[str, int]] = []
-    agent = item.get("agent_live") or item.get("agent")
+    agent = ocore.display_agent(item)
     if agent:
         git_parts.append((str(agent), C_DIM))
     if gitinfo.get("branch"):

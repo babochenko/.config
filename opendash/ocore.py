@@ -393,6 +393,11 @@ def review_branch(directory: str | Path) -> str:
     return branch
 
 
+def display_agent(item: dict) -> str:
+    """Return the user-facing name for an instance's agent."""
+    return item.get("title_override") or item.get("agent_live") or item.get("agent") or "default"
+
+
 def agents_for_directory(directory: str | Path) -> list[dict]:
     """Return all opendash instances assigned to an exact directory."""
     target = Path(directory).expanduser().resolve()
@@ -402,7 +407,7 @@ def agents_for_directory(directory: str | Path) -> list[dict]:
         return []
     items = snapshot(records)
     for item in items:
-        item["agent_name"] = item.get("agent_live") or item.get("agent") or "default"
+        item["agent_name"] = display_agent(item)
         item["preview"] = worked_on(item)
         item.pop("_file", None)
     return items
