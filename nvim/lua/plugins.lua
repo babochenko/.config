@@ -395,6 +395,7 @@ EnsureLazy().setup({
   },
 
   { 'nvim-treesitter/nvim-treesitter',
+    branch = 'master',
     lazy = false,
     build = ":TSUpdate",
     event = "BufReadPost",
@@ -472,4 +473,3 @@ EnsureLazy().setup({
   -- },
   --
 }, plugins_cfg)
-
