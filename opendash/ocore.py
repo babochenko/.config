@@ -393,21 +393,19 @@ def review_branch(directory: str | Path) -> str:
     return branch
 
 
-def agent_for_directory(directory: str | Path) -> dict | None:
-    """Return the first opendash instance assigned to an exact directory."""
+def agents_for_directory(directory: str | Path) -> list[dict]:
+    """Return all opendash instances assigned to an exact directory."""
     target = Path(directory).expanduser().resolve()
     records = [record for record in instance_records()
                if Path(record.get("directory", "")).expanduser().resolve() == target]
     if not records:
-        return None
+        return []
     items = snapshot(records)
-    if not items:
-        return None
-    item = items[0]
-    item["agent_name"] = item.get("agent_live") or item.get("agent") or "default"
-    item["preview"] = worked_on(item)
-    item.pop("_file", None)
-    return item
+    for item in items:
+        item["agent_name"] = item.get("agent_live") or item.get("agent") or "default"
+        item["preview"] = worked_on(item)
+        item.pop("_file", None)
+    return items
 
 
 def _git_fail(result: subprocess.CompletedProcess, what: str) -> ApiError:
@@ -1373,8 +1371,7 @@ def _cmd_abort(args) -> int:
 
 
 def _cmd_agent(args) -> int:
-    item = agent_for_directory(args.directory)
-    print(json.dumps(item) if item else "null")
+    print(json.dumps(agents_for_directory(args.directory)))
     return 0
 
 

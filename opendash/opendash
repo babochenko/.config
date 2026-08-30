@@ -19,7 +19,7 @@ opendash - background opencode instances
   opendash new [opts] <task...>   start an instance in the current directory
   opendash list                   list instances (plain text)
   opendash abort <session-id>...  interrupt what an instance is doing
-  opendash agent <directory>      find the instance assigned to a directory
+  opendash agent <directory>      find instances assigned to a directory
   opendash prompt <session-id> <text...>
                                   send a prompt to an instance
   opendash rm <session-id>...     stop an instance and drop it from the list

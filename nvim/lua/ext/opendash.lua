@@ -1,7 +1,7 @@
 local M = {}
 
 local bin = vim.fn.expand(vim.g.opendash_bin or '~/.config/opendash/opendash')
-local cache = { cwd = nil, value = nil, busy = false }
+local cache = { cwd = nil, value = {}, selected = nil, busy = false }
 local spinner = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' }
 
 local function cwd()
@@ -24,58 +24,84 @@ local function refresh()
   run({ 'agent', dir }, function(result)
     cache.busy = false
     if result.code ~= 0 then
-      cache.cwd, cache.value = dir, nil
+      cache.cwd, cache.value, cache.selected = dir, {}, nil
       vim.cmd('redrawstatus')
       return
     end
     local ok, value = pcall(vim.json.decode, result.stdout)
     if value == vim.NIL then value = nil end
-    cache.cwd, cache.value = dir, ok and value or nil
+    cache.cwd, cache.value = dir, ok and value or {}
+    if type(cache.value) ~= 'table' then cache.value = {} end
     vim.cmd('redrawstatus')
   end)
 end
 
 local function current(callback)
   local dir = cwd()
-  if cache.cwd == dir and cache.value then
+  if cache.cwd == dir and cache.value and #cache.value > 0 then
     callback(cache.value)
     return
   end
   run({ 'agent', dir }, function(result)
     if result.code ~= 0 then
-      callback(nil)
+      callback({})
       return
     end
     local ok, value = pcall(vim.json.decode, result.stdout)
     if value == vim.NIL then value = nil end
-    cache.cwd, cache.value = dir, ok and value or nil
+    cache.cwd, cache.value = dir, ok and value or {}
+    if type(cache.value) ~= 'table' then cache.value = {} end
     callback(cache.value)
   end)
 end
 
 function M.chat()
-  current(function(agent)
-    if not agent then
+  current(function(agents)
+    if #agents == 0 then
       vim.notify('no opendash agent for ' .. cwd(), vim.log.levels.INFO)
       return
     end
-    vim.ui.input({ prompt = agent.agent_name .. ' > ' }, function(text)
-      if not text or vim.trim(text) == '' then return end
-      vim.notify(agent.agent_name .. ': sending...', vim.log.levels.INFO)
-      run({ 'prompt', agent.session_id, text }, function(result)
-        if result.code == 0 then
-          refresh()
-        else
-          vim.notify(vim.trim(result.stderr), vim.log.levels.ERROR)
-        end
+    local function ask(agent)
+      cache.selected = agent.session_id
+      vim.ui.input({ prompt = agent.agent_name .. ' > ' }, function(text)
+        if not text or vim.trim(text) == '' then return end
+        vim.notify(agent.agent_name .. ': sending...', vim.log.levels.INFO)
+        run({ 'prompt', agent.session_id, text }, function(result)
+          if result.code == 0 then
+            refresh()
+          else
+            vim.notify(vim.trim(result.stderr), vim.log.levels.ERROR)
+          end
+        end)
       end)
-    end)
+    end
+    if #agents == 1 then
+      ask(agents[1])
+    else
+      vim.ui.select(agents, {
+        prompt = 'opendash agent:',
+        format_item = function(agent)
+          return string.format('%s  %s  %s', agent.agent_name, agent.state or 'unknown',
+            vim.trim(agent.preview or ''))
+        end
+      }, function(agent)
+        if agent then ask(agent) end
+      end)
+    end
   end)
 end
 
 function M.statusline()
-  local agent = cache.cwd == cwd() and cache.value or nil
-  if not agent then return '' end
+  local agents = cache.cwd == cwd() and cache.value or {}
+  local agent
+  for _, candidate in ipairs(agents) do
+    if candidate.session_id == cache.selected then agent = candidate end
+  end
+  if not agent and #agents == 1 then agent = agents[1] end
+  if not agent then
+    if #agents > 1 then return string.format('%d opendash agents', #agents) end
+    return ''
+  end
   local state = agent.state or 'unknown'
   local icon = state == 'working' and spinner[(math.floor(vim.loop.hrtime() / 1e8) % #spinner) + 1]
     or ({ idle = '●', queued = '◔', error = '✖', attention = '◆' })[state] or '○'
