@@ -137,6 +137,11 @@ class Summary(SandboxCase):
         self.assertEqual(summary["adds"], 3)
         self.assertEqual(summary["dels"], 0)
 
+    def test_review_skips_main_and_returns_feature_branch(self):
+        self.assertEqual(self.ocore.review_branch(self.repo), "")
+        run("git", "-C", str(self.repo), "switch", "-c", "feature")
+        self.assertEqual(self.ocore.review_branch(self.repo), "feature")
+
 
 if __name__ == "__main__":
     unittest.main()

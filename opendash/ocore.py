@@ -382,6 +382,17 @@ def git_status_output(directory: str | Path) -> tuple[str, int]:
     return (result.stdout or result.stderr).rstrip("\n"), result.returncode
 
 
+def review_branch(directory: str | Path) -> str:
+    """Return the current branch, rejecting the protected default branches."""
+    result = git(directory, "symbolic-ref", "--quiet", "--short", "HEAD", timeout=5)
+    if result.returncode != 0:
+        raise ApiError(f"not on a named branch: {directory}")
+    branch = result.stdout.strip()
+    if branch in ("main", "master"):
+        return ""
+    return branch
+
+
 def _git_fail(result: subprocess.CompletedProcess, what: str) -> ApiError:
     detail = (result.stderr or result.stdout or "").strip().splitlines()
     return ApiError(f"{what}: {detail[-1] if detail else 'git failed'}"[:200])

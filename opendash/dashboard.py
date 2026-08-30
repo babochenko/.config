@@ -329,7 +329,7 @@ HELP = [
     ("J K", "move the selected instance down / up the list"),
     ("g / G", "first / last"),
     ("enter, o or l", "open the instance (option+q comes back here)"),
-    ("c", "code actions: h check, m merge master, p commit and push, s git status"),
+    ("c", "code actions: h check, m merge master, p commit/push, s git status, r review"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
     ("", "or just detaches if something is still running)"),
     ("n", "new instance — asks for the directory, then a worktree"),
@@ -353,6 +353,7 @@ CODE_ACTIONS = [
     ("m", "merge master in the instance's directory"),
     ("p", "ask the agent to commit and push current changes"),
     ("s", "show the repository's gs output"),
+    ("r", "review this branch; fix critical issues, summarize the rest"),
     ("esc", "cancel"),
 ]
 
@@ -396,7 +397,7 @@ def code_actions_overlay(stdscr) -> str | None:
     with blocking(stdscr):
         try:
             ch = stdscr.get_wch()
-            if isinstance(ch, str) and ch in ("h", "m", "p", "s"):
+            if isinstance(ch, str) and ch in ("h", "m", "p", "s", "r"):
                 choice = ch
         except curses.error:
             pass
@@ -735,6 +736,24 @@ def run(stdscr, start_dir: str) -> None:
                         flash(stdscr, " asked agent to commit and push", C_OK)
                     elif action == "s":
                         git_status_overlay(stdscr, cur.get("directory") or last_dir)
+                    elif action == "r":
+                        directory = cur.get("directory") or last_dir
+                        branch = ocore.review_branch(directory)
+                        if not branch:
+                            flash(stdscr, " review skipped on main/master")
+                        else:
+                            ocore.send_prompt(
+                                cur["session_id"],
+                                "Review all changes in this branch against main/master, "
+                                "excluding merge commits. Include committed branch changes "
+                                "and current staged/unstaged changes. Look specifically for "
+                                "critical bugs and serious inefficiencies, and fix those "
+                                "directly. For everything else, provide a concise roundup "
+                                "with file references and recommended follow-ups. Do not "
+                                "rewrite unrelated code.",
+                                directory,
+                            )
+                            flash(stdscr, f" asked agent to review {branch}", C_OK)
                     else:
                         command = "check" if action == "h" else "gitmm"
                         ocore.run_terminal_command(cur, command)
