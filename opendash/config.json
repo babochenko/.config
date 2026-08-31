@@ -1,4 +1,6 @@
 {
-  "$comment": "defaults for opendash instances; env vars and ~/.config/opendash/config.json win over this",
-  "agent": "myagent"
+  "$comment": "defaults for opendash instances and optional remote MCP metadata; env vars win",
+  "agent": "myagent",
+  "metadata_refresh": 45,
+  "$mcp_setup": "Set mcp_url to a remote opendash-mcp-v1 bridge; see README.md"
 }

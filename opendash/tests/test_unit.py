@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import unittest
 from unittest.mock import patch
+from pathlib import Path
 
 from support import ROOT, SandboxCase  # noqa: F401  (ROOT puts opendash on sys.path)
 
 import dashboard
 import ocore
+import metadata
 
 
 class Tickets(unittest.TestCase):
@@ -34,6 +37,49 @@ class Tickets(unittest.TestCase):
 
     def test_lowercase_alone_is_not_a_ticket(self):
         self.assertIsNone(ocore.extract_ticket("abc-12 lowercase"))
+
+    def test_all_tickets_are_normalized_and_deduplicated(self):
+        self.assertEqual(metadata.extract_tickets("x-1 PROJ-2 /browse/proj-2"), ["PROJ-2"])
+
+
+class PullRequests(unittest.TestCase):
+    def test_url_and_reference_normalize_to_hash_numbers(self):
+        self.assertEqual(
+            metadata.extract_prs("PR #12 and https://bitbucket.org/a/r/pull-requests/34."),
+            [{"number": "34", "label": "#34", "url": "https://bitbucket.org/a/r/pull-requests/34"},
+             {"number": "12", "label": "#12"}])
+
+
+class RemoteMetadata(unittest.TestCase):
+    def test_bridge_sends_read_only_candidates_and_normalizes_response(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
+                "OPENDASH_MCP_URL": "http://bridge.test/metadata",
+                "OPENDASH_METADATA_REFRESH": "0"}, clear=False), \
+                patch.object(metadata, "_post_json", return_value={
+                    "session": {"id": "dedicated-7"},
+                    "tickets": {"PROJ-1": {"status": {"name": "In Progress"},
+                                             "url": "https://jira/PROJ-1"}},
+                    "prs": [{"number": 12, "status": "OPEN", "approvals": 2,
+                             "unresolved_threads": 1,
+                             "builds": {"ok": 3, "failed": 1}}]}) as post:
+            jira, prs = metadata.refresh_remote(Path(tmp), ["PROJ-1"],
+                                                 [{"number": "12", "repository": "a/r"}])
+            request = post.call_args.args[1]
+            self.assertTrue(request["read_only"])
+            self.assertEqual(request["session"]["id"], "opendash-metadata")
+            self.assertEqual(jira["PROJ-1"]["status"], "In Progress")
+            self.assertEqual(prs["a/r#12"]["builds"]["failed"], 1)
+            self.assertEqual(json.loads((Path(tmp) / "mcp-session.json").read_text())["id"],
+                             "dedicated-7")
+
+    def test_unavailable_bridge_keeps_existing_cache(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
+                "OPENDASH_MCP_URL": "http://bridge.test/metadata"}, clear=False), \
+                patch.object(metadata, "_post_json", side_effect=OSError("offline")):
+            state = Path(tmp)
+            metadata._write_cache(state, "jira.json", {"PROJ-1": {"status": "Done"}})
+            jira, _ = metadata.refresh_remote(state, ["PROJ-1"], [])
+        self.assertEqual(jira["PROJ-1"]["status"], "Done")
 
 
 class Headline(unittest.TestCase):
@@ -159,6 +205,15 @@ class GitStatus(unittest.TestCase):
             dashboard._ansi_segments("\033[32m+3\033[0m -1"),
             [("+3", dashboard.C_OK), (" -1", dashboard.C_DIM)],
         )
+
+
+class PullRequestMetadata(unittest.TestCase):
+    def test_normalizes_lifecycle_and_review_states(self):
+        self.assertEqual(metadata._normalise_pr_status({"state": "OPEN"}), "opened")
+        self.assertEqual(metadata._normalise_pr_status({"state": "OPEN", "review_status": "approved"}), "approved")
+        self.assertEqual(metadata._normalise_pr_status({"state": "OPEN", "review_status": "changes_requested"}), "needs changes")
+        self.assertEqual(metadata._normalise_pr_status({"state": "DECLINED"}), "rejected")
+        self.assertEqual(metadata._normalise_pr_status({"state": "MERGED"}), "merged")
 
 
 class Permissions(unittest.TestCase):

@@ -12,7 +12,6 @@ Stdlib only, no install step.
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import os
 import re
@@ -28,6 +27,8 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+import metadata
+
 # ---------------------------------------------------------------- paths/config
 
 HERE = Path(__file__).resolve().parent
@@ -35,7 +36,6 @@ STATE = Path(os.environ.get("OPENDASH_STATE", Path.home() / ".local/state/openda
 INSTANCES = STATE / "instances"
 SERVER_JSON = STATE / "server.json"
 SERVER_LOG = STATE / "server.log"
-JIRA_CACHE = STATE / "jira.json"
 TMUX_CONF = STATE / "tmux.conf"
 TMUX_SOCKET = os.environ.get("OPENDASH_TMUX_SOCKET", "opendash")
 
@@ -91,9 +91,11 @@ def _load_config() -> dict:
     for key, env in (
         ("model", "OPENDASH_MODEL"),
         ("agent", "OPENDASH_AGENT"),
-        ("jira_base_url", "JIRA_BASE_URL"),
-        ("jira_email", "JIRA_EMAIL"),
-        ("jira_api_token", "JIRA_API_TOKEN"),
+        ("mcp_url", "OPENDASH_MCP_URL"),
+        ("mcp_tool", "OPENDASH_MCP_TOOL"),
+        ("mcp_agent", "OPENDASH_MCP_AGENT"),
+        ("mcp_directory", "OPENDASH_MCP_DIRECTORY"),
+        ("metadata_refresh", "OPENDASH_METADATA_REFRESH"),
     ):
         if os.environ.get(env):
             cfg[key] = os.environ[env]
@@ -282,18 +284,8 @@ def stop_server() -> bool:
 
 # --------------------------------------------------------------------- tickets
 
-TICKET_RE = re.compile(r"\b([A-Z][A-Z0-9]{1,9}-\d+)\b")
-URL_TICKET_RE = re.compile(r"(?:/browse/|selectedIssue=|/issues/)([A-Za-z][A-Za-z0-9]{1,9}-\d+)")
-
-
 def extract_ticket(text: str) -> str | None:
-    if not text:
-        return None
-    m = URL_TICKET_RE.search(text)
-    if m:
-        return m.group(1).upper()
-    m = TICKET_RE.search(text)
-    return m.group(1) if m else None
+    return metadata.extract_ticket(text)
 
 
 # ------------------------------------------------------------------- worktrees
@@ -590,6 +582,7 @@ def new_instance(task: str, ticket: str | None = None, directory: str | None = N
     rec = {
         "session_id": sid,
         "ticket": (ticket or extract_ticket(task) or "").upper() or None,
+        "ticket_manual": bool(ticket),
         "task": task,
         "directory": directory,
         "model": model or CONFIG.get("model"),
@@ -755,9 +748,17 @@ def snapshot(records: list[dict]) -> list[dict]:
 
     out = []
     try:
+        associations = metadata.update(STATE, con, records)
         for rec in records:
             sid = rec["session_id"]
             item = dict(rec)
+            assoc = associations.get(sid, {})
+            # Explicit tickets are stable. Automatically found tickets may move
+            # as the conversation gains context; unlink marks them ignored.
+            if not rec.get("ticket_manual") and "ticket_manual" in rec:
+                item["ticket"] = (assoc.get("tickets") or [None])[0]
+            item["tickets"] = assoc.get("tickets", [])
+            item["prs"] = assoc.get("prs", [])
             row = con.execute(
                 "select title, cost, tokens_input, tokens_output, summary_additions,"
                 " summary_deletions, summary_files, time_created, time_updated, model, agent"
@@ -939,63 +940,21 @@ def pending_attention(items: list[dict]) -> dict[str, str]:
     return out
 
 
-# ------------------------------------------------------------------------ jira
-
-_STATUS_CATEGORY = {"new": "todo", "indeterminate": "progress", "done": "done"}
-
-
-def jira_config() -> tuple[str, str, str] | None:
-    base = CONFIG.get("jira_base_url")
-    email = CONFIG.get("jira_email")
-    token = CONFIG.get("jira_api_token")
-    if not token:
-        try:
-            token = subprocess.run(
-                ["security", "find-generic-password", "-s", "jira-api-token", "-w"],
-                capture_output=True, text=True, timeout=5,
-            ).stdout.strip() or None
-        except (OSError, subprocess.SubprocessError):
-            token = None
-    if base and email and token:
-        return base.rstrip("/"), email, token
-    return None
-
-
 def jira_cache() -> dict:
-    return _read_json(JIRA_CACHE, {}) or {}
+    return metadata.jira_cache(STATE)
+
+
+def ticket_url(ticket: str) -> str | None:
+    info = jira_cache().get(ticket, {}) if ticket else {}
+    if info.get("url"):
+        return info["url"]
+    base = CONFIG.get("jira_base_url")
+    return f"{base.rstrip('/')}/browse/{urllib.parse.quote(ticket)}" if base and ticket else None
 
 
 def jira_refresh(tickets: list[str], ttl: float = 300.0) -> dict:
-    """Fetch status for tickets, caching to disk. No creds -> returns cache as-is."""
-    cache = jira_cache()
-    conf = jira_config()
-    if not conf:
-        return cache
-    base, email, token = conf
-    auth = base64.b64encode(f"{email}:{token}".encode()).decode()
-    stale = [t for t in tickets if time.time() - (cache.get(t, {}).get("fetched", 0)) > ttl]
-    for key in stale:
-        req = urllib.request.Request(
-            f"{base}/rest/api/3/issue/{urllib.parse.quote(key)}?fields=status,summary",
-            headers={"authorization": f"Basic {auth}", "accept": "application/json"},
-        )
-        entry: dict = {"fetched": time.time()}
-        try:
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                fields = (json.loads(resp.read()) or {}).get("fields", {})
-            status = fields.get("status") or {}
-            entry["status"] = status.get("name")
-            entry["category"] = _STATUS_CATEGORY.get(
-                (status.get("statusCategory") or {}).get("key", ""), "todo")
-            entry["summary"] = fields.get("summary")
-        except urllib.error.HTTPError as e:
-            entry["error"] = f"HTTP {e.code}"
-        except (urllib.error.URLError, socket.timeout, OSError, json.JSONDecodeError) as e:
-            entry["error"] = str(e)[:80]
-        cache[key] = entry
-    if stale:
-        _write_json(JIRA_CACHE, cache)
-    return cache
+    """Compatibility wrapper; provider data is obtained only through MCP."""
+    return metadata.refresh_remote(STATE, tickets, [], ttl)[0]
 
 
 # ------------------------------------------------------------------------ tmux
@@ -1375,6 +1334,27 @@ def _cmd_abort(args) -> int:
     return 0
 
 
+def _cmd_unlink(args) -> int:
+    changed = unlink_association(args.session_id, args.association)
+    print(f"unlinked {args.association or 'associations'} from {args.session_id}" if changed
+          else f"no local association for {args.session_id}")
+    return 0
+
+
+def unlink_association(session_id: str, association: str | None = None) -> bool:
+    """Remove a local association and suppress its rediscovery."""
+    association = association.upper() if association and "-" in association else association
+    changed = metadata.unlink(STATE, session_id, association)
+    path = INSTANCES / f"{session_id}.json"
+    record = _read_json(path)
+    if record and (not association or association == record.get("ticket")):
+        record["ticket"] = None
+        record["ticket_manual"] = False
+        _write_json(path, record)
+        changed = True
+    return changed
+
+
 def _cmd_agent(args) -> int:
     print(json.dumps(agents_for_directory(args.directory)))
     return 0
@@ -1516,6 +1496,11 @@ def main(argv=None) -> int:
     p = sub.add_parser("abort", help="interrupt a running instance")
     p.add_argument("session_id", nargs="+")
     p.set_defaults(fn=_cmd_abort)
+
+    p = sub.add_parser("unlink", help="ignore a discovered ticket or PR association")
+    p.add_argument("session_id")
+    p.add_argument("association", nargs="?", help="ticket ID, PR number (#123), or omit for tickets")
+    p.set_defaults(fn=_cmd_unlink)
 
     p = sub.add_parser("agent", help="find the instance assigned to a directory")
     p.add_argument("directory")

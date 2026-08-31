@@ -123,6 +123,26 @@ class Activity(SandboxCase):
                       state={"status": "completed", "input": {"filePath": "/a/b/Payment.java"}})
         self.assertEqual(self.snap()["activity"], ("tool", "edit Payment.java"))
 
+    def test_ticket_and_pr_are_found_in_later_user_and_assistant_messages(self):
+        self.box.record(ticket=None, ticket_manual=False)
+        self.box.session()
+        user = self.box.message(role="user")
+        self.box.part(user, type="text", text="continue PLAT-22 with PR #17")
+        assistant = self.box.message(role="assistant", completed=True)
+        self.box.part(assistant, type="text", text="https://bitbucket.org/w/r/pull-requests/17")
+        item = self.snap()
+        self.assertEqual(item["ticket"], "PLAT-22")
+        self.assertEqual(item["prs"][0]["label"], "#17")
+
+    def test_unlink_suppresses_rediscovery(self):
+        self.box.record(ticket=None, ticket_manual=False)
+        self.box.session()
+        message = self.box.message(role="user")
+        self.box.part(message, type="text", text="work on PLAT-22")
+        self.assertEqual(self.snap()["ticket"], "PLAT-22")
+        self.ocore.unlink_association("ses_test0001", "PLAT-22")
+        self.assertIsNone(self.snap()["ticket"])
+
 
 class Todos(SandboxCase):
     server_started = 0

@@ -63,7 +63,8 @@ opendash                        # the dashboard (alias is in .zshrc)
 ```
 
 Nothing to install: `opendash` is a zsh script that runs `dashboard.py` (the
-curses UI) or `ocore.py` (server, sessions, db, jira). Python is stdlib-only.
+curses UI) or `ocore.py` (server, sessions, db, metadata bridge). Python is
+stdlib-only.
 Needs `opencode`, `python3` and `tmux` on PATH.
 
 ```sh
@@ -74,13 +75,19 @@ opendash list                   # plain text, no curses
 opendash doctor                # check that instances can actually start
 opendash abort <session-id>     # interrupt a run
 opendash rm <session-id>        # stop it and drop it from the list
+opendash unlink <session-id> [ID|#PR]  # unlink and ignore a local association
 opendash quit                   # stop every instance and the shared server
 opendash server [status|start|stop]
 ```
 
-`opendash new` picks the ticket out of the task text or a Jira URL, so
+`opendash new` picks the ticket out of the task text or a Jira URL, and the
+dashboard continues scanning every user and assistant message, so
 `PROJ-1204 …` and `https://jira.example.com/browse/PROJ-1204 …` both work.
 Pass `-t` to set it explicitly.
+
+Associations are stored separately in `~/.local/state/opendash/metadata.json`.
+`opendash unlink ses_... PROJ-1` (or `#123`) removes a local association and
+suppresses rediscovery. Omitting the association unlinks detected tickets.
 
 ### Neovim
 
@@ -196,34 +203,47 @@ The editor is `nvim` if it is on PATH, else `$EDITOR`; override with
 `OPENDASH_EDITOR`. Follow-ups (`f`) stay on a quick single-line prompt — for
 anything longer, open the instance and use opencode's own composer.
 
-## Jira status
+## MCP metadata
 
-With credentials, the ticket's real status is polled every few minutes and
-coloured by category (grey to-do, yellow in progress, green done). Without
-them the ticket id is still shown, with the instance's own state next to it.
+OpenDash never calls Jira or Bitbucket REST. It optionally sends candidate
+tickets and pull requests to a remote OpenCode HTTP bridge, which owns the MCP
+connection and uses a dedicated read-only metadata session. The active agent
+session is never used and no metadata prompts are added to it. Without a
+bridge, detection and the dashboard continue to work with cached or local
+associations only.
 
-Set `JIRA_BASE_URL`, `JIRA_EMAIL` and `JIRA_API_TOKEN`, or put them in
-`~/.config/opendash/config.json`:
+Set `OPENDASH_MCP_URL` (or `mcp_url` in `config.json`):
 
 ```json
 {
-  "jira_base_url": "https://your-org.atlassian.net",
-  "jira_email": "you@your-org.com",
+  "mcp_url": "https://metadata-host.example/opendash/metadata",
+  "mcp_tool": "opendash_metadata",
+  "mcp_agent": "metadata-readonly",
+  "mcp_directory": "~/.local/share/opendash-metadata",
+  "metadata_refresh": 45,
   "model": "anthropic/claude-sonnet-5",
   "agent": "build"
 }
 ```
 
-The token is also read from the macOS keychain if you keep it there:
+The bridge receives a POST document containing `contract: "opendash-mcp-v1"`,
+`read_only: true`, a reusable session descriptor, and candidate `tickets` and
+`prs`. It must return JSON with `tickets` keyed by ID and `prs` either in
+request order or keyed by `repository#number`. PR results may contain
+`status` (`opened`, `rejected`, `needs changes`, `approved`, or `merged`), `url`,
+`number`, `approvals`, `needs_update`, `unresolved_threads`,
+`unresolved_comments`, `tickets`, and `builds` (`ok`, `failed`, `unavailable`,
+optional `error`). The
+bridge must count unresolved threads only when the last comment author is not
+the PR opener, and classify ambiguous builds against the project changed by
+the PR before counting them. Missing fields remain unknown, never fabricated.
+It may return `{"session":{"id":"..."}}` to establish or rotate the
+persisted dedicated session.
 
-```sh
-security add-generic-password -s jira-api-token -a "$USER" -w
-```
-
-Untested against a live Jira — there were no credentials on this machine when
-it was written. If the status pill stays blank, look at
-`~/.local/state/opendash/jira.json`: each ticket caches either a `status` and
-`category`, or the `error` that came back.
+Results are cached in `jira.json` and `pr.json`; the default refresh interval
+is 45 seconds and can be changed with `OPENDASH_METADATA_REFRESH`. Only stale
+candidate IDs are requested. A timeout, malformed response, or unavailable
+endpoint leaves old values in place and does not block the dashboard.
 
 ## Configuration
 
@@ -233,7 +253,11 @@ Environment overrides everything in `config.json`.
 |---|---|
 | `OPENDASH_MODEL` / `model` | default `provider/model` for new instances |
 | `OPENDASH_AGENT` / `agent` | opencode agent (default `myagent`, set in `config.json`) |
-| `JIRA_BASE_URL` `JIRA_EMAIL` `JIRA_API_TOKEN` | jira polling |
+| `OPENDASH_MCP_URL` | remote read-only MCP metadata bridge |
+| `OPENDASH_MCP_TOOL` / `OPENDASH_MCP_AGENT` | bridge tool and dedicated agent names |
+| `OPENDASH_MCP_DIRECTORY` | isolated bridge session directory |
+| `OPENDASH_MCP_TIMEOUT` | bridge request timeout, default 8 seconds |
+| `OPENDASH_METADATA_REFRESH` | metadata cache TTL, default 45 seconds |
 | `OPENDASH_EDITOR` | editor for writing tasks (default `nvim`, else `$EDITOR`) |
 | `OPENDASH_PERMISSION` | JSON object of tool permissions for instances |
 | `OPENDASH_AUTO=0` | make instances read-only instead of unattended |
@@ -252,6 +276,9 @@ Environment overrides everything in `config.json`.
 - **Live state** is read from `~/.local/share/opencode/opencode.db` read-only
   (title, todos, tokens, cost) plus `GET /permission` for anything blocked
   waiting on you.
+- **Metadata** scans every user and assistant message/part for ticket IDs and
+  PR URLs/references. Provider facts are fetched only by the optional remote
+  MCP bridge in a background worker and cached on disk.
 - **Opening** an instance runs `opencode attach` in a private tmux server
   (socket `opendash`), which is what makes `option+q` interceptable and keeps
   your scroll position between visits.
