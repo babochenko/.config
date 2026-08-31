@@ -382,6 +382,7 @@ def flash(stdscr, message: str, pair: int = C_ACCENT) -> None:
 
 HELP = [
     ("j k · ↓ ↑", "move the cursor between instances"),
+    ("z", "minimize or maximize the selected instance"),
     ("J K", "move the selected instance down / up the list"),
     ("g / G", "first / last"),
     ("enter, o or l", "open the instance (option+q comes back here)"),
@@ -528,7 +529,7 @@ def git_status_overlay(stdscr, directory: str) -> None:
 
 # ------------------------------------------------------------------- rendering
 
-def draw(stdscr, items, jira, server_up, error, sel, frame, filt) -> None:
+def draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized) -> None:
     stdscr.erase()
     maxy, maxx = stdscr.getmaxyx()
     dim = curses.color_pair(C_DIM)
@@ -557,20 +558,34 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt) -> None:
                if not filt else f"nothing matches “{filt}”")
         printw(stdscr, body_top + 1, 3, msg, dim)
     else:
-        rows_per = 4
-        capacity = max(1, (body_bot - body_top) // rows_per)
-        first = max(0, min(sel - capacity // 2, len(items) - capacity))
-        for idx in range(first, min(len(items), first + capacity)):
-            _draw_item(stdscr, body_top + (idx - first) * rows_per,
-                       items[idx], jira, idx == sel, frame, maxx)
+        available = body_bot - body_top
+        first = max(0, sel - 4)
+        while first > 0:
+            height = 2 if items[first - 1]["session_id"] in minimized else 4
+            if height > available:
+                break
+            first -= 1
+            available -= height
+        y = body_top
+        idx = first
+        while idx < len(items):
+            is_minimized = items[idx]["session_id"] in minimized
+            height = 2 if is_minimized else 4
+            if y + height > body_bot:
+                break
+            _draw_item(stdscr, y, items[idx], jira, idx == sel, frame, maxx,
+                       is_minimized)
+            y += height
+            idx += 1
         if first > 0:
             printw(stdscr, body_top, maxx - 4, "↑", dim)
-        if first + capacity < len(items):
+        if idx < len(items):
             printw(stdscr, body_bot - 1, maxx - 4, "↓", dim)
 
     printw(stdscr, maxy - 2, 1, "─" * max(0, maxx - 2), dim)
-    footer = ("j/k move · J/K reorder · ⏎ open · t term · n new · f follow · "
-              "a abort · d remove · r/R rename · / filter · ? keys · q leave · Q quit")
+    footer = ("j/k move · J/K reorder · z minimize · ⏎ open · t term · n new · "
+              "f follow · a abort · d remove · r/R rename · / filter · ? keys · "
+              "q leave · Q quit")
     if filt:
         footer = f"filter: {filt}   (esc clears) · " + footer
     printw(stdscr, maxy - 1, 1, footer, dim)
@@ -585,16 +600,19 @@ def _short_dir(directory: str | None) -> str:
     return "~" + directory[len(home):] if directory.startswith(home) else directory
 
 
-def _draw_item(stdscr, y, item, jira, selected, frame, maxx) -> None:
+def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) -> None:
     state = item["state"]
     pair = curses.color_pair(STATE_COLOR.get(state, C_DIM))
     icon = ICONS.get(state) or SPINNER[frame % len(SPINNER)]
 
-    for row in (y, y + 1, y + 2):
+    marker_rows = (y, y + 1) if minimized else (y, y + 1, y + 2)
+    for row in marker_rows:
         printw(stdscr, row, 0, "▌" if selected else " ",
                curses.color_pair(C_ACCENT) | curses.A_BOLD)
 
-    title_attr = curses.A_BOLD if selected else 0
+    title_attr = curses.color_pair(C_DIM)
+    if selected and not minimized:
+        title_attr |= curses.A_BOLD
     x = printw(stdscr, y, 2, icon, pair | curses.A_BOLD)
     x += 1
 
@@ -617,6 +635,11 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx) -> None:
     status_x = age_x - 2 - len(status_text)
     printw(stdscr, y, status_x, status_text, status_pair | curses.A_BOLD)
     printw(stdscr, y, age_x + max(0, AGE_W - len(age)), age, curses.color_pair(C_DIM))
+
+    if minimized:
+        printw(stdscr, y, x, clip(ocore._headline(item), max(4, status_x - x - 2)),
+               title_attr)
+        return
 
     # a `t` terminal still running something gets its own spinner and command,
     # separate from the agent's state -- an idle agent can have a busy terminal
@@ -704,6 +727,7 @@ def run(stdscr, start_dir: str) -> None:
     data.start()
 
     sel, filt, last_dir = 0, "", start_dir
+    minimized = set()
     while True:
         for pending, record, creation_error in data.take_completions():
             if creation_error:
@@ -720,7 +744,7 @@ def run(stdscr, start_dir: str) -> None:
                      or low in (i.get("directory") or "").lower()]
         sel = max(0, min(sel, len(items) - 1)) if items else 0
         frame = int(time.time() * (1000 / TICK_MS)) % len(SPINNER)
-        draw(stdscr, items, jira, server_up, error, sel, frame, filt)
+        draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized)
 
         try:
             ch = stdscr.get_wch()
@@ -782,6 +806,12 @@ def run(stdscr, start_dir: str) -> None:
             sel = 0
         elif ch == "G":
             sel = max(0, len(items) - 1)
+        elif ch == "z" and cur:
+            sid = cur["session_id"]
+            if sid in minimized:
+                minimized.remove(sid)
+            else:
+                minimized.add(sid)
         elif ch in ("\n", "\r", "l", "o") and cur:
             _open(stdscr, data, cur)
         elif ch == "t" and cur:

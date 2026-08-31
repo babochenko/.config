@@ -153,8 +153,16 @@ class Dashboard(unittest.TestCase):
 
     def test_the_footer_advertises_the_keys(self):
         for key in ("j/k move", "J/K reorder", "t term", "n new", "d remove",
-                    "r/R rename", "q leave", "Q quit"):
+                    "r/R rename", "z minimize", "q leave", "Q quit"):
             self.assertIn(key, self.screen())
+
+    def test_z_minimizes_and_restores_the_selected_instance(self):
+        self.press("g", "z")
+        screen = self.screen()
+        self.assertIn("brand new name", screen)
+        self.assertNotIn("finished 0", screen)
+        self.press("z")
+        self.assertIn("finished 0", self.screen())
 
     # -- driving it ----------------------------------------------------------
 
