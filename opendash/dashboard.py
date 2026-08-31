@@ -423,7 +423,7 @@ HELP = [
     ("z", "minimize or maximize the selected instance"),
     ("J K", "move the selected instance down / up the list"),
     ("g / G", "first / last"),
-    ("enter, o or l", "open the instance (option+q comes back here)"),
+    ("enter or o", "open the instance (option+q comes back here)"),
     ("c", "code actions: h check, m merge master, p commit/push, s git status, r review, U update/restart"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
     ("", "or just detaches if something is still running)"),
@@ -945,7 +945,7 @@ def run(stdscr, start_dir: str) -> None:
             else:
                 minimized.add(sid)
             save_minimized(minimized)
-        elif ch in ("\n", "\r", "l", "o") and cur:
+        elif ch in ("\n", "\r", "o") and cur:
             _open(stdscr, data, cur)
         elif ch == "t" and cur:
             _open(stdscr, data, cur, terminal=True)

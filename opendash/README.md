@@ -119,7 +119,7 @@ the dashboard and editor share the same session.
 | `j` `k` / `↓` `↑` | move the cursor (`g` / `G` for first / last) |
 | `J` `K` | move the selected instance down / up the list |
 | `z` | minimize or maximize the selected instance |
-| `enter`, `o` or `l` | open the instance and talk to it |
+| `enter` or `o` | open the instance and talk to it |
 | `c` | code actions: `h` runs `check`, `m` runs `gitmm`, `p` commits/pushes, `s` shows `gs`, `r` reviews the branch |
 | `cU` | update the config checkout with `p config && gitsm`, then relaunch the dashboard |
 | `t` | terminal in the instance's working directory |
