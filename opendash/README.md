@@ -27,7 +27,9 @@ metadata is available. Line 2 is what it has actually been doing, and line 3
 is the final directory component it works in. The local state comes from opencode's database;
 provider metadata comes from the optional MCP bridge.
 
-On the right side of line 3, the branch icon and name show the same commit
+On the left side of line 3, the final directory component is followed by the
+branch icon and name. Worktree rows instead show the main repository path, a
+worktree marker, and the worktree branch. The right side shows the same commit
 counts as the shell prompt (`↑` ahead, `↓` behind, `+` staged, `~` modified,
 `?` untracked), followed by the PR number when one is detected. The `b` action
 opens the associated ticket or PR; provider status, approvals, review threads,

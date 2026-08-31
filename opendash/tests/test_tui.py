@@ -137,7 +137,7 @@ class Dashboard(unittest.TestCase):
         self.assertIn("idle", screen)
         self.assertIn("working", screen)
         self.assertIn("✓1/1", screen)              # the completed todo
-        self.assertIn("codes-TIX-9-fix", screen)        # last directory component
+        self.assertIn("codes", screen)                  # main directory for a worktree
 
     def test_the_row_shows_the_branch_name(self):
         screen = self.screen()

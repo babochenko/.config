@@ -739,8 +739,6 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
 
     gitinfo = item.get("git") or {}
     git_parts: list[tuple[str, int, str | None]] = []
-    if gitinfo.get("branch") and not item.get("worktree"):
-        git_parts.append((f"⎇ {gitinfo['branch']}", C_DIM, None))
     if gitinfo.get("ahead"):
         git_parts.append((f"↑{gitinfo['ahead']}", C_OK, None))
     if gitinfo.get("behind"):
@@ -764,11 +762,24 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
 
     if git_parts:
         total_width = sum(len(text) for text, _, _ in git_parts) + len(git_parts) - 1
-        git_x = max(3, maxx - 2 - total_width)
+        right_start = max(3, maxx - 2 - total_width)
+        git_x = right_start
         for n, (text, color, url) in enumerate(git_parts):
             if n:
                 git_x = printw(stdscr, y + 2, git_x, " ", curses.color_pair(C_DIM))
             git_x = _print_link(stdscr, y + 2, git_x, text, url, curses.color_pair(color))
+    else:
+        right_start = maxx - 2
+
+    branch = gitinfo.get("branch") or item.get("branch")
+    if item.get("worktree"):
+        location = _short_dir(item.get("repo") or str(Path(item.get("directory") or "").parent))
+        location = f"{location}  ⤷ {branch}" if branch else location
+    else:
+        location = Path(item.get("directory") or "").name or item.get("directory") or ""
+        location = f"{location}  ⎇ {branch}" if branch else location
+    printw(stdscr, y + 2, 3, clip(location, max(4, right_start - 5)),
+           curses.color_pair(C_DIM))
 
     if comments:
         thread_text = "threads: " + "; ".join(
