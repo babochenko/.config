@@ -227,7 +227,7 @@ def mcp_config() -> dict:
     return {
         "url": setting("OPENDASH_MCP_URL", "mcp_url", ""),
         "tool": setting("OPENDASH_MCP_TOOL", "mcp_tool", "opendash_metadata"),
-        "agent": setting("OPENDASH_MCP_AGENT", "mcp_agent", "metadata-readonly"),
+        "agent": setting("OPENDASH_MCP_AGENT", "mcp_agent", ""),
         "directory": setting("OPENDASH_MCP_DIRECTORY", "mcp_directory", str(Path.home())),
         "timeout": timeout,
         "refresh": refresh,

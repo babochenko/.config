@@ -99,9 +99,9 @@ suppresses rediscovery. Omitting the association unlinks detected tickets.
 ### PR metadata agent
 
 When `OPENDASH_MCP_URL` is unset, PR metadata is fetched by a hidden, reusable
-OpenCode session using the configured read-only agent. Set
-`OPENDASH_MCP_AGENT` to an agent that has the Bitbucket MCP tools configured
-and `OPENDASH_MCP_DIRECTORY` to a permitted directory. The agent must return
+OpenCode session using OpenCode's normal default agent and MCP configuration.
+Set `OPENDASH_MCP_AGENT` only if a separate named agent is needed, and set
+`OPENDASH_MCP_DIRECTORY` to a permitted directory. The agent must return
 the JSON schema requested by OpenDash; its response is validated and cached in
 `~/.local/state/opendash/pr.json`. Set `OPENDASH_METADATA_PROVIDER=none` to
 disable this fallback, or set `OPENDASH_MCP_URL` to use the existing HTTP

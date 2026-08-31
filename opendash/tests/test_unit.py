@@ -56,7 +56,7 @@ class RemoteMetadata(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
                 "OPENDASH_MCP_URL": "",
                 "OPENDASH_METADATA_PROVIDER": "agent",
-                "OPENDASH_MCP_AGENT": "metadata-readonly",
+                "OPENDASH_MCP_AGENT": "",
                 "OPENDASH_MCP_DIRECTORY": tmp}, clear=False), \
                 patch.object(ocore, "server_url", return_value="http://server"), \
                 patch.object(ocore, "http", return_value={"id": "metadata-1"}), \
