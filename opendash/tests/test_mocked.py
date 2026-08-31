@@ -17,6 +17,13 @@ class DashboardTests(unittest.TestCase):
         with patch.object(ocore, "instance_records", return_value=[{}, {}]):
             self.assertEqual(dashboard.quit_message(), " quit and stop 2 instance(s)?")
 
+    def test_minimized_state_round_trips_and_prunes_unknown_sessions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(ocore, "STATE", Path(tmp)):
+                dashboard.save_minimized({"session-1", "session-2"})
+                self.assertEqual(dashboard.load_minimized({"session-2", "session-3"}),
+                                 {"session-2"})
+
     def test_new_instance_has_a_placeholder_until_creation_finishes(self):
         started = threading.Event()
         release = threading.Event()

@@ -380,6 +380,19 @@ def flash(stdscr, message: str, pair: int = C_ACCENT) -> None:
     stdscr.refresh()
 
 
+def load_minimized(session_ids: set[str]) -> set[str]:
+    """Load minimized rows, discarding sessions that no longer exist."""
+    stored = ocore._read_json(ocore.STATE / "dashboard.json", {})
+    values = stored.get("minimized", []) if isinstance(stored, dict) else []
+    return {sid for sid in values if isinstance(sid, str) and sid in session_ids}
+
+
+def save_minimized(session_ids: set[str]) -> None:
+    """Persist dashboard-only visual state atomically with other opendash state."""
+    ocore._write_json(ocore.STATE / "dashboard.json",
+                      {"minimized": sorted(session_ids)})
+
+
 HELP = [
     ("j k · ↓ ↑", "move the cursor between instances"),
     ("z", "minimize or maximize the selected instance"),
@@ -726,7 +739,8 @@ def run(stdscr, start_dir: str) -> None:
     data.start()
 
     sel, filt, last_dir = 0, "", start_dir
-    minimized = set()
+    session_ids = {record["session_id"] for record in ocore.instance_records()}
+    minimized = load_minimized(session_ids)
     while True:
         for pending, record, creation_error in data.take_completions():
             if creation_error:
@@ -811,6 +825,7 @@ def run(stdscr, start_dir: str) -> None:
                 minimized.remove(sid)
             else:
                 minimized.add(sid)
+            save_minimized(minimized)
         elif ch in ("\n", "\r", "l", "o") and cur:
             _open(stdscr, data, cur)
         elif ch == "t" and cur:
