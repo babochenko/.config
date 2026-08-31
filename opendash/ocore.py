@@ -371,10 +371,10 @@ def git_summary(directory: str | Path) -> dict:
 
 
 def git_status_output(directory: str | Path) -> tuple[str, int]:
-    """Run the repository's own ``gs`` function and return its ANSI output."""
+    """Run the repository's own colored ``git-status`` function."""
     try:
         result = subprocess.run(
-            ["zsh", "-lic", "gs"], cwd=str(directory),
+            ["zsh", "-lic", "git-status --tree"], cwd=str(directory),
             capture_output=True, text=True, timeout=15,
         )
     except (OSError, subprocess.SubprocessError) as e:

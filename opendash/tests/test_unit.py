@@ -148,11 +148,11 @@ class Models(unittest.TestCase):
 
 
 class GitStatus(unittest.TestCase):
-    def test_runs_the_repo_gs_function(self):
+    def test_runs_the_repo_colored_git_status_function(self):
         result = type("Result", (), {"stdout": "green", "stderr": "", "returncode": 0})()
         with patch.object(ocore.subprocess, "run", return_value=result) as run:
             self.assertEqual(ocore.git_status_output("/tmp/project"), ("green", 0))
-        self.assertEqual(run.call_args.args[0], ["zsh", "-lic", "gs"])
+        self.assertEqual(run.call_args.args[0], ["zsh", "-lic", "git-status --tree"])
 
     def test_ansi_segments_preserve_git_status_colors(self):
         self.assertEqual(
