@@ -678,8 +678,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         x = printw(stdscr, y, x, " ")
     if ticket:
         ticket_attr = curses.color_pair(C_DIM if minimized else C_TICKET) | emphasis
-        url = ocore.ticket_url(ticket)
-        x = _print_link(stdscr, y, x, ticket, url, ticket_attr)
+        x = printw(stdscr, y, x, ticket, ticket_attr)
         x = printw(stdscr, y, x, "  ")
 
     # right side of line 1, in fixed columns so it reads as a table:
@@ -715,6 +714,8 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
             builds = pr.get("builds") or {}
             if any(k in builds for k in ("ok", "failed", "unavailable")):
                 pr_suffix += f" ✓{builds.get('ok', 0)} ✖{builds.get('failed', 0)}"
+        if item.get("worktree"):
+            branch = None
         suffix = (f"  ⎇ {branch}" if branch else "") + pr_suffix
         printw(stdscr, y, x, clip(ocore._headline(item) + suffix, max(4, status_x - x - 2)),
                title_attr)
@@ -738,7 +739,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
 
     gitinfo = item.get("git") or {}
     git_parts: list[tuple[str, int, str | None]] = []
-    if gitinfo.get("branch"):
+    if gitinfo.get("branch") and not item.get("worktree"):
         git_parts.append((f"⎇ {gitinfo['branch']}", C_DIM, None))
     if gitinfo.get("ahead"):
         git_parts.append((f"↑{gitinfo['ahead']}", C_OK, None))
@@ -758,25 +759,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     pr = prs[0] if prs else None
     if pr:
         number = str(pr.get("number") or "")
-        status_icon = {"opened": "○", "approved": "✓", "needs changes": "!",
-                       "merged": "●", "rejected": "×", "closed": "×"}.get(
-            str(pr.get("status") or "").lower(), "·")
-        builds = pr.get("builds") or {}
-        build_text = None
-        if any(key in builds for key in ("ok", "failed", "unavailable")):
-            build_text = f"✓{builds.get('ok', 0)} ✖{builds.get('failed', 0)}"
-            if builds.get("unavailable"):
-                build_text += f" ?{builds['unavailable']}"
-        pr_label = " ".join(x for x in (
-            f"{status_icon} PR #{number}" if number else "PR",
-            pr.get("status"),
-            f"✓{pr['approvals']}" if pr.get("approvals") is not None else None,
-            "needs-update" if pr.get("needs_update") else None,
-            f"threads:{pr['unresolved_threads']}" if pr.get("unresolved_threads") else None,
-            build_text,
-            "error" if pr.get("error") else None,
-        ) if x)
-        git_parts.append((pr_label, C_DIM, pr.get("url")))
+        git_parts.append((f"#{number}", C_DIM, None))
     comments = pr.get("unresolved_comments") or [] if pr else []
 
     if git_parts:
@@ -820,7 +803,8 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         printw(stdscr, y + 1, maxx - 2 - len(meta_text), meta_text, curses.color_pair(C_DIM))
 
     # line 3: where the agent is working
-    printw(stdscr, y + 2, 3, _short_dir(item.get("directory")), curses.color_pair(C_DIM))
+    directory = item.get("directory") or ""
+    printw(stdscr, y + 2, 3, Path(directory).name or directory, curses.color_pair(C_DIM))
 
 
 # ------------------------------------------------------------------- main loop

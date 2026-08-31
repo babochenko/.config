@@ -11,27 +11,29 @@ terminal. Run `opendash` again and they are all still there.
  ────────────────────────────────────────────────────────────────────────────────
 ▌ ◆ PROJ-1204  make the retry backoff configurable            needs you      12s
 ▌  ◆ bash ./gradlew test --tests RetrySpec
-▌  ~/dev/payments-PROJ-1204_retry_backoff
+ ▌  payments-PROJ-1204_retry_backoff
   ⠹ PLAT-99  review the search indexer, write REVIEW.md        In Progress     4m
    ▸ Rewriting the tokenizer fast path                    ✓3/7 · +142/-18 · $0.21
-   ~/dev/search-indexer
+   search-indexer
   ● ABC-77  add docstrings to calc.py                                 idle    2h
    · Added docstrings to all 6 functions; no behaviour changes.               ✓2/2
-   ~/dev/scratch
+   scratch
 ```
 
 Line 1 is the ticket, when known, plus what the instance was asked to do — the
 title opencode generates for the session, so it sharpens as the agent explores
 the work. A Jira status tile appears immediately before the ticket when MCP
 metadata is available. Line 2 is what it has actually been doing, and line 3
-is the directory it works in. The local state comes from opencode's database;
+is the final directory component it works in. The local state comes from opencode's database;
 provider metadata comes from the optional MCP bridge.
 
 On the right side of line 3, the branch icon and name show the same commit
 counts as the shell prompt (`↑` ahead, `↓` behind, `+` staged, `~` modified,
-`?` untracked), followed by PR state, approvals, review threads, and matching
-build counts when MCP metadata is available. The counts include untracked
-files without changing the repository index.
+`?` untracked), followed by the PR number when one is detected. The `b` action
+opens the associated ticket or PR; provider status, approvals, review threads,
+and matching build counts remain available through the metadata cache without
+making the compact row wrap. The counts include untracked files without
+changing the repository index.
 
 Status icons: `⠹` spinner (working), `◆` needs you (blocked on a permission or
 a question), `◔` queued, `●` idle, `✖` errored, `○` session gone.
