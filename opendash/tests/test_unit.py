@@ -259,6 +259,9 @@ class DashboardLocations(unittest.TestCase):
                                  "builds": {"ok": 3, "failed": 1}}),
             "#12 opened ✓2 threads:1 builds:3✓/1✖")
 
+    def test_pr_label_shows_loader_during_refresh(self):
+        self.assertIn("#12 ⠋", dashboard._pr_label({"number": 12}, True, 0))
+
 
 class Permissions(unittest.TestCase):
     def test_unattended_by_default_like_opencode_auto(self):

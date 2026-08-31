@@ -112,6 +112,7 @@ class Data:
         self.pr: dict = metadata.pr_cache(ocore.STATE)
         self.server_up = False
         self.error: str | None = None
+        self.pr_loading = False
         self.stamp = 0.0
         self._stop = threading.Event()
         self._wake = threading.Event()
@@ -219,11 +220,15 @@ class Data:
 
     def _jira_loop(self):
         while not self._stop.is_set():
+            loading = False
             try:
                 with self.lock:
                     tickets = sorted({i["ticket"] for i in self.items if i.get("ticket")})
                     prs = [p for i in self.items for p in i.get("prs", [])]
                 if tickets or prs:
+                    loading = bool(prs)
+                    with self.lock:
+                        self.pr_loading = loading
                     cache, pr_cache = metadata.refresh_remote(ocore.STATE, tickets, prs)
                     with self.lock:
                         self.jira = cache
@@ -240,6 +245,10 @@ class Data:
                                         break
             except Exception:
                 pass
+            finally:
+                if loading:
+                    with self.lock:
+                        self.pr_loading = False
             self._stop.wait(METADATA_EVERY)
 
     def reorder(self, a_sid: str, b_sid: str) -> None:
@@ -253,7 +262,10 @@ class Data:
 
     def read(self):
         with self.lock:
-            return (list(self.items) + list(self.pending), dict(self.jira),
+            items = list(self.items) + list(self.pending)
+            for item in items:
+                item["pr_loading"] = self.pr_loading and bool(item.get("prs"))
+            return (items, dict(self.jira),
                     self.server_up, self.error)
 
 
@@ -688,9 +700,11 @@ def _short_dir(directory: str | None) -> str:
     return "~" + directory[len(home):] if directory.startswith(home) else directory
 
 
-def _pr_label(pr: dict) -> str:
+def _pr_label(pr: dict, loading: bool = False, frame: int = 0) -> str:
     """Format the compact PR status shown on the location line."""
     label = "#" + str(pr.get("number") or "")
+    if loading:
+        label += " " + SPINNER[frame % len(SPINNER)]
     if pr.get("status"):
         label += " " + str(pr["status"])
     if pr.get("approvals") is not None:
@@ -756,7 +770,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         pr = (item.get("pr_info") or item.get("prs") or [None])[0]
         pr_suffix = ""
         if pr:
-            pr_suffix = "  " + _pr_label(pr)
+            pr_suffix = "  " + _pr_label(pr, item.get("pr_loading", False), frame)
         suffix = "  " + _location_label(item, branch) + pr_suffix
         printw(stdscr, y, x, clip(ocore._headline(item) + suffix, max(4, status_x - x - 2)),
                title_attr)
@@ -797,7 +811,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     prs = item.get("pr_info") or item.get("prs") or []
     pr = prs[0] if prs else None
     if pr:
-        git_parts.append((_pr_label(pr), C_DIM, None))
+        git_parts.append((_pr_label(pr, item.get("pr_loading", False), frame), C_DIM, None))
     comments = pr.get("unresolved_comments") or [] if pr else []
 
     if git_parts:
