@@ -220,7 +220,7 @@ class DashboardLocations(unittest.TestCase):
     def test_regular_directory_shows_directory_and_branch_icons(self):
         self.assertEqual(
             dashboard._location_label({"directory": "/Users/me/parrot"}, "master"),
-            "▣ parrot  ⎇ master")
+            "◇ parrot  ⎇ master")
 
     def test_worktree_shows_main_directory_marker_and_branch(self):
         item = {"directory": "/Users/me/parrot-PCYXC-2193-volumes-about-3",
@@ -228,7 +228,7 @@ class DashboardLocations(unittest.TestCase):
                 "repo": "/Users/me/parrot"}
         self.assertEqual(
             dashboard._location_label(item, "PCYXC-2193-volumes-about-3"),
-            "▣ parrot  ⤷ PCYXC-2193-volumes-about-3")
+            "◇ parrot  ⤷ PCYXC-2193-volumes-about-3")
 
 
 class Permissions(unittest.TestCase):
