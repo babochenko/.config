@@ -677,7 +677,7 @@ def _location_label(item: dict, branch: str | None) -> str:
         suffix = f"-{branch}" if branch else ""
         name = (worktree_name[:-len(suffix)] if suffix and worktree_name.endswith(suffix)
                 else worktree_name)
-    return f"▣ {name} W {branch}" if branch else f"▣ {name}"
+    return f"▣ {name}  ⤷ {branch}" if branch else f"▣ {name}"
 
 
 def _short_dir(directory: str | None) -> str:
@@ -840,11 +840,6 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
            else curses.color_pair(C_DIM))
     if meta_text:
         printw(stdscr, y + 1, maxx - 2 - len(meta_text), meta_text, curses.color_pair(C_DIM))
-
-    # line 3: where the agent is working
-    directory = item.get("directory") or ""
-    printw(stdscr, y + 2, 3, Path(directory).name or directory, curses.color_pair(C_DIM))
-
 
 # ------------------------------------------------------------------- main loop
 

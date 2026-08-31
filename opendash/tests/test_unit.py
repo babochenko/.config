@@ -228,7 +228,7 @@ class DashboardLocations(unittest.TestCase):
                 "repo": "/Users/me/parrot"}
         self.assertEqual(
             dashboard._location_label(item, "PCYXC-2193-volumes-about-3"),
-            "▣ parrot W PCYXC-2193-volumes-about-3")
+            "▣ parrot  ⤷ PCYXC-2193-volumes-about-3")
 
 
 class Permissions(unittest.TestCase):
