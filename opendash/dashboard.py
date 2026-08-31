@@ -671,12 +671,11 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
 
     ticket = item.get("ticket")
     jinfo = jira.get(ticket) if ticket else None
-    tile = "·"
     if jinfo:
         tile = {"todo": "○", "progress": "◐", "done": "●"}.get(jinfo.get("category"), "·")
-    tile_attr = curses.color_pair(C_DIM if minimized else JIRA_COLOR.get((jinfo or {}).get("category"), C_DIM))
-    x = printw(stdscr, y, x, tile, tile_attr | emphasis)
-    x = printw(stdscr, y, x, " ")
+        tile_attr = curses.color_pair(C_DIM if minimized else JIRA_COLOR.get(jinfo.get("category"), C_DIM))
+        x = printw(stdscr, y, x, tile, tile_attr | emphasis)
+        x = printw(stdscr, y, x, " ")
     if ticket:
         ticket_attr = curses.color_pair(C_DIM if minimized else C_TICKET) | emphasis
         url = ocore.ticket_url(ticket)
@@ -754,13 +753,6 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     if gitinfo.get("adds") or gitinfo.get("dels"):
         git_parts.extend(((f"+{gitinfo.get('adds', 0)}", C_OK, None),
                           (f"-{gitinfo.get('dels', 0)}", C_ERR, None)))
-    if git_parts:
-        total_width = sum(len(text) for text, _, _ in git_parts) + len(git_parts) - 1
-        git_x = max(3, maxx - 2 - total_width)
-        for n, (text, color, url) in enumerate(git_parts):
-            if n:
-                git_x = printw(stdscr, y + 2, git_x, " ", curses.color_pair(C_DIM))
-            git_x = _print_link(stdscr, y + 2, git_x, text, url, curses.color_pair(color))
 
     prs = item.get("pr_info") or item.get("prs") or []
     pr = prs[0] if prs else None
@@ -785,15 +777,23 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
             "error" if pr.get("error") else None,
         ) if x)
         git_parts.append((pr_label, C_DIM, pr.get("url")))
+    comments = pr.get("unresolved_comments") or [] if pr else []
 
-        comments = pr.get("unresolved_comments") or []
-        if comments:
-            thread_text = "threads: " + "; ".join(
-                f"{comment.get('author', 'reviewer')}: {comment.get('text', '')}"
-                for comment in comments[:3]
-            )
-            printw(stdscr, y + 1, 3, clip(thread_text, maxx - 6),
-                   curses.color_pair(C_DIM))
+    if git_parts:
+        total_width = sum(len(text) for text, _, _ in git_parts) + len(git_parts) - 1
+        git_x = max(3, maxx - 2 - total_width)
+        for n, (text, color, url) in enumerate(git_parts):
+            if n:
+                git_x = printw(stdscr, y + 2, git_x, " ", curses.color_pair(C_DIM))
+            git_x = _print_link(stdscr, y + 2, git_x, text, url, curses.color_pair(color))
+
+    if comments:
+        thread_text = "threads: " + "; ".join(
+            f"{comment.get('author', 'reviewer')}: {comment.get('text', '')}"
+            for comment in comments[:3]
+        )
+        printw(stdscr, y + 1, 3, clip(thread_text, maxx - 6),
+               curses.color_pair(C_DIM))
 
     printw(stdscr, y, x, clip(ocore._headline(item), max(4, headline_end - x - 2)),
            title_attr)
