@@ -832,7 +832,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     meta_text = " · ".join(meta)
 
     note = item.get("attention") or ocore.worked_on(item)
-    lead = "◆ " if state == "attention" else ("▸ " if state == "working" else "· ")
+    lead = "◆ " if state == "attention" else ("▸ " if state == "working" else "")
     avail = maxx - 6 - (len(meta_text) + 2 if meta_text else 0)
     x2 = printw(stdscr, y + 1, 3, lead, pair)
     printw(stdscr, y + 1, x2, clip(note, max(4, avail)),
