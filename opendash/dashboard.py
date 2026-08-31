@@ -22,9 +22,10 @@ import unicodedata
 from pathlib import Path
 
 import ocore
+import metadata
 
 REFRESH = 1.5          # seconds between db snapshots
-JIRA_EVERY = 60.0      # seconds between jira polls (cache has its own TTL)
+METADATA_EVERY = 5.0   # wake the worker; remote cache TTL controls actual polls
 TICK_MS = 120          # ui tick; also the spinner rate
 
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
@@ -108,6 +109,7 @@ class Data:
         self.lock = threading.Lock()
         self.items: list[dict] = []
         self.jira: dict = ocore.jira_cache()
+        self.pr: dict = metadata.pr_cache(ocore.STATE)
         self.server_up = False
         self.error: str | None = None
         self.stamp = 0.0
@@ -191,6 +193,9 @@ class Data:
                 for it in items:
                     it["terminal"] = terminals.get(it["session_id"])
                     it["git"] = ocore.git_summary(it.get("directory") or "")
+                    it["pr_info"] = [self.pr.get(metadata._candidate_key(p),
+                                                  self.pr.get(str(p.get("number")), p))
+                                      for p in it.get("prs", [])]
                 blocked = ocore.pending_attention(items) if up else {}
                 for it in items:
                     note = blocked.get(it["session_id"])
@@ -217,13 +222,25 @@ class Data:
             try:
                 with self.lock:
                     tickets = sorted({i["ticket"] for i in self.items if i.get("ticket")})
-                if tickets:
-                    cache = ocore.jira_refresh(tickets)
+                    prs = [p for i in self.items for p in i.get("prs", [])]
+                if tickets or prs:
+                    cache, pr_cache = metadata.refresh_remote(ocore.STATE, tickets, prs)
                     with self.lock:
                         self.jira = cache
+                        self.pr = pr_cache
+                        for item in self.items:
+                            item["pr_info"] = [pr_cache.get(metadata._candidate_key(p),
+                                                              pr_cache.get(str(p.get("number")), p))
+                                                for p in item.get("prs", [])]
+                            if not item.get("ticket") and not item.get("ticket_manual"):
+                                for info in item["pr_info"]:
+                                    if info.get("tickets"):
+                                        item["ticket"] = info["tickets"][0]
+                                        metadata.associate_ticket(ocore.STATE, item["session_id"], item["ticket"])
+                                        break
             except Exception:
                 pass
-            self._stop.wait(JIRA_EVERY)
+            self._stop.wait(METADATA_EVERY)
 
     def reorder(self, a_sid: str, b_sid: str) -> None:
         """Reflect a manual move at once, without waiting for the next poll."""
@@ -418,6 +435,8 @@ HELP = [
     ("d", "stop and remove from the dashboard, asks first (the opencode"),
     ("", "session is kept, and a worktree is removed but its branch is not)"),
     ("/", "filter by ticket or title;  esc clears"),
+    ("u", "unlink the selected ticket or PR association"),
+    ("b", "open the selected ticket or PR in the browser"),
     ("r", "rename this instance, editing the current name"),
     ("R", "rename it starting from an empty prompt"),
     ("", "either way the ticket is kept, and empty input does nothing"),
@@ -638,15 +657,22 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     x += 1
 
     ticket = item.get("ticket")
+    jinfo = jira.get(ticket) if ticket else None
+    tile = "·"
+    if jinfo:
+        tile = {"todo": "○", "progress": "◐", "done": "●"}.get(jinfo.get("category"), "·")
+    tile_attr = curses.color_pair(C_DIM if minimized else JIRA_COLOR.get((jinfo or {}).get("category"), C_DIM))
+    x = printw(stdscr, y, x, tile, tile_attr | emphasis)
+    x = printw(stdscr, y, x, " ")
     if ticket:
         ticket_attr = curses.color_pair(C_DIM if minimized else C_TICKET) | emphasis
-        x = printw(stdscr, y, x, ticket, ticket_attr)
+        url = ocore.ticket_url(ticket)
+        x = printw(stdscr, y, x, _osc8(ticket, url), ticket_attr)
         x = printw(stdscr, y, x, "  ")
 
     # right side of line 1, in fixed columns so it reads as a table:
     # jira status (or the run state when there is no ticket) then age
     age = ocore.fmt_age(item.get("last_activity"))
-    jinfo = jira.get(ticket) if ticket else None
     status_text = (jinfo or {}).get("status")
     if status_text:
         status_pair = curses.color_pair(JIRA_COLOR.get(jinfo.get("category"), C_DIM))
@@ -661,7 +687,24 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     printw(stdscr, y, age_x + max(0, AGE_W - len(age)), age, curses.color_pair(C_DIM))
 
     if minimized:
-        printw(stdscr, y, x, clip(ocore._headline(item), max(4, status_x - x - 2)),
+        branch = (item.get("git") or {}).get("branch") or item.get("branch")
+        pr = (item.get("pr_info") or item.get("prs") or [None])[0]
+        pr_suffix = ""
+        if pr:
+            pr_suffix = "  PR #" + str(pr.get("number"))
+            if pr.get("status"):
+                pr_suffix += f" {pr['status']}"
+            if pr.get("approvals") is not None:
+                pr_suffix += f" ✓{pr['approvals']}"
+            if pr.get("needs_update"):
+                pr_suffix += " !"
+            if pr.get("unresolved_threads"):
+                pr_suffix += f" threads:{pr['unresolved_threads']}"
+            builds = pr.get("builds") or {}
+            if any(k in builds for k in ("ok", "failed", "unavailable")):
+                pr_suffix += f" ✓{builds.get('ok', 0)} ✖{builds.get('failed', 0)}"
+        suffix = (f"  ⎇ {branch}" if branch else "") + pr_suffix
+        printw(stdscr, y, x, clip(ocore._headline(item) + suffix, max(4, status_x - x - 2)),
                title_attr)
         return
 
@@ -684,7 +727,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     gitinfo = item.get("git") or {}
     git_parts: list[tuple[str, int]] = []
     if gitinfo.get("branch"):
-        git_parts.append((gitinfo["branch"], C_DIM))
+        git_parts.append((f"⎇ {gitinfo['branch']}", C_DIM))
     if gitinfo.get("ahead"):
         git_parts.append((f"↑{gitinfo['ahead']}", C_OK))
     if gitinfo.get("behind"):
@@ -705,6 +748,40 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
             if n:
                 git_x = printw(stdscr, y + 2, git_x, " ", curses.color_pair(C_DIM))
             git_x = printw(stdscr, y + 2, git_x, text, curses.color_pair(color))
+
+    prs = item.get("pr_info") or item.get("prs") or []
+    if prs:
+        pr = prs[0]
+        number = str(pr.get("number") or "")
+        status_icon = {"opened": "○", "approved": "✓", "needs changes": "!",
+                       "merged": "●", "rejected": "×", "closed": "×"}.get(
+            str(pr.get("status") or "").lower(), "·")
+        builds = pr.get("builds") or {}
+        build_text = None
+        if any(key in builds for key in ("ok", "failed", "unavailable")):
+            build_text = f"✓{builds.get('ok', 0)} ✖{builds.get('failed', 0)}"
+            if builds.get("unavailable"):
+                build_text += f" ?{builds['unavailable']}"
+        comments = pr.get("unresolved_comments") or []
+        thread_text = None
+        if comments:
+            thread_text = "threads: " + "; ".join(
+                f"{comment.get('author', 'reviewer')}: {comment.get('text', '')}"
+                for comment in comments[:3]
+            )
+        details = " ".join(x for x in (
+            f"{status_icon} PR #{number}" if number else "PR",
+            pr.get("status"),
+            f"✓{pr['approvals']}" if pr.get("approvals") is not None else None,
+            "needs-update" if pr.get("needs_update") else None,
+            f"threads:{pr['unresolved_threads']}" if pr.get("unresolved_threads") else None,
+            thread_text,
+            build_text,
+            "error" if pr.get("error") else None,
+        ) if x)
+        pr_url = pr.get("url")
+        if details:
+            printw(stdscr, y + 1, 3, _osc8(details, pr_url), curses.color_pair(C_DIM))
 
     printw(stdscr, y, x, clip(ocore._headline(item), max(4, headline_end - x - 2)),
            title_attr)
@@ -916,6 +993,19 @@ def run(stdscr, start_dir: str) -> None:
                 ocore.abort_instance(cur["session_id"])
                 flash(stdscr, " aborted")
                 data.refresh_now()
+        elif ch == "u" and cur:
+            association = cur.get("ticket")
+            if not association and cur.get("prs"):
+                association = f"#{cur['prs'][0].get('number')}"
+            if association and confirm(stdscr, f" unlink {association} from this instance?"):
+                if ocore.unlink_association(cur["session_id"], association):
+                    flash(stdscr, f" unlinked {association}", C_OK)
+                    data.refresh_now()
+        elif ch == "b" and cur:
+            try:
+                _open_links(cur)
+            except OSError as e:
+                error_pause(stdscr, f"failed to open link: {e}")
         elif ch == "d" and cur:
             label = cur.get("ticket") or ocore._headline(cur)[:40]
             tree = cur.get("worktree")
@@ -984,6 +1074,26 @@ def _open(stdscr, data, item, terminal: bool = False) -> None:
     if err:
         error_pause(stdscr, err)
     data.refresh_now()
+
+
+def _osc8(label: str, url: str | None) -> str:
+    """OSC 8 is ignored by terminals that do not implement hyperlinks."""
+    if not url:
+        return label
+    return f"\033]8;;{url}\033\\{label}\033]8;;\033\\"
+
+
+def _open_links(item: dict) -> None:
+    urls = []
+    if item.get("ticket"):
+        url = ocore.ticket_url(item["ticket"])
+        if url: urls.append(url)
+    for pr in item.get("pr_info", [])[:1]:
+        if pr.get("url"): urls.append(pr["url"])
+    if urls:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        for url in urls:
+            subprocess.Popen([opener, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def main() -> int:
