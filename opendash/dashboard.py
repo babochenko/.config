@@ -615,22 +615,24 @@ def _short_dir(directory: str | None) -> str:
 
 def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) -> None:
     state = item["state"]
-    pair = curses.color_pair(STATE_COLOR.get(state, C_DIM))
+    pair = curses.color_pair(C_DIM if minimized else STATE_COLOR.get(state, C_DIM))
     icon = ICONS.get(state) or SPINNER[frame % len(SPINNER)]
 
     marker_rows = (y, y + 1) if minimized else (y, y + 1, y + 2)
     for row in marker_rows:
         printw(stdscr, row, 0, "▌" if selected else " ",
-               curses.color_pair(C_ACCENT) | curses.A_BOLD)
+               curses.color_pair(C_DIM if minimized else C_ACCENT) | curses.A_BOLD)
 
     title_attr = (curses.color_pair(C_DIM) if minimized
                   else (curses.A_BOLD if selected else 0))
-    x = printw(stdscr, y, 2, icon, pair | curses.A_BOLD)
+    emphasis = 0 if minimized else curses.A_BOLD
+    x = printw(stdscr, y, 2, icon, pair | emphasis)
     x += 1
 
     ticket = item.get("ticket")
     if ticket:
-        x = printw(stdscr, y, x, ticket, curses.color_pair(C_TICKET) | curses.A_BOLD)
+        ticket_attr = curses.color_pair(C_DIM if minimized else C_TICKET) | emphasis
+        x = printw(stdscr, y, x, ticket, ticket_attr)
         x = printw(stdscr, y, x, "  ")
 
     # right side of line 1, in fixed columns so it reads as a table:
@@ -645,7 +647,9 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         status_pair = pair
     age_x = maxx - 2 - AGE_W
     status_x = age_x - 2 - len(status_text)
-    printw(stdscr, y, status_x, status_text, status_pair | curses.A_BOLD)
+    if minimized:
+        status_pair = curses.color_pair(C_DIM)
+    printw(stdscr, y, status_x, status_text, status_pair | emphasis)
     printw(stdscr, y, age_x + max(0, AGE_W - len(age)), age, curses.color_pair(C_DIM))
 
     if minimized:
