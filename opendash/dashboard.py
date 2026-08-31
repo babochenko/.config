@@ -650,7 +650,7 @@ def _location_label(item: dict, branch: str | None) -> str:
     directory = item.get("directory") or ""
     if not item.get("worktree"):
         name = Path(directory).name or directory
-        return f"{name}  ⎇ {branch}" if branch else name
+        return f"▣ {name}  ⎇ {branch}" if branch else f"▣ {name}"
 
     repo = item.get("repo")
     if repo:
