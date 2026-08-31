@@ -182,6 +182,9 @@ class Dashboard(unittest.TestCase):
         screen = self.screen()
         self.assertLess(screen.index("count the lines"), screen.index("add subtract"))
         self.assertIn("add subtract", self.selected())     # cursor follows the row
+        time.sleep(2)                                      # survive a background poll
+        screen = self.screen()
+        self.assertLess(screen.index("count the lines"), screen.index("add subtract"))
         self.press("K")
         screen = self.screen()
         self.assertLess(screen.index("add subtract"), screen.index("count the lines"))

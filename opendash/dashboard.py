@@ -117,6 +117,7 @@ class Data:
         self.completions: list[tuple[dict, dict | None, str | None]] = []
         self._creation_threads: list[threading.Thread] = []
         self._creation_number = 0
+        self._order_override: list[str] = []
 
     def start(self):
         threading.Thread(target=self._loop, daemon=True).start()
@@ -197,6 +198,12 @@ class Data:
                         it["state"] = "attention"
                         it["attention"] = note
                 with self.lock:
+                    if self._order_override:
+                        by_id = {item["session_id"]: item for item in items}
+                        ordered = [by_id[sid] for sid in self._order_override if sid in by_id]
+                        ordered.extend(item for item in items
+                                       if item["session_id"] not in self._order_override)
+                        items = ordered
                     self.items, self.server_up, self.error = items, up, None
                     self.stamp = time.time()
             except Exception as e:                      # keep the ui alive
@@ -225,6 +232,7 @@ class Data:
             if a_sid in pos and b_sid in pos:
                 i, j = pos[a_sid], pos[b_sid]
                 self.items[i], self.items[j] = self.items[j], self.items[i]
+                self._order_override = [item["session_id"] for item in self.items]
 
     def read(self):
         with self.lock:
