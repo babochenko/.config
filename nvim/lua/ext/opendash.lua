@@ -60,8 +60,9 @@ local function context(visual)
   if filename == '' then filename = '[No Name]' end
   local details = { 'Current file: ' .. filename }
   if visual then
-    local first = math.min(vim.fn.line("'<"), vim.fn.line("'>"))
-    local last = math.max(vim.fn.line("'<"), vim.fn.line("'>"))
+    -- Visual marks are updated after the mapping runs; use the active endpoints.
+    local first = math.min(vim.fn.getpos('v')[2], vim.fn.line('.'))
+    local last = math.max(vim.fn.getpos('v')[2], vim.fn.line('.'))
     local lines = vim.fn.getline(first, last)
     table.insert(details, string.format('Selected lines %d-%d:', first, last))
     for index, line in ipairs(lines) do

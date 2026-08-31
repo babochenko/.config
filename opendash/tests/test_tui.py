@@ -139,10 +139,9 @@ class Dashboard(unittest.TestCase):
         self.assertIn("✓1/1", screen)              # the completed todo
         self.assertIn("/tmp/codes-TIX-9-fix", screen)   # a worktree path
 
-    def test_the_row_shows_the_agent_name(self):
+    def test_the_row_shows_the_branch_name(self):
         screen = self.screen()
-        for agent in ("build", "myagent", "plan"):
-            self.assertIn(agent, screen)
+        self.assertIn("TIX-9-fix", screen)
 
     def test_a_working_instance_says_what_it_is_doing(self):
         self.assertIn("npm test", self.screen())
