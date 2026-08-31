@@ -252,6 +252,13 @@ class DashboardLocations(unittest.TestCase):
             dashboard._location_label(item, "PCYXC-2193-volumes-about-3"),
             "◇ parrot  ⤷ PCYXC-2193-volumes-about-3")
 
+    def test_pr_label_includes_review_and_build_stats(self):
+        self.assertEqual(
+            dashboard._pr_label({"number": 12, "status": "opened", "approvals": 2,
+                                 "unresolved_threads": 1,
+                                 "builds": {"ok": 3, "failed": 1}}),
+            "#12 opened ✓2 threads:1 builds:3✓/1✖")
+
 
 class Permissions(unittest.TestCase):
     def test_unattended_by_default_like_opencode_auto(self):

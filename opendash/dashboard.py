@@ -688,6 +688,25 @@ def _short_dir(directory: str | None) -> str:
     return "~" + directory[len(home):] if directory.startswith(home) else directory
 
 
+def _pr_label(pr: dict) -> str:
+    """Format the compact PR status shown on the location line."""
+    label = "#" + str(pr.get("number") or "")
+    if pr.get("status"):
+        label += " " + str(pr["status"])
+    if pr.get("approvals") is not None:
+        label += f" ✓{pr['approvals']}"
+    if pr.get("needs_update"):
+        label += " !"
+    if pr.get("unresolved_threads"):
+        label += f" threads:{pr['unresolved_threads']}"
+    builds = pr.get("builds") or {}
+    if builds.get("ok") or builds.get("failed") or builds.get("unavailable") or builds.get("error"):
+        label += f" builds:{builds.get('ok', 0)}✓/{builds.get('failed', 0)}✖"
+        if builds.get("unavailable"):
+            label += f"/{builds['unavailable']}?"
+    return label
+
+
 def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) -> None:
     state = item["state"]
     pair = curses.color_pair(C_DIM if minimized else STATE_COLOR.get(state, C_DIM))
@@ -737,18 +756,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         pr = (item.get("pr_info") or item.get("prs") or [None])[0]
         pr_suffix = ""
         if pr:
-            pr_suffix = "  PR #" + str(pr.get("number"))
-            if pr.get("status"):
-                pr_suffix += f" {pr['status']}"
-            if pr.get("approvals") is not None:
-                pr_suffix += f" ✓{pr['approvals']}"
-            if pr.get("needs_update"):
-                pr_suffix += " !"
-            if pr.get("unresolved_threads"):
-                pr_suffix += f" threads:{pr['unresolved_threads']}"
-            builds = pr.get("builds") or {}
-            if any(k in builds for k in ("ok", "failed", "unavailable")):
-                pr_suffix += f" ✓{builds.get('ok', 0)} ✖{builds.get('failed', 0)}"
+            pr_suffix = "  " + _pr_label(pr)
         suffix = "  " + _location_label(item, branch) + pr_suffix
         printw(stdscr, y, x, clip(ocore._headline(item) + suffix, max(4, status_x - x - 2)),
                title_attr)
@@ -789,8 +797,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     prs = item.get("pr_info") or item.get("prs") or []
     pr = prs[0] if prs else None
     if pr:
-        number = str(pr.get("number") or "")
-        git_parts.append((f"#{number}", C_DIM, None))
+        git_parts.append((_pr_label(pr), C_DIM, None))
     comments = pr.get("unresolved_comments") or [] if pr else []
 
     if git_parts:
