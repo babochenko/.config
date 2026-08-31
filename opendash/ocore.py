@@ -1342,6 +1342,18 @@ def _cmd_unlink(args) -> int:
     return 0
 
 
+def _cmd_screen(args) -> int:
+    path = STATE / "dashboard-screen.txt"
+    try:
+        if time.time() - path.stat().st_mtime > 5:
+            raise OSError("stale dashboard screen")
+        print(path.read_text(), end="")
+    except OSError:
+        print("opendash: dashboard screen is not available", file=sys.stderr)
+        return 1
+    return 0
+
+
 def unlink_association(session_id: str, association: str | None = None) -> bool:
     """Remove a local association and suppress its rediscovery."""
     association = association.upper() if association and "-" in association else association
@@ -1502,6 +1514,9 @@ def main(argv=None) -> int:
     p.add_argument("session_id")
     p.add_argument("association", nargs="?", help="ticket ID, PR number (#123), or omit for tickets")
     p.set_defaults(fn=_cmd_unlink)
+
+    p = sub.add_parser("screen", help="print the running dashboard's current screen")
+    p.set_defaults(fn=_cmd_screen)
 
     p = sub.add_parser("agent", help="find the instance assigned to a directory")
     p.add_argument("directory")

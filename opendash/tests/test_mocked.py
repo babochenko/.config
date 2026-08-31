@@ -1,8 +1,10 @@
 import json
+import io
 import sys
 import tempfile
 import threading
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,6 +18,19 @@ class DashboardTests(unittest.TestCase):
     def test_quit_message_counts_records_not_filtered_items(self):
         with patch.object(ocore, "instance_records", return_value=[{}, {}]):
             self.assertEqual(dashboard.quit_message(), " quit and stop 2 instance(s)?")
+
+    def test_screen_command_prints_the_published_dashboard(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old_state = ocore.STATE
+            ocore.STATE = Path(tmp)
+            try:
+                (ocore.STATE / "dashboard-screen.txt").write_text("dashboard\n")
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertEqual(ocore._cmd_screen(None), 0)
+                self.assertEqual(output.getvalue(), "dashboard\n")
+            finally:
+                ocore.STATE = old_state
 
     def test_minimized_state_round_trips_and_prunes_unknown_sessions(self):
         with tempfile.TemporaryDirectory() as tmp:

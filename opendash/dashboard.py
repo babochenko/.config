@@ -424,7 +424,7 @@ HELP = [
     ("J K", "move the selected instance down / up the list"),
     ("g / G", "first / last"),
     ("enter, o or l", "open the instance (option+q comes back here)"),
-    ("c", "code actions: h check, m merge master, p commit/push, s git status, r review"),
+    ("c", "code actions: h check, m merge master, p commit/push, s git status, r review, U update/restart"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
     ("", "or just detaches if something is still running)"),
     ("n", "new instance — asks for the directory, then a worktree"),
@@ -451,6 +451,7 @@ CODE_ACTIONS = [
     ("p", "ask the agent to commit and push current changes"),
     ("s", "show the repository's gs output"),
     ("r", "review this branch; fix critical issues, summarize the rest"),
+    ("U", "update the config checkout and relaunch the dashboard"),
     ("esc", "cancel"),
 ]
 
@@ -494,7 +495,7 @@ def code_actions_overlay(stdscr) -> str | None:
     with blocking(stdscr):
         try:
             ch = stdscr.get_wch()
-            if isinstance(ch, str) and ch in ("h", "m", "p", "s", "r"):
+            if isinstance(ch, str) and ch in ("h", "m", "p", "s", "r", "U"):
                 choice = ch
         except curses.error:
             pass
@@ -644,6 +645,22 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized) -> 
     printw(stdscr, maxy - 1, 1, footer, dim)
     stdscr.noutrefresh()
     curses.doupdate()
+    publish_screen(stdscr)
+
+
+def publish_screen(stdscr) -> None:
+    """Publish the current curses characters for diagnostics and automation."""
+    maxy, maxx = stdscr.getmaxyx()
+    try:
+        lines = [stdscr.instr(row, 0, maxx).decode(errors="replace").rstrip()
+                 for row in range(maxy)]
+        path = ocore.STATE / "dashboard-screen.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text("\n".join(lines) + "\n")
+        tmp.replace(path)
+    except (OSError, curses.error):
+        pass
 
 
 def _location_label(item: dict, branch: str | None) -> str:
@@ -937,9 +954,13 @@ def run(stdscr, start_dir: str) -> None:
             _open(stdscr, data, cur)
         elif ch == "t" and cur:
             _open(stdscr, data, cur, terminal=True)
-        elif ch == "c" and cur:
+        elif ch == "c":
             action = code_actions_overlay(stdscr)
-            if action:
+            if action == "U":
+                data.stop()
+                data.wait_creations()
+                return True
+            if action and cur:
                 try:
                     if action == "p":
                         ocore.send_prompt(
@@ -1136,7 +1157,21 @@ def main() -> int:
             ocore.server_url()
         except ocore.ApiError as e:
             print(f"opendash: opencode server did not start: {e}", file=sys.stderr)
-    curses.wrapper(run, start_dir)
+    restart = curses.wrapper(run, start_dir)
+    if restart:
+        try:
+            result = subprocess.run(
+                ["zsh", "-lic", "p config && gitsm"],
+                capture_output=True, text=True, timeout=120,
+            )
+        except (OSError, subprocess.SubprocessError) as e:
+            print(f"opendash: update failed: {e}", file=sys.stderr)
+            return 1
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip()
+            print(f"opendash: update failed: {detail}", file=sys.stderr)
+            return 1
+        os.execv(sys.executable, [sys.executable, __file__])
     return 0
 
 

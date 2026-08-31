@@ -21,6 +21,7 @@ opendash - background opencode instances
   opendash abort <session-id>...  interrupt what an instance is doing
   opendash unlink <session-id> [ID|#PR]
                                    remove and ignore a ticket/PR association
+  opendash screen                 print the running dashboard's current screen
   opendash agent <directory>      find instances assigned to a directory
   opendash prompt <session-id> <text...>
                                   send a prompt to an instance
@@ -40,7 +41,7 @@ new options
 in the dashboard
   j k / arrows  cursor    J K  reorder      enter  open      t  terminal in its dir
   n  new        f  follow up        a  abort              d  remove
-  /  filter     r R  rename        ?  keys
+   /  filter     r R  rename        c U  update config and relaunch     ?  keys
   u  unlink selected ticket/PR    b  open selected links
 
   q       leave the dashboard; every instance keeps working in the background
@@ -74,6 +75,7 @@ case ${1-} in
   doctor)              shift; exec $py "$here/ocore.py" doctor "$@" ;;
   abort|stop)          shift; exec $py "$here/ocore.py" abort "$@" ;;
   unlink)              shift; exec $py "$here/ocore.py" unlink "$@" ;;
+  screen)              shift; exec $py "$here/ocore.py" screen "$@" ;;
   agent)               shift; exec $py "$here/ocore.py" agent "$@" ;;
   prompt)              shift; exec $py "$here/ocore.py" prompt "$@" ;;
   server)              shift; exec $py "$here/ocore.py" server "$@" ;;

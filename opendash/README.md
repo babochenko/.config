@@ -82,6 +82,7 @@ opendash doctor                # check that instances can actually start
 opendash abort <session-id>     # interrupt a run
 opendash rm <session-id>        # stop it and drop it from the list
 opendash unlink <session-id> [ID|#PR]  # unlink and ignore a local association
+opendash screen                 # print the running dashboard screen
 opendash quit                   # stop every instance and the shared server
 opendash server [status|start|stop]
 ```
@@ -94,6 +95,10 @@ Pass `-t` to set it explicitly.
 Associations are stored separately in `~/.local/state/opendash/metadata.json`.
 `opendash unlink ses_... PROJ-1` (or `#123`) removes a local association and
 suppresses rediscovery. Omitting the association unlinks detected tickets.
+`opendash screen` prints the latest characters published by the running
+dashboard, which is useful for diagnosing layout without a screenshot. A dump
+older than five seconds is treated as unavailable. It does not include terminal
+font rendering or colors.
 
 ### Neovim
 
@@ -116,6 +121,7 @@ the dashboard and editor share the same session.
 | `z` | minimize or maximize the selected instance |
 | `enter`, `o` or `l` | open the instance and talk to it |
 | `c` | code actions: `h` runs `check`, `m` runs `gitmm`, `p` commits/pushes, `s` shows `gs`, `r` reviews the branch |
+| `cU` | update the config checkout with `p config && gitsm`, then relaunch the dashboard |
 | `t` | terminal in the instance's working directory |
 | `n` | new instance — asks for the directory, then opens nvim for the task |
 | `f` | follow up: send another message without opening it |
