@@ -610,9 +610,8 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         printw(stdscr, row, 0, "▌" if selected else " ",
                curses.color_pair(C_ACCENT) | curses.A_BOLD)
 
-    title_attr = curses.color_pair(C_DIM)
-    if selected and not minimized:
-        title_attr |= curses.A_BOLD
+    title_attr = (curses.color_pair(C_DIM) if minimized
+                  else (curses.A_BOLD if selected else 0))
     x = printw(stdscr, y, 2, icon, pair | curses.A_BOLD)
     x += 1
 
