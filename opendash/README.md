@@ -20,16 +20,18 @@ terminal. Run `opendash` again and they are all still there.
    ~/dev/scratch
 ```
 
-Line 1 is the ticket plus what the instance was asked to do — the title
-opencode generates for the session, so it sharpens as the agent explores the
-work. Line 2 is what it has actually been doing, and line 3 is the directory it
-works in. All of it comes from opencode's own database, not from guessing.
+Line 1 is the ticket, when known, plus what the instance was asked to do — the
+title opencode generates for the session, so it sharpens as the agent explores
+the work. A Jira status tile appears immediately before the ticket when MCP
+metadata is available. Line 2 is what it has actually been doing, and line 3
+is the directory it works in. The local state comes from opencode's database;
+provider metadata comes from the optional MCP bridge.
 
-On the right side of line 3, the agent name and git directory show the same
-commit counts as the shell prompt (`↑` ahead, `↓` behind, `+` staged, `~`
-modified, `?` untracked), followed by the total added/deleted lines from `gs`
-(`+N -N`). The counts include untracked files without changing the repository
-index.
+On the right side of line 3, the branch icon and name show the same commit
+counts as the shell prompt (`↑` ahead, `↓` behind, `+` staged, `~` modified,
+`?` untracked), followed by PR state, approvals, review threads, and matching
+build counts when MCP metadata is available. The counts include untracked
+files without changing the repository index.
 
 Status icons: `⠹` spinner (working), `◆` needs you (blocked on a permission or
 a question), `◔` queued, `●` idle, `✖` errored, `○` session gone.
@@ -107,6 +109,7 @@ the dashboard and editor share the same session.
 |---|---|
 | `j` `k` / `↓` `↑` | move the cursor (`g` / `G` for first / last) |
 | `J` `K` | move the selected instance down / up the list |
+| `z` | minimize or maximize the selected instance |
 | `enter`, `o` or `l` | open the instance and talk to it |
 | `c` | code actions: `h` runs `check`, `m` runs `gitmm`, `p` commits/pushes, `s` shows `gs`, `r` reviews the branch |
 | `t` | terminal in the instance's working directory |
@@ -114,6 +117,8 @@ the dashboard and editor share the same session.
 | `f` | follow up: send another message without opening it |
 | `a` | abort what the instance is doing right now (asks first) |
 | `d` | stop it and remove it from the dashboard (asks first) |
+| `u` | unlink and ignore the selected ticket or PR |
+| `b` | open the selected ticket or PR in the browser |
 | `/` | filter by ticket, title or directory (`esc` clears) |
 | `r` / `R` | rename the instance — `r` edits the current name, `R` starts from an empty prompt. The ticket is kept either way, and submitting nothing does nothing |
 | `S` `?` | restart the server · keys |
