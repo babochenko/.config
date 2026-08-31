@@ -216,6 +216,16 @@ class PullRequestMetadata(unittest.TestCase):
         self.assertEqual(metadata._normalise_pr_status({"state": "MERGED"}), "merged")
 
 
+class DashboardLocations(unittest.TestCase):
+    def test_worktree_shows_main_directory_marker_and_branch(self):
+        item = {"directory": "/Users/me/parrot-PCYXC-2193-volumes-about-3",
+                "worktree": "/Users/me/parrot-PCYXC-2193-volumes-about-3",
+                "repo": "/Users/me/parrot"}
+        self.assertEqual(
+            dashboard._location_label(item, "PCYXC-2193-volumes-about-3"),
+            "▣ parrot W PCYXC-2193-volumes-about-3")
+
+
 class Permissions(unittest.TestCase):
     def test_unattended_by_default_like_opencode_auto(self):
         with patch.dict(os.environ, {}, clear=True):

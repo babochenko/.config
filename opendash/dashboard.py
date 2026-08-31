@@ -646,7 +646,25 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized) -> 
     curses.doupdate()
 
 
+def _location_label(item: dict, branch: str | None) -> str:
+    directory = item.get("directory") or ""
+    if not item.get("worktree"):
+        name = Path(directory).name or directory
+        return f"{name}  ⎇ {branch}" if branch else name
+
+    repo = item.get("repo")
+    if repo:
+        name = Path(repo).name
+    else:
+        worktree_name = Path(item["worktree"]).name
+        suffix = f"-{branch}" if branch else ""
+        name = (worktree_name[:-len(suffix)] if suffix and worktree_name.endswith(suffix)
+                else worktree_name)
+    return f"▣ {name} W {branch}" if branch else f"▣ {name}"
+
+
 def _short_dir(directory: str | None) -> str:
+    """Shorten a path for callers that need more than the row's final name."""
     if not directory:
         return ""
     home = str(Path.home())
@@ -714,9 +732,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
             builds = pr.get("builds") or {}
             if any(k in builds for k in ("ok", "failed", "unavailable")):
                 pr_suffix += f" ✓{builds.get('ok', 0)} ✖{builds.get('failed', 0)}"
-        if item.get("worktree"):
-            branch = None
-        suffix = (f"  ⎇ {branch}" if branch else "") + pr_suffix
+        suffix = "  " + _location_label(item, branch) + pr_suffix
         printw(stdscr, y, x, clip(ocore._headline(item) + suffix, max(4, status_x - x - 2)),
                title_attr)
         return
@@ -772,12 +788,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         right_start = maxx - 2
 
     branch = gitinfo.get("branch") or item.get("branch")
-    if item.get("worktree"):
-        main_dir = Path(item.get("repo") or str(Path(item.get("directory") or "").parent)).name
-        location = f"▣ {main_dir} W {branch}" if branch else f"▣ {main_dir}"
-    else:
-        location = Path(item.get("directory") or "").name or item.get("directory") or ""
-        location = f"{location}  ⎇ {branch}" if branch else location
+    location = _location_label(item, branch)
     printw(stdscr, y + 2, 3, clip(location, max(4, right_start - 5)),
            curses.color_pair(C_DIM))
 
