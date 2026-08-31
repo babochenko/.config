@@ -1,6 +1,7 @@
 import json
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -15,6 +16,30 @@ class DashboardTests(unittest.TestCase):
     def test_quit_message_counts_records_not_filtered_items(self):
         with patch.object(ocore, "instance_records", return_value=[{}, {}]):
             self.assertEqual(dashboard.quit_message(), " quit and stop 2 instance(s)?")
+
+    def test_new_instance_has_a_placeholder_until_creation_finishes(self):
+        started = threading.Event()
+        release = threading.Event()
+
+        def create(*args, **kwargs):
+            started.set()
+            release.wait(2)
+            return {"session_id": "session-1"}
+
+        with patch.object(ocore, "jira_cache", return_value={}), \
+             patch.object(ocore, "new_instance", side_effect=create):
+            data = dashboard.Data()
+            data.create("do the work", "/tmp/project", "feature")
+            self.assertTrue(started.wait(1))
+            items, _, _, _ = data.read()
+            self.assertEqual(len(items), 1)
+            self.assertTrue(items[0]["pending"])
+            self.assertEqual(items[0]["state"], "working")
+            release.set()
+            data.wait_creations()
+            items, _, _, _ = data.read()
+            self.assertEqual(items, [])
+            self.assertEqual(data.take_completions()[0][1]["session_id"], "session-1")
 
 
 class CoreTests(unittest.TestCase):

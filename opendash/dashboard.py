@@ -113,6 +113,10 @@ class Data:
         self.stamp = 0.0
         self._stop = threading.Event()
         self._wake = threading.Event()
+        self.pending: list[dict] = []
+        self.completions: list[tuple[dict, dict | None, str | None]] = []
+        self._creation_threads: list[threading.Thread] = []
+        self._creation_number = 0
 
     def start(self):
         threading.Thread(target=self._loop, daemon=True).start()
@@ -124,6 +128,57 @@ class Data:
 
     def refresh_now(self):
         self._wake.set()
+
+    def create(self, task: str, directory: str, worktree: str | None) -> None:
+        """Create an instance off the UI thread while showing a local placeholder."""
+        with self.lock:
+            self._creation_number += 1
+            number = self._creation_number
+            now = ocore.now_ms()
+            pending = {
+                "session_id": f"pending-{number}",
+                "task": task,
+                "directory": directory,
+                "worktree": None,
+                "branch": worktree,
+                "created": now,
+                "last_activity": now,
+                "state": "working",
+                "activity": ("running", "creating worktree…" if worktree
+                             else "starting instance…"),
+                "pending": True,
+                "git": {"branch": worktree} if worktree else {},
+            }
+            self.pending.append(pending)
+
+        def run() -> None:
+            record, error = None, None
+            try:
+                record = ocore.new_instance(task, directory=directory,
+                                            worktree=worktree or None)
+            except Exception as e:
+                error = f"{type(e).__name__}: {e}"[:160]
+            with self.lock:
+                self.pending[:] = [item for item in self.pending
+                                   if item["session_id"] != pending["session_id"]]
+                self.completions.append((pending, record, error))
+            self.refresh_now()
+
+        thread = threading.Thread(target=run, daemon=True)
+        with self.lock:
+            self._creation_threads.append(thread)
+        thread.start()
+
+    def take_completions(self):
+        with self.lock:
+            completions, self.completions = self.completions, []
+            return completions
+
+    def wait_creations(self):
+        with self.lock:
+            threads = list(self._creation_threads)
+        for thread in threads:
+            thread.join()
 
     def _loop(self):
         while not self._stop.is_set():
@@ -173,7 +228,8 @@ class Data:
 
     def read(self):
         with self.lock:
-            return list(self.items), dict(self.jira), self.server_up, self.error
+            return (list(self.items) + list(self.pending), dict(self.jira),
+                    self.server_up, self.error)
 
 
 # ------------------------------------------------------------------ ui widgets
@@ -649,6 +705,12 @@ def run(stdscr, start_dir: str) -> None:
 
     sel, filt, last_dir = 0, "", start_dir
     while True:
+        for pending, record, creation_error in data.take_completions():
+            if creation_error:
+                error_pause(stdscr, f"failed: {creation_error}")
+            elif record:
+                flash(stdscr, f" started {record.get('ticket') or record['session_id'][-8:]}",
+                      C_OK)
         items, jira, server_up, error = data.read()
         if filt:
             low = filt.lower()
@@ -665,6 +727,8 @@ def run(stdscr, start_dir: str) -> None:
         except curses.error:
             continue                                  # tick with no key
         cur = items[sel] if items else None
+        if cur and cur.get("pending"):
+            cur = None
 
         if isinstance(ch, int):
             if ch == curses.KEY_DOWN:
@@ -687,16 +751,18 @@ def run(stdscr, start_dir: str) -> None:
 
         if ch in ("q", "\x03"):                     # leave; instances keep running
             data.stop()
+            data.wait_creations()
             return
         elif ch == "Q":
             question = quit_message()
             if question.endswith("0 instance(s)?") or confirm(stdscr, question):
                 flash(stdscr, " stopping instances…")
                 try:
+                    data.stop()
+                    data.wait_creations()
                     ocore.quit_all()
                 except Exception as e:
                     error_pause(stdscr, f"failed: {e}")
-                data.stop()
                 return
         elif ch == "j":
             sel = min(sel + 1, max(0, len(items) - 1))
@@ -773,16 +839,9 @@ def run(stdscr, start_dir: str) -> None:
                         if not task:
                             flash(stdscr, " cancelled — nothing written")
                         else:
+                            data.create(task, where, tree)
                             flash(stdscr, " creating worktree…" if tree
                                   else " starting instance…")
-                            try:
-                                rec = ocore.new_instance(task, directory=where,
-                                                         worktree=tree or None)
-                                flash(stdscr, f" started "
-                                      f"{rec.get('ticket') or rec['session_id'][-8:]}",
-                                      C_OK)
-                            except Exception as e:
-                                error_pause(stdscr, f"failed: {e}")
                         data.refresh_now()
         elif ch == "f" and cur:
             msg = ask(stdscr, " follow up:")
