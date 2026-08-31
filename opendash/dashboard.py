@@ -773,8 +773,8 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
 
     branch = gitinfo.get("branch") or item.get("branch")
     if item.get("worktree"):
-        location = _short_dir(item.get("repo") or str(Path(item.get("directory") or "").parent))
-        location = f"{location}  ⤷ {branch}" if branch else location
+        main_dir = Path(item.get("repo") or str(Path(item.get("directory") or "").parent)).name
+        location = f"▣ {main_dir} W {branch}" if branch else f"▣ {main_dir}"
     else:
         location = Path(item.get("directory") or "").name or item.get("directory") or ""
         location = f"{location}  ⎇ {branch}" if branch else location
