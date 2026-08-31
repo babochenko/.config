@@ -524,6 +524,19 @@ def _ansi_segments(text: str) -> list[tuple[str, int]]:
     return segments
 
 
+def _print_link(win, y: int, x: int, label: str, url: str | None, attr=0) -> int:
+    """Print an OSC 8 link without counting its control sequence as width."""
+    text = _osc8(label, url)
+    maxx = win.getmaxyx()[1]
+    if x >= maxx - 1:
+        return x
+    try:
+        win.addstr(y, x, text, attr)
+    except curses.error:
+        pass
+    return x + sum(_w(c) for c in label)
+
+
 def git_status_overlay(stdscr, directory: str) -> None:
     """Show the exact ``gs`` output for a directory in a scrollable modal."""
     output, _ = ocore.git_status_output(directory)
@@ -667,7 +680,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     if ticket:
         ticket_attr = curses.color_pair(C_DIM if minimized else C_TICKET) | emphasis
         url = ocore.ticket_url(ticket)
-        x = printw(stdscr, y, x, _osc8(ticket, url), ticket_attr)
+        x = _print_link(stdscr, y, x, ticket, url, ticket_attr)
         x = printw(stdscr, y, x, "  ")
 
     # right side of line 1, in fixed columns so it reads as a table:
@@ -725,33 +738,33 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         printw(stdscr, y, headline_end + 2, f"❯{label}", curses.color_pair(label_pair))
 
     gitinfo = item.get("git") or {}
-    git_parts: list[tuple[str, int]] = []
+    git_parts: list[tuple[str, int, str | None]] = []
     if gitinfo.get("branch"):
-        git_parts.append((f"⎇ {gitinfo['branch']}", C_DIM))
+        git_parts.append((f"⎇ {gitinfo['branch']}", C_DIM, None))
     if gitinfo.get("ahead"):
-        git_parts.append((f"↑{gitinfo['ahead']}", C_OK))
+        git_parts.append((f"↑{gitinfo['ahead']}", C_OK, None))
     if gitinfo.get("behind"):
-        git_parts.append((f"↓{gitinfo['behind']}", C_ERR))
+        git_parts.append((f"↓{gitinfo['behind']}", C_ERR, None))
     if gitinfo.get("staged"):
-        git_parts.append((f"+{gitinfo['staged']}", C_OK))
+        git_parts.append((f"+{gitinfo['staged']}", C_OK, None))
     if gitinfo.get("modified"):
-        git_parts.append((f"~{gitinfo['modified']}", C_WORK))
+        git_parts.append((f"~{gitinfo['modified']}", C_WORK, None))
     if gitinfo.get("untracked"):
-        git_parts.append((f"?{gitinfo['untracked']}", C_TICKET))
+        git_parts.append((f"?{gitinfo['untracked']}", C_TICKET, None))
     if gitinfo.get("adds") or gitinfo.get("dels"):
-        git_parts.extend(((f"+{gitinfo.get('adds', 0)}", C_OK),
-                          (f"-{gitinfo.get('dels', 0)}", C_ERR)))
+        git_parts.extend(((f"+{gitinfo.get('adds', 0)}", C_OK, None),
+                          (f"-{gitinfo.get('dels', 0)}", C_ERR, None)))
     if git_parts:
-        total_width = sum(len(text) for text, _ in git_parts) + len(git_parts) - 1
+        total_width = sum(len(text) for text, _, _ in git_parts) + len(git_parts) - 1
         git_x = max(3, maxx - 2 - total_width)
-        for n, (text, color) in enumerate(git_parts):
+        for n, (text, color, url) in enumerate(git_parts):
             if n:
                 git_x = printw(stdscr, y + 2, git_x, " ", curses.color_pair(C_DIM))
-            git_x = printw(stdscr, y + 2, git_x, text, curses.color_pair(color))
+            git_x = _print_link(stdscr, y + 2, git_x, text, url, curses.color_pair(color))
 
     prs = item.get("pr_info") or item.get("prs") or []
-    if prs:
-        pr = prs[0]
+    pr = prs[0] if prs else None
+    if pr:
         number = str(pr.get("number") or "")
         status_icon = {"opened": "○", "approved": "✓", "needs changes": "!",
                        "merged": "●", "rejected": "×", "closed": "×"}.get(
@@ -762,26 +775,25 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
             build_text = f"✓{builds.get('ok', 0)} ✖{builds.get('failed', 0)}"
             if builds.get("unavailable"):
                 build_text += f" ?{builds['unavailable']}"
-        comments = pr.get("unresolved_comments") or []
-        thread_text = None
-        if comments:
-            thread_text = "threads: " + "; ".join(
-                f"{comment.get('author', 'reviewer')}: {comment.get('text', '')}"
-                for comment in comments[:3]
-            )
-        details = " ".join(x for x in (
+        pr_label = " ".join(x for x in (
             f"{status_icon} PR #{number}" if number else "PR",
             pr.get("status"),
             f"✓{pr['approvals']}" if pr.get("approvals") is not None else None,
             "needs-update" if pr.get("needs_update") else None,
             f"threads:{pr['unresolved_threads']}" if pr.get("unresolved_threads") else None,
-            thread_text,
             build_text,
             "error" if pr.get("error") else None,
         ) if x)
-        pr_url = pr.get("url")
-        if details:
-            printw(stdscr, y + 1, 3, _osc8(details, pr_url), curses.color_pair(C_DIM))
+        git_parts.append((pr_label, C_DIM, pr.get("url")))
+
+        comments = pr.get("unresolved_comments") or []
+        if comments:
+            thread_text = "threads: " + "; ".join(
+                f"{comment.get('author', 'reviewer')}: {comment.get('text', '')}"
+                for comment in comments[:3]
+            )
+            printw(stdscr, y + 1, 3, clip(thread_text, maxx - 6),
+                   curses.color_pair(C_DIM))
 
     printw(stdscr, y, x, clip(ocore._headline(item), max(4, headline_end - x - 2)),
            title_attr)
@@ -1077,10 +1089,13 @@ def _open(stdscr, data, item, terminal: bool = False) -> None:
 
 
 def _osc8(label: str, url: str | None) -> str:
-    """OSC 8 is ignored by terminals that do not implement hyperlinks."""
+    """Emit OSC 8, using tmux passthrough when the dashboard runs inside tmux."""
     if not url:
         return label
-    return f"\033]8;;{url}\033\\{label}\033]8;;\033\\"
+    link = f"\033]8;;{url}\033\\{label}\033]8;;\033\\"
+    if os.environ.get("TMUX"):
+        return f"\033Ptmux;\033{link}\033\\"
+    return link
 
 
 def _open_links(item: dict) -> None:
