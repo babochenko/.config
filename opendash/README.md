@@ -95,6 +95,18 @@ Pass `-t` to set it explicitly.
 Associations are stored separately in `~/.local/state/opendash/metadata.json`.
 `opendash unlink ses_... PROJ-1` (or `#123`) removes a local association and
 suppresses rediscovery. Omitting the association unlinks detected tickets.
+
+### PR metadata agent
+
+When `OPENDASH_MCP_URL` is unset, PR metadata is fetched by a hidden, reusable
+OpenCode session using the configured read-only agent. Set
+`OPENDASH_MCP_AGENT` to an agent that has the Bitbucket MCP tools configured
+and `OPENDASH_MCP_DIRECTORY` to a permitted directory. The agent must return
+the JSON schema requested by OpenDash; its response is validated and cached in
+`~/.local/state/opendash/pr.json`. Set `OPENDASH_METADATA_PROVIDER=none` to
+disable this fallback, or set `OPENDASH_MCP_URL` to use the existing HTTP
+bridge instead.
+
 `opendash screen` prints the latest characters published by the running
 dashboard, which is useful for diagnosing layout without a screenshot. A dump
 older than five seconds is treated as unavailable. It does not include terminal

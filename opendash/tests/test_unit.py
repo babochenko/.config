@@ -51,6 +51,24 @@ class PullRequests(unittest.TestCase):
 
 
 class RemoteMetadata(unittest.TestCase):
+    def test_agent_provider_reads_strict_pr_json(self):
+        import ocore
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
+                "OPENDASH_MCP_URL": "",
+                "OPENDASH_METADATA_PROVIDER": "agent",
+                "OPENDASH_MCP_AGENT": "metadata-readonly",
+                "OPENDASH_MCP_DIRECTORY": tmp}, clear=False), \
+                patch.object(ocore, "server_url", return_value="http://server"), \
+                patch.object(ocore, "http", return_value={"id": "metadata-1"}), \
+                patch.object(ocore, "send_prompt"), \
+                patch.object(ocore, "latest_assistant_response", return_value=(
+                    '{"prs":[{"number":"12","repository":"a/r",'
+                    '"status":"OPEN","approvals":3,"builds":{"ok":2}}]}', True)):
+            _, prs = metadata.refresh_remote(
+                Path(tmp), [], [{"number": "12", "repository": "a/r"}])
+        self.assertEqual(prs["a/r#12"]["status"], "opened")
+        self.assertEqual(prs["a/r#12"]["builds"]["ok"], 2)
+
     def test_bridge_sends_read_only_candidates_and_normalizes_response(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
                 "OPENDASH_MCP_URL": "http://bridge.test/metadata",
@@ -71,6 +89,10 @@ class RemoteMetadata(unittest.TestCase):
             self.assertEqual(prs["a/r#12"]["builds"]["failed"], 1)
             self.assertEqual(json.loads((Path(tmp) / "mcp-session.json").read_text())["id"],
                              "dedicated-7")
+
+    def test_json_response_ignores_markdown_wrapper(self):
+        result = metadata._json_response('Here is the result:\n```json\n{"prs": []}\n```')
+        self.assertEqual(result, {"prs": []})
 
     def test_unavailable_bridge_keeps_existing_cache(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {

@@ -497,6 +497,43 @@ def instance_records() -> list[dict]:
     return out
 
 
+def latest_assistant_response(session_id: str, after: int = 0) -> tuple[str, bool] | None:
+    """Return the latest assistant text and completion state for a session."""
+    path = db_path()
+    if not path.exists():
+        return None
+    con = sqlite3.connect(path)
+    try:
+        row = con.execute(
+            "select m.data, m.time_created from message m"
+            " where m.session_id = ? and json_extract(m.data,'$.role') = 'assistant'"
+            " and m.time_created > ? order by m.time_created desc, m.id desc limit 1",
+            (session_id, after),
+        ).fetchone()
+        if not row:
+            return None
+        message, timestamp = row
+        try:
+            message_data = json.loads(message)
+        except (TypeError, json.JSONDecodeError):
+            message_data = {}
+        text = []
+        for (raw,) in con.execute(
+                "select p.data from part p join message m on m.id = p.message_id"
+                " where m.session_id = ? and m.time_created = ?"
+                " order by p.time_created, p.id", (session_id, timestamp)):
+            try:
+                value = json.loads(raw)
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if isinstance(value, dict) and isinstance(value.get("text"), str):
+                text.append(value["text"])
+        completed = bool(message_data.get("time", {}).get("completed"))
+        return "\n".join(text), completed
+    finally:
+        con.close()
+
+
 def _split_model(model: str | None):
     if not model or "/" not in model:
         return None

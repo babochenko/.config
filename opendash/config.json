@@ -1,6 +1,6 @@
 {
-  "$comment": "defaults for opendash instances and optional remote MCP metadata; env vars win",
+  "$comment": "defaults for opendash instances and metadata agent/bridge; env vars win",
   "agent": "myagent",
   "metadata_refresh": 45,
-  "$mcp_setup": "Set mcp_url to a remote opendash-mcp-v1 bridge; see README.md"
+  "$mcp_setup": "Set mcp_agent to an agent with Bitbucket MCP, or mcp_url to a remote bridge; see README.md"
 }

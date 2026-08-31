@@ -18,6 +18,7 @@ URL_TICKET_RE = re.compile(r"(?:/browse/|selectedIssue=|/issues/)([A-Za-z][A-Za-
 PR_URL_RE = re.compile(r"https?://[^\s)>]+/(?:pull-requests|pullrequests)/([0-9]+)", re.I)
 PR_REF_RE = re.compile(r"\b(?:PR|pull\s+request|pullrequest)\s*#?\s*([0-9]+)\b", re.I)
 DEFAULT_REFRESH = 45.0
+AGENT_TIMEOUT = 30.0
 
 
 def extract_tickets(text: str) -> list[str]:
@@ -230,6 +231,7 @@ def mcp_config() -> dict:
         "directory": setting("OPENDASH_MCP_DIRECTORY", "mcp_directory", str(Path.home())),
         "timeout": timeout,
         "refresh": refresh,
+        "provider": setting("OPENDASH_METADATA_PROVIDER", "metadata_provider", "agent"),
     }
 
 
@@ -323,6 +325,92 @@ def _write_cache(state: Path, name: str, value: dict) -> None:
     tmp.replace(path)
 
 
+def _json_response(text: str) -> dict | None:
+    """Extract the first JSON object from an agent response."""
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\{", text or ""):
+        try:
+            value, _ = decoder.raw_decode(text[match.start():])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
+
+
+def _agent_prompt(prs: list[dict]) -> str:
+    candidates = json.dumps([
+        {key: value for key, value in candidate.items()
+         if key in ("number", "repository", "url")}
+        for candidate in prs
+    ], separators=(",", ":"))
+    return (
+        "Use the Bitbucket MCP tools only. Do not edit files, run shell commands, "
+        "or perform any write operation. Fetch the current pull request status, "
+        "approval count, whether updates are needed, unresolved review threads "
+        "and comments, and build results for these candidates: " + candidates + "\n"
+        "Return exactly one JSON object and no markdown in this schema: "
+        '{"prs":[{"number":"123","repository":"team/project",'
+        '"status":"opened","approvals":0,"needs_update":false,'
+        '"unresolved_threads":0,"unresolved_comments":[],'
+        '"builds":{"ok":0,"failed":0,"unavailable":0}}]}'
+    )
+
+
+def _refresh_via_agent(state: Path, prs: list[dict], conf: dict,
+                       pull_requests: dict, ttl: float) -> None:
+    """Ask a hidden read-only OpenCode session for Bitbucket PR metadata."""
+    now = time.time()
+    prs = [candidate for candidate in prs
+           if now - float((pull_requests.get(_candidate_key(candidate)) or
+                           pull_requests.get(str(candidate.get("number"))) or {})
+                          .get("fetched", 0)) > ttl]
+    if not prs:
+        return
+    try:
+        # Lazy import avoids a metadata -> ocore -> metadata import cycle.
+        import ocore
+        url = ocore.server_url()
+        session_path = state / "metadata-agent-session.json"
+        session = _read(session_path, {})
+        sid = session.get("id")
+        if not sid:
+            query = urllib.parse.urlencode({"directory": conf["directory"]})
+            created = ocore.http(f"{url}/session?{query}", "POST", {}, timeout=20)
+            sid = created.get("id") if isinstance(created, dict) else None
+            if not sid:
+                raise ValueError("metadata agent session was not created")
+            _write_cache(state, "metadata-agent-session.json", {"id": sid})
+
+        started = int(time.time() * 1000)
+        ocore.send_prompt(sid, _agent_prompt(prs), conf["directory"],
+                          agent=conf["agent"])
+        deadline = time.monotonic() + AGENT_TIMEOUT
+        response = None
+        while time.monotonic() < deadline:
+            response = ocore.latest_assistant_response(sid, started)
+            if response and response[1]:
+                break
+            time.sleep(0.25)
+        if not response or not response[1]:
+            raise TimeoutError("metadata agent did not complete")
+        result = _json_response(response[0])
+        if not result or not isinstance(result.get("prs"), list):
+            raise ValueError("metadata agent returned invalid JSON")
+        candidates = {_candidate_key(candidate): candidate for candidate in prs}
+        by_number = {str(candidate.get("number")): candidate for candidate in prs}
+        for value in result["prs"]:
+            if not isinstance(value, dict):
+                continue
+            candidate = candidates.get(_candidate_key(value)) or by_number.get(str(value.get("number")))
+            if candidate:
+                pull_requests[_candidate_key(candidate)] = _normalise_pr(value, candidate)
+        _write_cache(state, "pr.json", pull_requests)
+    except (OSError, ValueError, TypeError, TimeoutError):
+        # A provider outage must never erase the last known PR state.
+        return
+
+
 def refresh_remote(state: Path, tickets: list[str], prs: list[dict], ttl: float | None = None) -> tuple[dict, dict]:
     """Refresh only stale candidates through the documented MCP bridge.
 
@@ -333,6 +421,9 @@ def refresh_remote(state: Path, tickets: list[str], prs: list[dict], ttl: float 
     conf = mcp_config()
     jira, pull_requests = jira_cache(state), pr_cache(state)
     if not conf["url"]:
+        if conf["provider"] == "agent":
+            effective_ttl = conf["refresh"] if ttl is None else ttl
+            _refresh_via_agent(state, prs, conf, pull_requests, effective_ttl)
         return jira, pull_requests
     ttl = conf["refresh"] if ttl is None else ttl
     now = time.time()
