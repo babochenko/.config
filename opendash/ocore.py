@@ -990,6 +990,7 @@ set -g focus-events on
 set -g history-limit 50000
 set -g destroy-unattached off
 set -g detach-on-destroy on
+set -g allow-passthrough on
 set -ga terminal-features ",*:RGB"
 set -g window-status-format ""
 set -g window-status-current-format ""
