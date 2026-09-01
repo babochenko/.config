@@ -1352,9 +1352,15 @@ def _cmd_list(args) -> int:
         print("no instances")
         return 0
     for i in items:
-        print(f"{i['state']:<8} {i.get('ticket') or '-':<12} {_headline(i)[:60]:<60} "
-              f"{_progress(i):<8} {fmt_age(i.get('last_activity'))}")
-        print(f"{'':<8} {'':<12} {worked_on(i)[:60]}")
+        if args.full:
+            print(f"{i['session_id']}  {i['state']:<8} {i.get('ticket') or '-':<12} "
+                  f"{_progress(i):<8} {fmt_age(i.get('last_activity'))}")
+            print(f"{'':<1}  {worked_on(i)[:80]}")
+            print(f"{'':<1}  {i.get('task','')[:80]}")
+        else:
+            print(f"{i['state']:<8} {i.get('ticket') or '-':<12} {_headline(i)[:60]:<60} "
+                  f"{_progress(i):<8} {fmt_age(i.get('last_activity'))}")
+            print(f"{'':<8} {'':<12} {worked_on(i)[:60]}")
     return 0
 
 
@@ -1535,6 +1541,8 @@ def main(argv=None) -> int:
     p.set_defaults(fn=_cmd_new)
 
     p = sub.add_parser("list", help="list instances")
+    p.add_argument("-f", "--full", action="store_true",
+                   help="show session IDs and full task text")
     p.set_defaults(fn=_cmd_list)
 
     p = sub.add_parser("rm", help="stop and forget instances")
