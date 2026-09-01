@@ -1470,11 +1470,12 @@ def _cmd_clear(args) -> int:
     sid = _resolve_session_id(args.session_id)
     if not sid:
         return 1
-    try:
-        con = _connect()
-    except ApiError as e:
-        print(f"opendash: {e}")
+    p = db_path()
+    if not p.exists():
+        print(f"opendash: db not found at {p}")
         return 1
+    con = sqlite3.connect(str(p), timeout=2.0)
+    con.execute("pragma busy_timeout=2000")
     con.execute("DELETE FROM message WHERE session_id = ?", (sid,))
     con.execute("DELETE FROM part WHERE session_id = ?", (sid,))
     con.execute("DELETE FROM session_message WHERE session_id = ?", (sid,))
