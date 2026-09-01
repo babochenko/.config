@@ -711,24 +711,32 @@ _PR_STATUS_ICON = {
 def _pr_label(pr: dict, loading: bool = False, frame: int = 0) -> str:
     """Format the compact PR status shown on the location line."""
     status = str(pr.get("status") or "").lower()
-    has_stats = (status
-                 or pr.get("approvals") is not None
+    prefix = _PR_STATUS_ICON.get(status, "")
+    label = prefix + "#" + str(pr.get("number") or "")
+
+    if status == "merged":
+        return label
+
+    has_stats = (pr.get("approvals") is not None
                  or pr.get("unresolved_threads")
                  or (pr.get("builds") or {}).get("ok")
                  or (pr.get("builds") or {}).get("failed"))
-    prefix = _PR_STATUS_ICON.get(status, "")
-    label = prefix + "#" + str(pr.get("number") or "")
     if loading and not has_stats:
         label += " " + SPINNER[frame % len(SPINNER)]
-    if pr.get("approvals") is not None:
+    if pr.get("approvals"):
         label += f" ✓{pr['approvals']}"
     if pr.get("needs_update"):
         label += " !"
     if pr.get("unresolved_threads"):
         label += f" ⊟{pr['unresolved_threads']}"
     builds = pr.get("builds") or {}
-    if builds.get("ok") or builds.get("failed") or builds.get("unavailable") or builds.get("error"):
-        label += f" ⚙{builds.get('ok', 0)}✓/{builds.get('failed', 0)}✗"
+    if builds.get("ok") or builds.get("failed"):
+        parts = []
+        if builds.get("ok"):
+            parts.append(f"{builds['ok']}✓")
+        if builds.get("failed"):
+            parts.append(f"{builds['failed']}✗")
+        label += " ⚙" + "/".join(parts)
         if builds.get("unavailable"):
             label += f"/{builds['unavailable']}?"
     return label
