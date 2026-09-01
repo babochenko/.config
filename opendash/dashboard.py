@@ -458,14 +458,14 @@ HELP = [
 ]
 
 CODE_ACTIONS = [
-    ("h", "[h] check"),
-    ("i", "[i] inject open PRs, check comments and builds"),
-    ("m", "[m] merge master"),
-    ("p", "[p] commit and push"),
-    ("r", "[r] review branch"),
-    ("s", "[s] git status"),
-    ("U", "[U] update config and relaunch"),
-    ("esc", "[esc] cancel"),
+    ("h", "run c[h]eckstyle"),
+    ("i", "[i]nject open PRs, check comments and builds"),
+    ("[m]erge master"),
+    ("[p]ush commit"),
+    ("[r]eview branch"),
+    ("[s]how git status"),
+    ("[U]pdate config and relaunch"),
+    ("[esc] cancel"),
 ]
 
 
