@@ -40,6 +40,9 @@ create table part (
 create table todo (
     session_id text, content text, status text, position integer
 );
+create table session_message (
+    id text primary key, session_id text, time_created integer
+);
 """
 
 
