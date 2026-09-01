@@ -1401,11 +1401,11 @@ def _resolve_session_id(query: str) -> str | None:
     if len(matches) == 1:
         return matches[0]
     if not matches:
-        print(f"no instance matching '{query}'", file=sys.stderr)
+        print(f"no instance matching '{query}'")
     else:
-        print(f"ambiguous '{query}' — matches {len(matches)} instances:", file=sys.stderr)
+        print(f"ambiguous '{query}' — matches {len(matches)} instances:")
         for sid in matches:
-            print(f"  {sid}", file=sys.stderr)
+            print(f"  {sid}")
     return None
 
 

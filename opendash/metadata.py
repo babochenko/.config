@@ -154,10 +154,18 @@ def update(state: Path, con, records: list[dict]) -> dict:
         repository_path = f"{repository.strip('/')}/{directory}" if repository and directory else repository
         has_branch = bool(record.get("branch") or record.get("worktree"))
         found = scan_session(con, sid, entry.get("ignored"), repository_path, scan_prs=has_branch)
-        for key, value in found.items():
-            if entry.get(key) != value:
-                entry[key] = value
-                changed = True
+        if entry.get("tickets") != found["tickets"]:
+            entry["tickets"] = found["tickets"]
+            changed = True
+        scanned_prs = {p["number"] for p in found["prs"]}
+        existing_prs = entry.get("prs", [])
+        merged = list(found["prs"])
+        for pr in existing_prs:
+            if pr["number"] not in scanned_prs:
+                merged.append(pr)
+        if entry.get("prs") != merged:
+            entry["prs"] = merged
+            changed = True
     if changed:
         save(state, data)
     return data
