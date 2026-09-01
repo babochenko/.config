@@ -1390,17 +1390,42 @@ def _cmd_abort(args) -> int:
     return 0
 
 
+def _resolve_session_id(query: str) -> str | None:
+    """Resolve a name search to a single session ID, or pass through if already a session ID."""
+    if query.startswith("ses_"):
+        return query
+    matches = [i["session_id"] for i in snapshot(instance_records())
+               if query.lower() in (i.get("title_override") or "").lower()
+               or query.lower() in _headline(i).lower()
+               or query.lower() in (i.get("ticket") or "").lower()]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        print(f"no instance matching '{query}'", file=sys.stderr)
+    else:
+        print(f"ambiguous '{query}' — matches {len(matches)} instances:", file=sys.stderr)
+        for sid in matches:
+            print(f"  {sid}", file=sys.stderr)
+    return None
+
+
 def _cmd_unlink(args) -> int:
-    changed = unlink_association(args.session_id, args.association)
-    print(f"unlinked {args.association or 'associations'} from {args.session_id}" if changed
-          else f"no local association for {args.session_id}")
+    sid = _resolve_session_id(args.session_id) if args.name_search else args.session_id
+    if not sid:
+        return 1
+    changed = unlink_association(sid, args.association)
+    print(f"unlinked {args.association or 'associations'} from {sid}" if changed
+          else f"no local association for {sid}")
     return 0
 
 
 def _cmd_link(args) -> int:
-    changed = link_association(args.session_id, args.association)
-    print(f"linked {args.association} to {args.session_id}" if changed
-          else f"already linked: {args.association} on {args.session_id}")
+    sid = _resolve_session_id(args.session_id) if args.name_search else args.session_id
+    if not sid:
+        return 1
+    changed = link_association(sid, args.association)
+    print(f"linked {args.association} to {sid}" if changed
+          else f"already linked: {args.association} on {sid}")
     return 0
 
 
@@ -1584,11 +1609,15 @@ def main(argv=None) -> int:
     p.set_defaults(fn=_cmd_abort)
 
     p = sub.add_parser("unlink", help="ignore a discovered ticket or PR association")
+    p.add_argument("-i", dest="name_search", action="store_true",
+                   help="treat session_id as a name search and resolve it")
     p.add_argument("session_id")
     p.add_argument("association", nargs="?", help="ticket ID, PR number (#123), or omit for tickets")
     p.set_defaults(fn=_cmd_unlink)
 
     p = sub.add_parser("link", help="add or restore a ticket or PR association")
+    p.add_argument("-i", dest="name_search", action="store_true",
+                   help="treat session_id as a name search and resolve it")
     p.add_argument("session_id")
     p.add_argument("association", help="ticket ID, PR number (#123), or PR URL")
     p.set_defaults(fn=_cmd_link)
