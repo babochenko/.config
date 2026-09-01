@@ -184,6 +184,44 @@ def unlink(state: Path, session_id: str, association: str | None = None) -> bool
     return changed
 
 
+def _parse_association(association: str) -> str:
+    """Normalise a ticket ID, PR ref (#123), or PR URL to a comparable key."""
+    m = PR_URL_RE.search(association)
+    if m:
+        return m.group(1)
+    return association.lstrip("#")
+
+
+def link(state: Path, session_id: str, association: str) -> bool:
+    data = load(state)
+    entry = data.setdefault(session_id, {})
+    ignored = entry.setdefault("ignored", {"tickets": [], "prs": []})
+    changed = False
+    if "-" in association and not association.lstrip("#").isdigit() and "://" not in association:
+        ticket = association.upper()
+        if ticket in ignored["tickets"]:
+            ignored["tickets"].remove(ticket); changed = True
+        tickets = entry.setdefault("tickets", [])
+        if ticket not in tickets:
+            tickets.insert(0, ticket); changed = True
+    else:
+        number = _parse_association(association)
+        if number in ignored["prs"]:
+            ignored["prs"].remove(number); changed = True
+        prs = entry.setdefault("prs", [])
+        if not any(p.get("number") == number for p in prs):
+            label = f"#{number}"
+            url = association if PR_URL_RE.search(association) else None
+            pr = {"number": number, "label": label}
+            if url:
+                pr["url"] = url.rstrip(".,")
+                pr["repository"] = _repository_from_pr_url(url)
+            prs.append(pr); changed = True
+    if changed:
+        save(state, data)
+    return changed
+
+
 def associate_ticket(state: Path, session_id: str, ticket: str) -> bool:
     data = load(state)
     entry = data.setdefault(session_id, {})

@@ -1385,6 +1385,13 @@ def _cmd_unlink(args) -> int:
     return 0
 
 
+def _cmd_link(args) -> int:
+    changed = link_association(args.session_id, args.association)
+    print(f"linked {args.association} to {args.session_id}" if changed
+          else f"already linked: {args.association} on {args.session_id}")
+    return 0
+
+
 def _cmd_screen(args) -> int:
     path = STATE / "dashboard-screen.txt"
     try:
@@ -1408,6 +1415,12 @@ def unlink_association(session_id: str, association: str | None = None) -> bool:
         record["ticket_manual"] = False
         _write_json(path, record)
         changed = True
+    return changed
+
+
+def link_association(session_id: str, association: str) -> bool:
+    """Add or restore a local association."""
+    changed = metadata.link(STATE, session_id, association)
     return changed
 
 
@@ -1559,6 +1572,11 @@ def main(argv=None) -> int:
     p.add_argument("session_id")
     p.add_argument("association", nargs="?", help="ticket ID, PR number (#123), or omit for tickets")
     p.set_defaults(fn=_cmd_unlink)
+
+    p = sub.add_parser("link", help="add or restore a ticket or PR association")
+    p.add_argument("session_id")
+    p.add_argument("association", help="ticket ID, PR number (#123), or PR URL")
+    p.set_defaults(fn=_cmd_link)
 
     p = sub.add_parser("screen", help="print the running dashboard's current screen")
     p.set_defaults(fn=_cmd_screen)
