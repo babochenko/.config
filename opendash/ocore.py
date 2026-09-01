@@ -485,6 +485,33 @@ def remove_worktree(record: dict, force: bool = False) -> None:
 # ------------------------------------------------------------------- instances
 
 
+def metadata_agent_sid() -> str | None:
+    """Session ID of the hidden metadata agent, if one has been created."""
+    return (_read_json(STATE / "metadata-agent-session.json") or {}).get("id")
+
+
+def metadata_agent_record() -> dict | None:
+    """Pseudo-instance record for the metadata agent, or None."""
+    sid = metadata_agent_sid()
+    if not sid:
+        return None
+    return {
+        "session_id": sid,
+        "task": "metadata agent",
+        "title_override": "metadata agent",
+        "ticket": None,
+        "ticket_manual": False,
+        "directory": CONFIG.get("mcp_directory") or str(Path.home()),
+        "model": None,
+        "agent": CONFIG.get("mcp_agent") or "metadata",
+        "created": None,
+        "worktree": None,
+        "branch": None,
+        "repo": None,
+        "_metadata_agent": True,
+    }
+
+
 def instance_records() -> list[dict]:
     if not INSTANCES.is_dir():
         return []
@@ -1379,7 +1406,11 @@ def _cmd_new(args) -> int:
 
 
 def _cmd_list(args) -> int:
-    items = snapshot(instance_records())
+    records = instance_records()
+    md = metadata_agent_record()
+    if md:
+        records.append(md)
+    items = snapshot(records)
     if not items:
         print("no instances")
         return 0
@@ -1426,10 +1457,16 @@ def _resolve_session_id(query: str) -> str | None:
     """Resolve a session ID or name search to a single session ID."""
     if query.startswith("ses_"):
         return query
-    matches = [i["session_id"] for i in snapshot(instance_records())
-               if query.lower() in (i.get("title_override") or "").lower()
-               or query.lower() in _headline(i).lower()
-               or query.lower() in (i.get("ticket") or "").lower()]
+    records = instance_records()
+    md = metadata_agent_record()
+    if md:
+        records.append(md)
+    q = query.lower()
+    matches = [i["session_id"] for i in snapshot(records)
+               if q in (i.get("title_override") or "").lower()
+               or q in _headline(i).lower()
+               or q in (i.get("ticket") or "").lower()
+               or ("_metadata_agent" in i and "metadata" in q)]
     if len(matches) == 1:
         return matches[0]
     if not matches:
