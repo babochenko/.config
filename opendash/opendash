@@ -21,6 +21,8 @@ opendash - background opencode instances
   opendash abort <session-id>...  interrupt what an instance is doing
   opendash unlink <session-id> [ID|#PR]
                                    remove and ignore a ticket/PR association
+  opendash link <session-id> ID|#PR|URL
+                                   add or restore a ticket/PR association
   opendash screen                 print the running dashboard's current screen
   opendash agent <directory>      find instances assigned to a directory
   opendash prompt <session-id> <text...>
@@ -75,6 +77,7 @@ case ${1-} in
   doctor)              shift; exec $py "$here/ocore.py" doctor "$@" ;;
   abort|stop)          shift; exec $py "$here/ocore.py" abort "$@" ;;
   unlink)              shift; exec $py "$here/ocore.py" unlink "$@" ;;
+  link)                shift; exec $py "$here/ocore.py" link "$@" ;;
   screen)              shift; exec $py "$here/ocore.py" screen "$@" ;;
   agent)               shift; exec $py "$here/ocore.py" agent "$@" ;;
   prompt)              shift; exec $py "$here/ocore.py" prompt "$@" ;;

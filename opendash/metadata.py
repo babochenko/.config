@@ -100,10 +100,11 @@ def conversation_text(con, session_id: str) -> str:
     return "\n".join(chunks)
 
 
-def scan_session(con, session_id: str, ignored: dict | None = None, repository_path: str | None = None) -> dict:
+def scan_session(con, session_id: str, ignored: dict | None = None, repository_path: str | None = None,
+                scan_prs: bool = True) -> dict:
     text = conversation_text(con, session_id)
     tickets = extract_tickets(text)
-    prs = extract_prs(text)
+    prs = extract_prs(text) if scan_prs else []
     ignored = ignored or {}
     ignored_tickets = {str(v).upper() for v in ignored.get("tickets", [])}
     ignored_prs = {str(v).lstrip("#") for v in ignored.get("prs", [])}
@@ -151,7 +152,8 @@ def update(state: Path, con, records: list[dict]) -> dict:
         repository = os.environ.get("X_BITBUCKET_REPOSITORY")
         directory = str(record.get("directory") or "").rstrip("/").rsplit("/", 1)[-1]
         repository_path = f"{repository.strip('/')}/{directory}" if repository and directory else repository
-        found = scan_session(con, sid, entry.get("ignored"), repository_path)
+        has_branch = bool(record.get("branch") or record.get("worktree"))
+        found = scan_session(con, sid, entry.get("ignored"), repository_path, scan_prs=has_branch)
         for key, value in found.items():
             if entry.get(key) != value:
                 entry[key] = value
