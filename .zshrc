@@ -102,7 +102,13 @@ function v() {
     elif [[ "$file" == "Movies" ]]; then
         _vd "$HOME/Movies/"
     elif [[ -n "$file" ]]; then
-        _vd "$HOME/Developer/$file" || _vd "$file"
+        if [[ -f "$file" ]]; then
+            nvim "$file"
+        elif [[ -f "$HOME/Developer/$file" ]]; then
+            nvim "$HOME/Developer/$file"
+        else
+            _vd "$HOME/Developer/$file" || _vd "$file"
+        fi
     else
         nvim $@
     fi
