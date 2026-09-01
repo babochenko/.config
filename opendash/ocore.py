@@ -1391,7 +1391,7 @@ def _cmd_abort(args) -> int:
 
 
 def _resolve_session_id(query: str) -> str | None:
-    """Resolve a name search to a single session ID, or pass through if already a session ID."""
+    """Resolve a session ID or name search to a single session ID."""
     if query.startswith("ses_"):
         return query
     matches = [i["session_id"] for i in snapshot(instance_records())
@@ -1410,7 +1410,7 @@ def _resolve_session_id(query: str) -> str | None:
 
 
 def _cmd_unlink(args) -> int:
-    sid = _resolve_session_id(args.session_id) if args.name_search else args.session_id
+    sid = _resolve_session_id(args.session_id)
     if not sid:
         return 1
     changed = unlink_association(sid, args.association)
@@ -1420,7 +1420,7 @@ def _cmd_unlink(args) -> int:
 
 
 def _cmd_link(args) -> int:
-    sid = _resolve_session_id(args.session_id) if args.name_search else args.session_id
+    sid = _resolve_session_id(args.session_id)
     if not sid:
         return 1
     changed = link_association(sid, args.association)
@@ -1609,15 +1609,11 @@ def main(argv=None) -> int:
     p.set_defaults(fn=_cmd_abort)
 
     p = sub.add_parser("unlink", help="ignore a discovered ticket or PR association")
-    p.add_argument("-i", dest="name_search", action="store_true",
-                   help="treat session_id as a name search and resolve it")
     p.add_argument("session_id")
     p.add_argument("association", nargs="?", help="ticket ID, PR number (#123), or omit for tickets")
     p.set_defaults(fn=_cmd_unlink)
 
     p = sub.add_parser("link", help="add or restore a ticket or PR association")
-    p.add_argument("-i", dest="name_search", action="store_true",
-                   help="treat session_id as a name search and resolve it")
     p.add_argument("session_id")
     p.add_argument("association", help="ticket ID, PR number (#123), or PR URL")
     p.set_defaults(fn=_cmd_link)
