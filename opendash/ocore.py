@@ -1536,21 +1536,38 @@ def _cmd_agent(args) -> int:
 
 
 def _cmd_clear(args) -> int:
-    sid = _resolve_session_id(args.session_id)
-    if not sid:
-        return 1
+    if args.all and args.session_id:
+        print("opendash: clear accepts either a session or --all, not both",
+              file=sys.stderr)
+        return 2
+    if not args.all and not args.session_id:
+        print("opendash: clear requires a session or --all", file=sys.stderr)
+        return 2
+    if args.all:
+        records = instance_records()
+        md = metadata_agent_record()
+        if md:
+            records.append(md)
+        session_ids = [record["session_id"] for record in records]
+    else:
+        sid = _resolve_session_id(args.session_id)
+        if not sid:
+            return 1
+        session_ids = [sid]
     p = db_path()
     if not p.exists():
         print(f"opendash: db not found at {p}")
         return 1
     con = sqlite3.connect(str(p), timeout=2.0)
     con.execute("pragma busy_timeout=2000")
-    con.execute("DELETE FROM message WHERE session_id = ?", (sid,))
-    con.execute("DELETE FROM part WHERE session_id = ?", (sid,))
-    con.execute("DELETE FROM session_message WHERE session_id = ?", (sid,))
+    for sid in session_ids:
+        con.execute("DELETE FROM message WHERE session_id = ?", (sid,))
+        con.execute("DELETE FROM part WHERE session_id = ?", (sid,))
+        con.execute("DELETE FROM session_message WHERE session_id = ?", (sid,))
     con.commit()
     con.close()
-    print(f"cleared messages from {sid}")
+    print(f"cleared messages from {len(session_ids)} session(s)" if args.all
+          else f"cleared messages from {session_ids[0]}")
     return 0
 
 
@@ -1760,8 +1777,10 @@ def main(argv=None) -> int:
     p.add_argument("session_id")
     p.set_defaults(fn=_cmd_ci)
 
-    p = sub.add_parser("clear", help="delete all messages from a session, keeping the session itself")
-    p.add_argument("session_id")
+    p = sub.add_parser("clear", help="delete messages, keeping sessions themselves")
+    p.add_argument("session_id", nargs="?", help="session ID or name")
+    p.add_argument("-a", "-all", "--all", action="store_true",
+                   help="clear all OpenDash-managed sessions")
     p.set_defaults(fn=_cmd_clear)
 
     p = sub.add_parser("quit", help="stop every instance and the shared server")

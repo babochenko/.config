@@ -81,6 +81,8 @@ opendash list                   # plain text, no curses
 opendash doctor                # check that instances can actually start
 opendash abort <session-id>     # interrupt a run
 opendash rm <session-id>        # stop it and drop it from the list
+opendash clear <session-id>     # clear messages, keeping the session
+opendash clear --all            # clear messages from all OpenDash sessions
 opendash unlink <session-id> [ID|#PR]  # unlink and ignore a local association
 opendash screen                 # print the running dashboard screen
 opendash quit                   # stop every instance and the shared server
