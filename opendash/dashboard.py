@@ -788,10 +788,11 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
 
     if minimized:
         branch = (item.get("git") or {}).get("branch") or item.get("branch")
-        pr = (item.get("pr_info") or item.get("prs") or [None])[0]
+        prs = item.get("pr_info") or item.get("prs") or []
         pr_suffix = ""
-        if pr:
-            pr_suffix = "  " + _pr_label(pr, item.get("pr_loading", False), frame)
+        if prs:
+            pr_suffix = "  " + "  ".join(
+                _pr_label(pr, item.get("pr_loading", False), frame) for pr in prs)
         suffix = "  " + _location_label(item, branch) + pr_suffix
         printw(stdscr, y, x, clip(ocore._headline(item) + suffix, max(4, status_x - x - 2)),
                title_attr)
@@ -830,19 +831,32 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
                           (f"-{gitinfo.get('dels', 0)}", C_ERR, None)))
 
     prs = item.get("pr_info") or item.get("prs") or []
-    pr = prs[0] if prs else None
-    if pr:
+    for pr in prs:
         git_parts.append((_pr_label(pr, item.get("pr_loading", False), frame), C_DIM, None))
-    comments = pr.get("unresolved_comments") or [] if pr else []
+    comments = []
+    for pr in prs:
+        comments.extend(pr.get("unresolved_comments") or [])
 
     if git_parts:
         total_width = sum(len(text) for text, _, _ in git_parts) + len(git_parts) - 1
         right_start = max(3, maxx - 2 - total_width)
-        git_x = right_start
-        for n, (text, color, url) in enumerate(git_parts):
-            if n:
-                git_x = printw(stdscr, y + 2, git_x, " ", curses.color_pair(C_DIM))
-            git_x = _print_link(stdscr, y + 2, git_x, text, url, curses.color_pair(color))
+        avail_right = maxx - 2 - right_start
+        if total_width > avail_right:
+            right_start = 3
+            git_x = right_start
+            for n, (text, color, url) in enumerate(git_parts):
+                if n:
+                    git_x = printw(stdscr, y + 2, git_x, " ", curses.color_pair(C_DIM))
+                if git_x >= maxx - 3:
+                    printw(stdscr, y + 2, git_x, "…", curses.color_pair(C_DIM))
+                    break
+                git_x = _print_link(stdscr, y + 2, git_x, text, url, curses.color_pair(color))
+        else:
+            git_x = right_start
+            for n, (text, color, url) in enumerate(git_parts):
+                if n:
+                    git_x = printw(stdscr, y + 2, git_x, " ", curses.color_pair(C_DIM))
+                git_x = _print_link(stdscr, y + 2, git_x, text, url, curses.color_pair(color))
     else:
         right_start = maxx - 2
 
