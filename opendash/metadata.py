@@ -186,9 +186,13 @@ def unlink(state: Path, session_id: str, association: str | None = None) -> bool
             entry["tickets"] = []
     else:
         number = association.lstrip("#")
-        if number not in ignored["prs"]:
-            ignored["prs"].append(number); changed = True
-        entry["prs"] = [p for p in entry.get("prs", []) if p.get("number") != number]
+        existing = [p for p in entry.get("prs", []) if p.get("number") != number]
+        was_present = len(existing) < len(entry.get("prs", []))
+        if was_present:
+            entry["prs"] = existing
+            if number not in ignored["prs"]:
+                ignored["prs"].append(number)
+            changed = True
     if changed:
         save(state, data)
     return changed
