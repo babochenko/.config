@@ -9,6 +9,11 @@ def warn_bitbucket_error(context)
   warn "\e[31m#{context}\e[0m"
 end
 
+def repo_slug
+  dir = `git worktree list --porcelain`.lines.first[/^worktree (.+)$/, 1]&.then { |p| Pathname.new(p).basename.to_s }
+  dir || Pathname.pwd.basename.to_s
+end
+
 def bitbucket_error_message(res)
   detail = begin
     JSON.parse(res.body).dig('error', 'message')
@@ -29,7 +34,7 @@ def fetch_pr(pr_num, hash, msg)
     return nil
   end
 
-  dir = Pathname.pwd.basename.to_s
+  dir = repo_slug
   uri = URI("https://api.bitbucket.org/2.0/repositories/#{repo}/#{dir}/pullrequests/#{pr_num}?fields=title,author.nickname,updated_on")
 
   begin
@@ -66,7 +71,7 @@ def find_open_pr_for_branch(branch)
   repo = ENV['X_BITBUCKET_REPOSITORY']
   return nil unless user && pass && repo
 
-  dir = Pathname.pwd.basename.to_s
+  dir = repo_slug
   q = URI.encode_www_form_component("source.branch.name=\"#{branch}\"")
   uri = URI("https://api.bitbucket.org/2.0/repositories/#{repo}/#{dir}/pullrequests?q=#{q}&state=OPEN&fields=values.id,values.title")
 
