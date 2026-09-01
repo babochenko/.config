@@ -155,7 +155,7 @@ function git-undo()               { git restore --source=$(master) $@; }
 function git-switch-master()      { git switch $(master) && git pull; }
 function gitcc()                  { git add .; gitc $@; }
 function gitp()                   { gitc $@; git push; }
-function gitpp()                  { gitcc $@; git push && "$CFGS/zsh/git-pr-link.rb"; }
+function gitpp()                  { gitcc $@; git push -u origin HEAD && "$CFGS/zsh/git-pr-link.rb"; }
 
 alias gd='git-diff'
 alias gg='git-log'
