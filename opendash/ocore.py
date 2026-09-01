@@ -1357,6 +1357,11 @@ def _cmd_list(args) -> int:
                  if needle in (i.get("title_override") or "").lower()
                  or needle in _headline(i).lower()
                  or needle in (i.get("ticket") or "").lower()]
+    if args.id_only:
+        for i in items:
+            print(i["session_id"])
+        return 0
+    if args.name:
         args.full = True
     for i in items:
         if args.full:
@@ -1563,6 +1568,8 @@ def main(argv=None) -> int:
     p = sub.add_parser("list", help="list instances")
     p.add_argument("-f", "--full", action="store_true",
                    help="show session IDs and full task text")
+    p.add_argument("-i", "--id-only", action="store_true",
+                   help="print only session IDs")
     p.add_argument("name", nargs="?", help="filter by title or ticket (shows full output)")
     p.set_defaults(fn=_cmd_list)
 
