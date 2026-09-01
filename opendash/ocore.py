@@ -1351,6 +1351,13 @@ def _cmd_list(args) -> int:
     if not items:
         print("no instances")
         return 0
+    if args.name:
+        needle = args.name.lower()
+        items = [i for i in items
+                 if needle in (i.get("title_override") or "").lower()
+                 or needle in _headline(i).lower()
+                 or needle in (i.get("ticket") or "").lower()]
+        args.full = True
     for i in items:
         if args.full:
             print(f"{i['session_id']}  {i['state']:<8} {i.get('ticket') or '-':<12} "
@@ -1556,6 +1563,7 @@ def main(argv=None) -> int:
     p = sub.add_parser("list", help="list instances")
     p.add_argument("-f", "--full", action="store_true",
                    help="show session IDs and full task text")
+    p.add_argument("name", nargs="?", help="filter by title or ticket (shows full output)")
     p.set_defaults(fn=_cmd_list)
 
     p = sub.add_parser("rm", help="stop and forget instances")
