@@ -82,6 +82,7 @@ case ${1-} in
   agent)               shift; exec $py "$here/ocore.py" agent "$@" ;;
   prompt)              shift; exec $py "$here/ocore.py" prompt "$@" ;;
   ci)                  shift; exec $py "$here/ocore.py" ci "$@" ;;
+  clear)               shift; exec $py "$here/ocore.py" clear "$@" ;;
   server)              shift; exec $py "$here/ocore.py" server "$@" ;;
   -h|--help|help)      usage ;;
   *) print -u2 "opendash: unknown command '${1}'"; usage; exit 2 ;;

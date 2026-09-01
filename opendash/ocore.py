@@ -1466,6 +1466,24 @@ def _cmd_agent(args) -> int:
     return 0
 
 
+def _cmd_clear(args) -> int:
+    sid = _resolve_session_id(args.session_id)
+    if not sid:
+        return 1
+    try:
+        con = _connect()
+    except ApiError as e:
+        print(f"opendash: {e}")
+        return 1
+    con.execute("DELETE FROM message WHERE session_id = ?", (sid,))
+    con.execute("DELETE FROM part WHERE session_id = ?", (sid,))
+    con.execute("DELETE FROM session_message WHERE session_id = ?", (sid,))
+    con.commit()
+    con.close()
+    print(f"cleared messages from {sid}")
+    return 0
+
+
 def _cmd_prompt(args) -> int:
     record = next((r for r in instance_records()
                    if r["session_id"] == args.session_id), None)
@@ -1671,6 +1689,10 @@ def main(argv=None) -> int:
     p = sub.add_parser("ci", help="inject open PRs and ask agent to check comments and builds")
     p.add_argument("session_id")
     p.set_defaults(fn=_cmd_ci)
+
+    p = sub.add_parser("clear", help="delete all messages from a session, keeping the session itself")
+    p.add_argument("session_id")
+    p.set_defaults(fn=_cmd_clear)
 
     p = sub.add_parser("quit", help="stop every instance and the shared server")
     p.set_defaults(fn=_cmd_quit)
