@@ -458,14 +458,14 @@ HELP = [
 ]
 
 CODE_ACTIONS = [
-    ("h", "run check in the instance's directory"),
-    ("m", "merge master in the instance's directory"),
-    ("p", "ask the agent to commit and push current changes"),
-    ("s", "show the repository's gs output"),
-    ("r", "review this branch; fix critical issues, summarize the rest"),
-    ("i", "inject open PRs and ask agent to check comments and failing builds"),
-    ("U", "update the config checkout and relaunch the dashboard"),
-    ("esc", "cancel"),
+    ("h", "[h] check"),
+    ("i", "[i] inject open PRs, check comments and builds"),
+    ("m", "[m] merge master"),
+    ("p", "[p] commit and push"),
+    ("r", "[r] review branch"),
+    ("s", "[s] git status"),
+    ("U", "[U] update config and relaunch"),
+    ("esc", "[esc] cancel"),
 ]
 
 
