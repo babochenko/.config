@@ -463,6 +463,7 @@ CODE_ACTIONS = [
     ("p", "ask the agent to commit and push current changes"),
     ("s", "show the repository's gs output"),
     ("r", "review this branch; fix critical issues, summarize the rest"),
+    ("i", "inject open PRs and ask agent to check comments and failing builds"),
     ("U", "update the config checkout and relaunch the dashboard"),
     ("esc", "cancel"),
 ]
@@ -507,7 +508,7 @@ def code_actions_overlay(stdscr) -> str | None:
     with blocking(stdscr):
         try:
             ch = stdscr.get_wch()
-            if isinstance(ch, str) and ch in ("h", "m", "p", "s", "r", "U"):
+            if isinstance(ch, str) and ch in ("h", "m", "p", "s", "r", "i", "U"):
                 choice = ch
         except curses.error:
             pass
@@ -1040,6 +1041,30 @@ def run(stdscr, start_dir: str) -> None:
                                 directory,
                             )
                             flash(stdscr, f" asked agent to review {branch}", C_OK)
+                    elif action == "i":
+                        prs = cur.get("pr_info") or cur.get("prs") or []
+                        open_prs = [p for p in prs
+                                    if (p.get("status") or "").lower()
+                                    not in ("merged", "declined", "superseded")]
+                        if not open_prs:
+                            flash(stdscr, " no open PRs linked to this instance")
+                        else:
+                            pr_list = "\n".join(
+                                f"  #{p.get('number')} — {p.get('url')}"
+                                for p in open_prs)
+                            ocore.send_prompt(
+                                cur["session_id"],
+                                f"The following pull requests are linked to this task:\n"
+                                f"{pr_list}\n\n"
+                                f"Use the Bitbucket MCP tools to fetch the current status "
+                                f"of each PR. Check for unresolved review comments and "
+                                f"failing builds. If there are comments, address them. "
+                                f"If builds are failing, investigate and fix the failures. "
+                                f"Do not edit files unless fixing a real issue found in "
+                                f"review comments or build failures.",
+                                cur.get("directory") or last_dir,
+                            )
+                            flash(stdscr, f" injected {len(open_prs)} open PR(s)", C_OK)
                     else:
                         command = "check" if action == "h" else "gitmm"
                         ocore.run_terminal_command(cur, command)

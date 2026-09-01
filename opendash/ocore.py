@@ -1476,6 +1476,44 @@ def _cmd_prompt(args) -> int:
     return 0
 
 
+def _cmd_ci(args) -> int:
+    sid = _resolve_session_id(args.session_id)
+    if not sid:
+        return 1
+    record = next((r for r in instance_records() if r["session_id"] == sid), None)
+    if not record:
+        print(f"opendash: unknown session: {sid}")
+        return 1
+    import metadata
+    data = metadata.load(STATE)
+    entry = data.get(sid, {})
+    prs = entry.get("prs", [])
+    pr_cache = metadata.pr_cache(STATE)
+    open_prs = []
+    for p in prs:
+        key = metadata._candidate_key(p)
+        cached = pr_cache.get(key) or pr_cache.get(str(p.get("number")), p)
+        status = (cached.get("status") or "").lower() if isinstance(cached, dict) else ""
+        if status not in ("merged", "declined", "superseded"):
+            open_prs.append(p)
+    if not open_prs:
+        print("no open PRs linked to this instance")
+        return 0
+    pr_list = "\n".join(f"  #{p.get('number')} — {p.get('url')}" for p in open_prs)
+    send_prompt(sid,
+                f"The following pull requests are linked to this task:\n"
+                f"{pr_list}\n\n"
+                f"Use the Bitbucket MCP tools to fetch the current status "
+                f"of each PR. Check for unresolved review comments and "
+                f"failing builds. If there are comments, address them. "
+                f"If builds are failing, investigate and fix the failures. "
+                f"Do not edit files unless fixing a real issue found in "
+                f"review comments or build failures.",
+                record["directory"])
+    print(f"injected {len(open_prs)} open PR(s) to {sid}")
+    return 0
+
+
 def _cmd_quit(args) -> int:
     print(f"stopped {quit_all()} instance(s) and the shared server")
     return 0
@@ -1629,6 +1667,10 @@ def main(argv=None) -> int:
     p.add_argument("session_id")
     p.add_argument("text", nargs="+")
     p.set_defaults(fn=_cmd_prompt)
+
+    p = sub.add_parser("ci", help="inject open PRs and ask agent to check comments and builds")
+    p.add_argument("session_id")
+    p.set_defaults(fn=_cmd_ci)
 
     p = sub.add_parser("quit", help="stop every instance and the shared server")
     p.set_defaults(fn=_cmd_quit)
