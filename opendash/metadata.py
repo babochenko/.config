@@ -458,6 +458,7 @@ def _refresh_via_agent(state: Path, prs: list[dict], conf: dict,
             if candidate:
                 pull_requests[_candidate_key(candidate)] = _normalise_pr(value, candidate)
         _write_cache(state, "pr.json", pull_requests)
+        ocore.prune_session_messages(sid)
     except (OSError, ValueError, TypeError, TimeoutError):
         # A provider outage must never erase the last known PR state.
         return

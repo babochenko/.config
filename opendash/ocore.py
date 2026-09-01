@@ -534,6 +534,38 @@ def latest_assistant_response(session_id: str, after: int = 0) -> tuple[str, boo
         con.close()
 
 
+def prune_session_messages(session_id: str, keep: int = 30) -> None:
+    """Delete all but the most recent *keep* messages from a session."""
+    path = db_path()
+    if not path.exists():
+        return
+    con = sqlite3.connect(str(path), timeout=2.0)
+    try:
+        con.execute("pragma busy_timeout=2000")
+        rows = con.execute(
+            "select id from message where session_id = ?"
+            " order by time_created desc, id desc limit -1 offset ?",
+            (session_id, keep),
+        ).fetchall()
+        if rows:
+            ids = [r[0] for r in rows]
+            placeholders = ",".join("?" for _ in ids)
+            con.execute(f"delete from part where message_id in ({placeholders})", ids)
+            con.execute(f"delete from message where id in ({placeholders})", ids)
+        try:
+            con.execute(
+                "delete from session_message where session_id = ?"
+                " and id not in (select id from session_message"
+                " where session_id = ? order by time_created desc, id desc limit ?)",
+                (session_id, session_id, keep),
+            )
+        except sqlite3.OperationalError:
+            pass
+        con.commit()
+    finally:
+        con.close()
+
+
 def _split_model(model: str | None):
     if not model or "/" not in model:
         return None
