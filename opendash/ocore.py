@@ -1536,38 +1536,25 @@ def _cmd_agent(args) -> int:
 
 
 def _cmd_clear(args) -> int:
-    if args.all and args.session_id:
-        print("opendash: clear accepts either a session or --all, not both",
-              file=sys.stderr)
-        return 2
-    if not args.all and not args.session_id:
-        print("opendash: clear requires a session or --all", file=sys.stderr)
-        return 2
+    sid = _resolve_session_id(args.session_id)
+    if not sid:
+        return 1
     if args.all:
-        records = instance_records()
-        md = metadata_agent_record()
-        if md:
-            records.append(md)
-        session_ids = [record["session_id"] for record in records]
-    else:
-        sid = _resolve_session_id(args.session_id)
-        if not sid:
-            return 1
-        session_ids = [sid]
+        count = metadata.clear_associations(STATE, sid)
+        print(f"cleared {count} linked association(s) from {sid}")
+        return 0
     p = db_path()
     if not p.exists():
         print(f"opendash: db not found at {p}")
         return 1
     con = sqlite3.connect(str(p), timeout=2.0)
     con.execute("pragma busy_timeout=2000")
-    for sid in session_ids:
-        con.execute("DELETE FROM message WHERE session_id = ?", (sid,))
-        con.execute("DELETE FROM part WHERE session_id = ?", (sid,))
-        con.execute("DELETE FROM session_message WHERE session_id = ?", (sid,))
+    con.execute("DELETE FROM message WHERE session_id = ?", (sid,))
+    con.execute("DELETE FROM part WHERE session_id = ?", (sid,))
+    con.execute("DELETE FROM session_message WHERE session_id = ?", (sid,))
     con.commit()
     con.close()
-    print(f"cleared messages from {len(session_ids)} session(s)" if args.all
-          else f"cleared messages from {session_ids[0]}")
+    print(f"cleared messages from {sid}")
     return 0
 
 
@@ -1778,9 +1765,9 @@ def main(argv=None) -> int:
     p.set_defaults(fn=_cmd_ci)
 
     p = sub.add_parser("clear", help="delete messages, keeping sessions themselves")
-    p.add_argument("session_id", nargs="?", help="session ID or name")
+    p.add_argument("session_id", help="session ID or name")
     p.add_argument("-a", "-all", "--all", action="store_true",
-                   help="clear all OpenDash-managed sessions")
+                   help="clear all linked metadata for this session")
     p.set_defaults(fn=_cmd_clear)
 
     p = sub.add_parser("quit", help="stop every instance and the shared server")

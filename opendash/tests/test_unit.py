@@ -257,7 +257,7 @@ class DashboardLocations(unittest.TestCase):
             dashboard._pr_label({"number": 12, "status": "opened", "approvals": 2,
                                  "unresolved_threads": 1,
                                  "builds": {"ok": 3, "failed": 1}}),
-            "#12 opened ✓2 threads:1 builds:3✓/1✖")
+            "#12 ✓2 ⊟1 ⚙3✓/1✗")
 
     def test_pr_label_shows_loader_during_refresh(self):
         self.assertIn("#12 ⠋", dashboard._pr_label({"number": 12}, True, 0))

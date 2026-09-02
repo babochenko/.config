@@ -83,15 +83,25 @@ def _text(value) -> list[str]:
     return []
 
 
-def conversation_text(con, session_id: str) -> str:
+def conversation_text(con, session_id: str, role: str | None = None) -> str:
     chunks: list[str] = []
-    rows = con.execute("select data from message where session_id = ?", (session_id,))
+    if role:
+        rows = con.execute(
+            "select data from message where session_id = ?"
+            " and json_extract(data, '$.role') = ?", (session_id, role))
+    else:
+        rows = con.execute("select data from message where session_id = ?", (session_id,))
     for (raw,) in rows:
         try:
             chunks.extend(_text(json.loads(raw)))
         except (TypeError, json.JSONDecodeError):
             pass
-    rows = con.execute("select data from part where session_id = ?", (session_id,))
+    query = "select p.data from part p join message m on m.id = p.message_id where p.session_id = ?"
+    params: tuple = (session_id,)
+    if role:
+        query += " and json_extract(m.data, '$.role') = ?"
+        params += (role,)
+    rows = con.execute(query, params)
     for (raw,) in rows:
         try:
             chunks.extend(_text(json.loads(raw)))
@@ -101,10 +111,16 @@ def conversation_text(con, session_id: str) -> str:
 
 
 def scan_session(con, session_id: str, ignored: dict | None = None, repository_path: str | None = None,
-                scan_prs: bool = True) -> dict:
-    text = conversation_text(con, session_id)
-    tickets = extract_tickets(text)
-    prs = extract_prs(text) if scan_prs else []
+                 scan_prs: bool = True) -> dict:
+    user_text = conversation_text(con, session_id, "user")
+    assistant_text = conversation_text(con, session_id, "assistant")
+    tickets = extract_tickets(user_text + "\n" + assistant_text)
+    prs = extract_prs(user_text) if scan_prs else []
+    if scan_prs:
+        # Assistant prose contains examples and historical references. Only
+        # trust an assistant PR when it includes a concrete provider URL.
+        prs.extend(extract_prs("\n".join(PR_URL_RE.findall(assistant_text))))
+        prs = list({p["number"]: p for p in prs}.values())
     ignored = ignored or {}
     ignored_tickets = {str(v).upper() for v in ignored.get("tickets", [])}
     ignored_prs = {str(v).lstrip("#") for v in ignored.get("prs", [])}
@@ -152,13 +168,12 @@ def update(state: Path, con, records: list[dict]) -> dict:
         repository = os.environ.get("X_BITBUCKET_REPOSITORY")
         directory = str(record.get("directory") or "").rstrip("/").rsplit("/", 1)[-1]
         repository_path = f"{repository.strip('/')}/{directory}" if repository and directory else repository
-        has_branch = bool(record.get("branch") or record.get("worktree"))
-        found = scan_session(con, sid, entry.get("ignored"), repository_path, scan_prs=has_branch)
+        found = scan_session(con, sid, entry.get("ignored"), repository_path)
         if entry.get("tickets") != found["tickets"]:
             entry["tickets"] = found["tickets"]
             changed = True
         scanned_prs = {p["number"] for p in found["prs"]}
-        existing_prs = entry.get("prs", [])
+        existing_prs = [p for p in entry.get("prs", []) if p.get("manual")]
         merged = list(found["prs"])
         for pr in existing_prs:
             if pr["number"] not in scanned_prs:
@@ -175,6 +190,8 @@ def unlink(state: Path, session_id: str, association: str | None = None) -> bool
     data = load(state)
     entry = data.setdefault(session_id, {})
     ignored = entry.setdefault("ignored", {"tickets": [], "prs": []})
+    ignored.setdefault("tickets", [])
+    ignored.setdefault("prs", [])
     changed = False
     if not association or ("-" in association and not association.lstrip("#").isdigit()):
         ticket = association.upper() if association else None
@@ -196,6 +213,29 @@ def unlink(state: Path, session_id: str, association: str | None = None) -> bool
     if changed:
         save(state, data)
     return changed
+
+
+def clear_associations(state: Path, session_id: str) -> int:
+    """Clear and suppress every ticket/PR association for one session."""
+    data = load(state)
+    entry = data.setdefault(session_id, {})
+    ignored = entry.setdefault("ignored", {"tickets": [], "prs": []})
+    ignored.setdefault("tickets", [])
+    ignored.setdefault("prs", [])
+    tickets = entry.get("tickets", [])
+    prs = entry.get("prs", [])
+    for ticket in tickets:
+        if ticket not in ignored["tickets"]:
+            ignored["tickets"].append(ticket)
+    for pr in prs:
+        number = str(pr.get("number"))
+        if number not in ignored["prs"]:
+            ignored["prs"].append(number)
+    entry["tickets"] = []
+    entry["prs"] = []
+    if tickets or prs:
+        save(state, data)
+    return len(tickets) + len(prs)
 
 
 def _parse_association(association: str) -> str:
@@ -226,7 +266,7 @@ def link(state: Path, session_id: str, association: str) -> bool:
         if not any(p.get("number") == number for p in prs):
             label = f"#{number}"
             url = association if PR_URL_RE.search(association) else None
-            pr = {"number": number, "label": label}
+            pr = {"number": number, "label": label, "manual": True}
             if url:
                 pr["url"] = url.rstrip(".,")
                 pr["repository"] = _repository_from_pr_url(url)
