@@ -60,7 +60,7 @@ class DashboardTests(unittest.TestCase):
             release.set()
             data.wait_creations()
             items, _, _, _ = data.read()
-            self.assertEqual(items, [])
+            self.assertEqual(items[0]["real_session_id"], "session-1")
             self.assertEqual(data.take_completions()[0][1]["session_id"], "session-1")
 
 

@@ -163,8 +163,12 @@ class Data:
             except Exception as e:
                 error = f"{type(e).__name__}: {e}"[:160]
             with self.lock:
-                self.pending[:] = [item for item in self.pending
-                                   if item["session_id"] != pending["session_id"]]
+                if error:
+                    self.pending[:] = [item for item in self.pending
+                                       if item["session_id"] != pending["session_id"]]
+                else:
+                    pending["real_session_id"] = record["session_id"]
+                    pending["activity"] = ("running", "session starting…")
                 self.completions.append((pending, record, error))
             self.refresh_now()
 
@@ -204,6 +208,9 @@ class Data:
                         it["state"] = "attention"
                         it["attention"] = note
                 with self.lock:
+                    visible_ids = {item["session_id"] for item in items}
+                    self.pending[:] = [item for item in self.pending
+                                       if item.get("real_session_id") not in visible_ids]
                     if self._order_override:
                         by_id = {item["session_id"]: item for item in items}
                         ordered = [by_id[sid] for sid in self._order_override if sid in by_id]
