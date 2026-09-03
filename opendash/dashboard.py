@@ -122,11 +122,17 @@ class Data:
         self._creation_number = 0
         self._order_override: list[str] = []
         self._git_cache: dict[str, dict] = {}
+        self._terminals_cache: dict[str, str] = {}
+        self._attention_cache: dict[str, str] = {}
+        self._server_up_cache: bool = False
 
     def start(self):
         threading.Thread(target=self._loop, daemon=True).start()
         threading.Thread(target=self._jira_loop, daemon=True).start()
         threading.Thread(target=self._git_loop, daemon=True).start()
+        threading.Thread(target=self._terminals_loop, daemon=True).start()
+        threading.Thread(target=self._attention_loop, daemon=True).start()
+        threading.Thread(target=self._server_loop, daemon=True).start()
 
     def stop(self):
         self._stop.set()
@@ -194,9 +200,8 @@ class Data:
         while not self._stop.is_set():
             try:
                 items = ocore.snapshot(ocore.instance_records())
-                info = ocore.server_info()
-                up = bool(info and ocore._server_alive(info["url"], timeout=1.5))
-                terminals = ocore.terminal_activity(items)
+                up = self._server_up_cache
+                terminals = dict(self._terminals_cache)
                 for it in items:
                     it["terminal"] = terminals.get(it["session_id"])
                     it["git"] = self._git_cache.get(it.get("directory") or "",
@@ -206,7 +211,7 @@ class Data:
                     it["pr_info"] = [self.pr.get(metadata._candidate_key(p),
                                                   self.pr.get(str(p.get("number")), p))
                                       for p in it.get("prs", [])]
-                blocked = ocore.pending_attention(items) if up else {}
+                blocked = dict(self._attention_cache) if up else {}
                 for it in items:
                     note = blocked.get(it["session_id"])
                     if note:
@@ -279,6 +284,49 @@ class Data:
             except Exception:
                 pass
             self._stop.wait(3.0)
+
+    def _terminals_loop(self):
+        """Refresh terminal activity in the background so _loop never blocks."""
+        while not self._stop.is_set():
+            try:
+                with self.lock:
+                    items = list(self.items)
+                result = ocore.terminal_activity(items)
+                with self.lock:
+                    self._terminals_cache = result
+            except Exception:
+                pass
+            self._stop.wait(2.0)
+
+    def _server_loop(self):
+        """Refresh server-alive status in the background."""
+        while not self._stop.is_set():
+            try:
+                info = ocore.server_info()
+                up = bool(info and ocore._server_alive(info["url"], timeout=1.5))
+                with self.lock:
+                    self._server_up_cache = up
+            except Exception:
+                pass
+            self._stop.wait(2.0)
+
+    def _attention_loop(self):
+        """Refresh pending-attention map in the background."""
+        while not self._stop.is_set():
+            try:
+                with self.lock:
+                    items = list(self.items)
+                    up = self._server_up_cache
+                if not up or not items:
+                    with self.lock:
+                        self._attention_cache = {}
+                else:
+                    result = ocore.pending_attention(items)
+                    with self.lock:
+                        self._attention_cache = result
+            except Exception:
+                pass
+            self._stop.wait(2.0)
 
     def reorder(self, a_sid: str, b_sid: str) -> None:
         """Reflect a manual move at once, without waiting for the next poll."""
