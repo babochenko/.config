@@ -121,10 +121,12 @@ class Data:
         self._creation_threads: list[threading.Thread] = []
         self._creation_number = 0
         self._order_override: list[str] = []
+        self._git_cache: dict[str, dict] = {}
 
     def start(self):
         threading.Thread(target=self._loop, daemon=True).start()
         threading.Thread(target=self._jira_loop, daemon=True).start()
+        threading.Thread(target=self._git_loop, daemon=True).start()
 
     def stop(self):
         self._stop.set()
@@ -197,7 +199,10 @@ class Data:
                 terminals = ocore.terminal_activity(items)
                 for it in items:
                     it["terminal"] = terminals.get(it["session_id"])
-                    it["git"] = ocore.git_summary(it.get("directory") or "")
+                    it["git"] = self._git_cache.get(it.get("directory") or "",
+                                                   {"branch": "", "ahead": 0, "behind": 0,
+                                                    "staged": 0, "modified": 0, "untracked": 0,
+                                                    "adds": 0, "dels": 0})
                     it["pr_info"] = [self.pr.get(metadata._candidate_key(p),
                                                   self.pr.get(str(p.get("number")), p))
                                       for p in it.get("prs", [])]
@@ -257,6 +262,23 @@ class Data:
                     with self.lock:
                         self.pr_loading = False
             self._stop.wait(METADATA_EVERY)
+
+    def _git_loop(self):
+        """Refresh git summaries in the background so _loop never blocks on git."""
+        while not self._stop.is_set():
+            try:
+                with self.lock:
+                    dirs = {it.get("directory") for it in self.items
+                            if it.get("directory")}
+                for d in sorted(dirs):
+                    if self._stop.is_set():
+                        break
+                    summary = ocore.git_summary(d)
+                    with self.lock:
+                        self._git_cache[d] = summary
+            except Exception:
+                pass
+            self._stop.wait(3.0)
 
     def reorder(self, a_sid: str, b_sid: str) -> None:
         """Reflect a manual move at once, without waiting for the next poll."""
