@@ -1554,6 +1554,10 @@ def _cmd_unlink(args) -> int:
         rec = _read_json(INSTANCES / f"{sid}.json")
         ticket = (rec or {}).get("ticket")
         if not ticket:
+            md = metadata.load(STATE)
+            tickets = (md.get(sid) or {}).get("tickets") or []
+            ticket = tickets[0] if tickets else None
+        if not ticket:
             print(f"no ticket linked to {sid}")
             return 1
         if not _confirm(args, f"Unlink ticket {ticket} from {sid}?"):
