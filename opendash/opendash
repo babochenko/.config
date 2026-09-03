@@ -34,6 +34,9 @@ opendash - background opencode instances
   opendash rm <session-id>...     stop an instance and drop it from the list
   opendash quit                   stop every instance and the shared server
   opendash abort <session-id>...  interrupt a running instance
+  opendash cd <session-id> <dir>  change an instance's working directory
+  opendash cd <session-id> <dir> -w <branch>
+                                  switch into a new worktree on <branch>
 
   destructive commands ask for confirmation; -y/--yes skips it
   opendash doctor [-d DIR]        check that instances can actually start
@@ -83,6 +86,7 @@ case ${1-} in
   quit)                shift; exec $py "$here/ocore.py" quit "$@" ;;
   doctor)              shift; exec $py "$here/ocore.py" doctor "$@" ;;
   abort|stop)          shift; exec $py "$here/ocore.py" abort "$@" ;;
+  cd)                  shift; exec $py "$here/ocore.py" cd "$@" ;;
   unlink)              shift; exec $py "$here/ocore.py" unlink "$@" ;;
   link)                shift; exec $py "$here/ocore.py" link "$@" ;;
   screen)              shift; exec $py "$here/ocore.py" screen "$@" ;;

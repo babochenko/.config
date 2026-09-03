@@ -730,6 +730,35 @@ def rename_instance(session_id: str, title: str) -> None:
         pass                      # the local name still applies
 
 
+def move_instance_dir(session_id: str, directory: str,
+                       worktree: str | None = None) -> None:
+    """Change the working directory of an existing instance.
+
+    With ``worktree``, creates a new worktree off that directory (exactly like
+    new_instance would) and points the instance at it. Without, the instance
+    just uses the plain directory — any previous worktree is left intact but
+    no longer tracked by this instance.
+
+    The opencode agent's directory is updated by sending the next prompt
+    with the new directory; the server itself scopes sessions by directory
+    on every request, so all future prompts/terminals use the new path.
+    """
+    directory = str(Path(directory).expanduser().resolve())
+    tree = branch = repo = None
+    if worktree:
+        tree, branch, repo = create_worktree(directory, worktree)
+        directory = tree
+    path = INSTANCES / f"{session_id}.json"
+    rec = _read_json(path)
+    if not rec:
+        raise ApiError(f"no instance record for {session_id}")
+    rec["directory"] = directory
+    rec["worktree"] = tree
+    rec["branch"] = branch
+    rec["repo"] = repo
+    _write_json(path, rec)
+
+
 def abort_instance(session_id: str) -> None:
     url = server_url(start=False)
     if not url:
@@ -1591,6 +1620,32 @@ def _cmd_clear(args) -> int:
     return 0
 
 
+def _cmd_cd(args) -> int:
+    sid = _resolve_session_id(args.session_id)
+    if not sid:
+        return 1
+    directory = str(Path(args.directory).expanduser().resolve())
+    if not Path(directory).is_dir():
+        print(f"opendash: no such directory: {directory}", file=sys.stderr)
+        return 1
+    if args.worktree:
+        desc = f"switch {sid} to a new worktree at {directory} branch {args.worktree}"
+    else:
+        desc = f"switch {sid} to {directory}"
+    if not _confirm(args, f"{desc}?"):
+        print("cancelled")
+        return 1
+    try:
+        move_instance_dir(sid, directory, worktree=args.worktree)
+    except Exception as e:
+        print(f"opendash: {e}", file=sys.stderr)
+        return 1
+    rec = _read_json(INSTANCES / f"{sid}.json")
+    new_dir = rec.get("directory") if rec else directory
+    print(f"moved {sid} to {new_dir}")
+    return 0
+
+
 def _cmd_prompt(args) -> int:
     record = next((r for r in instance_records()
                    if r["session_id"] == args.session_id), None)
@@ -1779,6 +1834,14 @@ def main(argv=None) -> int:
     p.add_argument("session_id", nargs="+")
     p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
     p.set_defaults(fn=_cmd_abort)
+
+    p = sub.add_parser("cd", help="change an instance's working directory")
+    p.add_argument("session_id", help="session ID or name")
+    p.add_argument("directory", help="new working directory")
+    p.add_argument("-w", "--worktree", metavar="BRANCH",
+                   help="create a worktree off this directory on branch BRANCH")
+    p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
+    p.set_defaults(fn=_cmd_cd)
 
     p = sub.add_parser("unlink", help="ignore a discovered ticket or PR association")
     p.add_argument("session_id")
