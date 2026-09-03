@@ -1550,6 +1550,18 @@ def _cmd_unlink(args) -> int:
         count = metadata.clear_associations(STATE, sid)
         print(f"cleared {count} linked association(s) from {sid}")
         return 0
+    if args.ticket:
+        rec = _read_json(INSTANCES / f"{sid}.json")
+        ticket = (rec or {}).get("ticket")
+        if not ticket:
+            print(f"no ticket linked to {sid}")
+            return 1
+        if not _confirm(args, f"Unlink ticket {ticket} from {sid}?"):
+            print("cancelled")
+            return 1
+        unlink_association(sid, ticket)
+        print(f"unlinked ticket {ticket} from {sid}")
+        return 0
     desc = args.association or "all ticket associations"
     if not _confirm(args, f"Unlink {desc} from {sid}?"):
         print("cancelled")
@@ -1857,6 +1869,8 @@ def main(argv=None) -> int:
     p.add_argument("association", nargs="?", help="ticket ID, PR number (#123), or omit for tickets")
     p.add_argument("-a", "-all", "--all", action="store_true",
                    help="unlink all associations (tickets and PRs)")
+    p.add_argument("-t", "--ticket", action="store_true",
+                   help="unlink the ticket from this instance")
     p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
     p.set_defaults(fn=_cmd_unlink)
 
