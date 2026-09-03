@@ -300,7 +300,10 @@ def git_summary(directory: str | Path) -> dict:
     """Match the prompt counts and ``gs`` line totals for a work directory."""
     empty = {"branch": "", "ahead": 0, "behind": 0, "staged": 0,
              "modified": 0, "untracked": 0, "adds": 0, "dels": 0}
-    status = git(directory, "status", "--porcelain=v1", "--branch", timeout=5)
+    try:
+        status = git(directory, "status", "--porcelain=v1", "--branch", timeout=5)
+    except subprocess.TimeoutExpired:
+        return empty
     if status.returncode != 0:
         return empty
 

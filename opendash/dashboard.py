@@ -947,8 +947,6 @@ def run(stdscr, start_dir: str) -> None:
         except curses.error:
             continue                                  # tick with no key
         cur = items[sel] if items else None
-        if cur and cur.get("pending"):
-            cur = None
 
         if isinstance(ch, int):
             if ch == curses.KEY_DOWN:
@@ -1129,25 +1127,33 @@ def run(stdscr, start_dir: str) -> None:
             except OSError as e:
                 error_pause(stdscr, f"failed to open link: {e}")
         elif ch == "d" and cur:
-            label = cur.get("ticket") or ocore._headline(cur)[:40]
-            tree = cur.get("worktree")
-            question = f" remove “{label}” from the dashboard?"
-            if tree:
-                question = (f" remove “{label}” and its worktree "
-                            f"{Path(tree).name}? the branch is kept:")
-            if confirm(stdscr, question):
-                force = False
-                if tree and ocore.worktree_dirty(cur):
-                    force = confirm(stdscr, " worktree has uncommitted changes — "
-                                            "discard them?")
-                if tree and ocore.worktree_dirty(cur) and not force:
-                    flash(stdscr, " kept — commit or stash first")
-                else:
-                    try:
-                        ocore.remove_instance(cur["session_id"], force=force)
-                    except Exception as e:
-                        error_pause(stdscr, f"{e}")
+            if cur.get("pending"):
+                if confirm(stdscr, f" cancel this pending instance?"):
+                    with data.lock:
+                        data.pending[:] = [p for p in data.pending
+                                           if p["session_id"] != cur["session_id"]]
+                    flash(stdscr, " cancelled")
                     data.refresh_now()
+            else:
+                label = cur.get("ticket") or ocore._headline(cur)[:40]
+                tree = cur.get("worktree")
+                question = f" remove “{label}” from the dashboard?"
+                if tree:
+                    question = (f" remove “{label}” and its worktree "
+                                f"{Path(tree).name}? the branch is kept:")
+                if confirm(stdscr, question):
+                    force = False
+                    if tree and ocore.worktree_dirty(cur):
+                        force = confirm(stdscr, " worktree has uncommitted changes — "
+                                        "discard them?")
+                    if tree and ocore.worktree_dirty(cur) and not force:
+                        flash(stdscr, " kept — commit or stash first")
+                    else:
+                        try:
+                            ocore.remove_instance(cur["session_id"], force=force)
+                        except Exception as e:
+                            error_pause(stdscr, f"{e}")
+                        data.refresh_now()
         elif ch in ("r", "R") and cur:
             name = ask(stdscr, " title:", ocore._headline(cur) if ch == "r" else "")
             if name:
