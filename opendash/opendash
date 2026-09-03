@@ -28,10 +28,14 @@ opendash - background opencode instances
   opendash prompt <session-id> <text...>
                                   send a prompt to an instance
   opendash clear <session-id>    delete all messages, keeping the session
-  opendash clear -a[ll] <session-id>
-                                  clear all linked metadata for this session
+  opendash unlink <session-id> [id]  ignore a ticket or PR association
+  opendash unlink -a[ll] <session-id>
+                                  unlink all associations (tickets and PRs)
   opendash rm <session-id>...     stop an instance and drop it from the list
   opendash quit                   stop every instance and the shared server
+  opendash abort <session-id>...  interrupt a running instance
+
+  destructive commands ask for confirmation; -y/--yes skips it
   opendash doctor [-d DIR]        check that instances can actually start
   opendash server [status|start|stop]
                                   the shared background opencode server

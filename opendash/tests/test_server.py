@@ -363,7 +363,7 @@ class CmdClear(FakeServerCase):
         self.box.message(session_id="ses_c", role="user", when=now_ms())
         self.box.message(session_id="ses_c", role="assistant", when=now_ms() + 1)
         self.box.record(session_id="ses_c")
-        args = type("A", (), {"session_id": "ses_c"})()
+        args = type("A", (), {"session_id": "ses_c", "yes": True})()
         rc = self.ocore._cmd_clear(args)
         self.assertEqual(rc, 0)
         con = sqlite3.connect(self.box.db)
@@ -373,24 +373,24 @@ class CmdClear(FakeServerCase):
 
     def test_clear_no_db(self):
         self.box.db.unlink()
-        args = type("A", (), {"session_id": "ses_x"})()
+        args = type("A", (), {"session_id": "ses_x", "yes": True})()
         rc = self.ocore._cmd_clear(args)
         self.assertEqual(rc, 1)
 
 
 class CmdServer(FakeServerCase):
     def test_status(self):
-        args = type("A", (), {"action": "status"})()
+        args = type("A", (), {"action": "status", "yes": False})()
         rc = self.ocore._cmd_server(args)
         self.assertEqual(rc, 0)
 
     def test_start(self):
-        args = type("A", (), {"action": "start"})()
+        args = type("A", (), {"action": "start", "yes": False})()
         rc = self.ocore._cmd_server(args)
         self.assertEqual(rc, 0)
 
     def test_stop(self):
-        args = type("A", (), {"action": "stop"})()
+        args = type("A", (), {"action": "stop", "yes": True})()
         rc = self.ocore._cmd_server(args)
         self.assertEqual(rc, 0)
 
@@ -411,7 +411,7 @@ class CmdPrompt(FakeServerCase):
 
 class CmdAbort(FakeServerCase):
     def test_abort(self):
-        args = type("A", (), {"session_id": ["ses_x"]})()
+        args = type("A", (), {"session_id": ["ses_x"], "yes": True})()
         rc = self.ocore._cmd_abort(args)
         self.assertEqual(rc, 0)
         self.assertEqual(len(self.server.aborted), 1)
@@ -422,7 +422,8 @@ class CmdQuit(FakeServerCase):
         self.box.record(session_id="ses_q1")
         self.box.record(session_id="ses_q2")
         with patch.object(self.ocore, "tmux") as tmux_mock:
-            rc = self.ocore._cmd_quit(type("A", (), {})())
+            args = type("A", (), {"yes": True})()
+            rc = self.ocore._cmd_quit(args)
         self.assertEqual(rc, 0)
         self.assertEqual(len(self.server.aborted), 2)
 

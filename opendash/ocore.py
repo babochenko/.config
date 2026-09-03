@@ -1439,15 +1439,35 @@ def _cmd_list(args) -> int:
     return 0
 
 
+def _confirm(args, message: str) -> bool:
+    """Ask for y/N confirmation unless --yes is set."""
+    if getattr(args, "yes", False):
+        return True
+    print(f"{message} [y/N] ", end="", flush=True)
+    try:
+        return input().strip().lower() in ("y", "yes")
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+
+
 def _cmd_rm(args) -> int:
-    for sid in args.session_id:
+    sids = list(args.session_id)
+    if not _confirm(args, f"Stop and remove {len(sids)} instance(s)?"):
+        print("cancelled")
+        return 1
+    for sid in sids:
         remove_instance(sid, force=args.force)
         print(f"removed {sid}")
     return 0
 
 
 def _cmd_abort(args) -> int:
-    for sid in args.session_id:
+    sids = list(args.session_id)
+    if not _confirm(args, f"Abort {len(sids)} running instance(s)?"):
+        print("cancelled")
+        return 1
+    for sid in sids:
         abort_instance(sid)
         print(f"aborted {sid}")
     return 0
@@ -1481,6 +1501,17 @@ def _resolve_session_id(query: str) -> str | None:
 def _cmd_unlink(args) -> int:
     sid = _resolve_session_id(args.session_id)
     if not sid:
+        return 1
+    if args.all:
+        if not _confirm(args, f"Unlink all associations from {sid}?"):
+            print("cancelled")
+            return 1
+        count = metadata.clear_associations(STATE, sid)
+        print(f"cleared {count} linked association(s) from {sid}")
+        return 0
+    desc = args.association or "all ticket associations"
+    if not _confirm(args, f"Unlink {desc} from {sid}?"):
+        print("cancelled")
         return 1
     changed = unlink_association(sid, args.association)
     print(f"unlinked {args.association or 'associations'} from {sid}" if changed
@@ -1539,10 +1570,9 @@ def _cmd_clear(args) -> int:
     sid = _resolve_session_id(args.session_id)
     if not sid:
         return 1
-    if args.all:
-        count = metadata.clear_associations(STATE, sid)
-        print(f"cleared {count} linked association(s) from {sid}")
-        return 0
+    if not _confirm(args, f"Delete all messages from {sid}?"):
+        print("cancelled")
+        return 1
     p = db_path()
     if not p.exists():
         print(f"opendash: db not found at {p}")
@@ -1607,6 +1637,10 @@ def _cmd_ci(args) -> int:
 
 
 def _cmd_quit(args) -> int:
+    count = len(instance_records())
+    if not _confirm(args, f"Stop {count} instance(s) and the shared server?"):
+        print("cancelled")
+        return 1
     print(f"stopped {quit_all()} instance(s) and the shared server")
     return 0
 
@@ -1696,6 +1730,9 @@ def _cmd_server(args) -> int:
     if args.action == "start":
         print(server_url())
     elif args.action == "stop":
+        if not _confirm(args, "Stop the shared opencode server?"):
+            print("cancelled")
+            return 1
         print("stopped" if stop_server() else "no server recorded")
     else:
         info = server_info()
@@ -1732,15 +1769,20 @@ def main(argv=None) -> int:
     p.add_argument("session_id", nargs="+")
     p.add_argument("-f", "--force", action="store_true",
                    help="discard uncommitted changes in the worktree")
+    p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
     p.set_defaults(fn=_cmd_rm)
 
     p = sub.add_parser("abort", help="interrupt a running instance")
     p.add_argument("session_id", nargs="+")
+    p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
     p.set_defaults(fn=_cmd_abort)
 
     p = sub.add_parser("unlink", help="ignore a discovered ticket or PR association")
     p.add_argument("session_id")
     p.add_argument("association", nargs="?", help="ticket ID, PR number (#123), or omit for tickets")
+    p.add_argument("-a", "-all", "--all", action="store_true",
+                   help="unlink all associations (tickets and PRs)")
+    p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
     p.set_defaults(fn=_cmd_unlink)
 
     p = sub.add_parser("link", help="add or restore a ticket or PR association")
@@ -1766,11 +1808,11 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("clear", help="delete messages, keeping sessions themselves")
     p.add_argument("session_id", help="session ID or name")
-    p.add_argument("-a", "-all", "--all", action="store_true",
-                   help="clear all linked metadata for this session")
+    p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
     p.set_defaults(fn=_cmd_clear)
 
     p = sub.add_parser("quit", help="stop every instance and the shared server")
+    p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
     p.set_defaults(fn=_cmd_quit)
 
     p = sub.add_parser("doctor", help="check that instances can actually start")
@@ -1780,6 +1822,7 @@ def main(argv=None) -> int:
     p = sub.add_parser("server", help="manage the shared opencode server")
     p.add_argument("action", nargs="?", default="status",
                    choices=["status", "start", "stop"])
+    p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
     p.set_defaults(fn=_cmd_server)
 
     args = ap.parse_args(argv)
