@@ -1543,6 +1543,23 @@ def _cmd_unlink(args) -> int:
     sid = _resolve_session_id(args.session_id)
     if not sid:
         return 1
+    if args.ticket_all:
+        if not _confirm(args, f"Unlink all tickets from {sid}?"):
+            print("cancelled")
+            return 1
+        md = metadata.load(STATE)
+        tickets = list((md.get(sid) or {}).get("tickets") or [])
+        rec = _read_json(INSTANCES / f"{sid}.json")
+        rec_ticket = (rec or {}).get("ticket")
+        if rec_ticket and rec_ticket not in tickets:
+            tickets.append(rec_ticket)
+        if not tickets:
+            print(f"no tickets linked to {sid}")
+            return 1
+        for ticket in tickets:
+            unlink_association(sid, ticket)
+        print(f"unlinked {len(tickets)} ticket(s) from {sid}")
+        return 0
     if args.all:
         if not _confirm(args, f"Unlink all associations from {sid}?"):
             print("cancelled")
@@ -1875,6 +1892,8 @@ def main(argv=None) -> int:
                    help="unlink all associations (tickets and PRs)")
     p.add_argument("-t", "--ticket", action="store_true",
                    help="unlink the ticket from this instance")
+    p.add_argument("-ta", "-all-tickets", "--ticket-all", action="store_true",
+                   help="unlink all tickets from this instance (keeps PRs)")
     p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
     p.set_defaults(fn=_cmd_unlink)
 
