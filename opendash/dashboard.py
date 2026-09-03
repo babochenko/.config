@@ -252,14 +252,23 @@ class Data:
                         self.pr = pr_cache
                         for item in self.items:
                             item["pr_info"] = [pr_cache.get(metadata._candidate_key(p),
-                                                              pr_cache.get(str(p.get("number")), p))
-                                                for p in item.get("prs", [])]
+                                                               pr_cache.get(str(p.get("number")), p))
+                                                 for p in item.get("prs", [])]
                             if not item.get("ticket") and not item.get("ticket_manual"):
                                 for info in item["pr_info"]:
                                     if info.get("tickets"):
                                         item["ticket"] = info["tickets"][0]
                                         metadata.associate_ticket(ocore.STATE, item["session_id"], item["ticket"])
                                         break
+                            # Auto-trigger "check" on gradle-exception build failures
+                            if not item.get("pending"):
+                                failures = metadata.failed_gradle_builds(item.get("pr_info") or [])
+                                if failures and not item.get("_auto_checked"):
+                                    item["_auto_checked"] = True
+                                    try:
+                                        ocore.run_terminal_command(item, "check")
+                                    except Exception:
+                                        pass
             except Exception:
                 pass
             finally:

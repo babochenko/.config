@@ -379,6 +379,9 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
     approvals = value.get("approvals")
     builds = value.get("builds") if isinstance(value.get("builds"), dict) else {}
     comments = value.get("unresolved_comments") or []
+    build_details = value.get("build_details") or []
+    if not isinstance(build_details, list):
+        build_details = []
     return {
         "fetched": time.time(), "number": str(value.get("number") or candidate.get("number")),
         "label": f"#{value.get('number') or candidate.get('number')}",
@@ -392,6 +395,10 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
         "builds": {"ok": int(builds.get("ok") or 0), "failed": int(builds.get("failed") or 0),
                    "unavailable": int(builds.get("unavailable") or 0),
                    "error": builds.get("error")},
+        "build_details": [{"name": str(b.get("name") or ""),
+                           "status": str(b.get("status") or "").upper(),
+                           "details": str(b.get("details") or "")}
+                          for b in build_details if isinstance(b, dict)],
         "tickets": [str(t).upper() for t in value.get("tickets", []) if isinstance(t, str)],
         "error": value.get("error"),
     }
@@ -407,6 +414,22 @@ def pr_cache(state: Path) -> dict:
 
 def jira_cache(state: Path) -> dict:
     return _cache(state, "jira.json")
+
+
+def failed_gradle_builds(pr_info: list[dict]) -> list[tuple[str, str]]:
+    """Return (pr_number, build_name) for FAILED builds whose details mention 'gradle exception'."""
+    result = []
+    for pr in pr_info:
+        if not isinstance(pr, dict):
+            continue
+        for build in pr.get("build_details") or []:
+            if not isinstance(build, dict):
+                continue
+            status = str(build.get("status") or "").upper()
+            details = str(build.get("details") or "").lower()
+            if "FAILED" in status and "gradle exception" in details:
+                result.append((str(pr.get("number") or ""), str(build.get("name") or "")))
+    return result
 
 
 def _write_cache(state: Path, name: str, value: dict) -> None:
@@ -445,7 +468,8 @@ def _agent_prompt(prs: list[dict]) -> str:
         '{"prs":[{"number":"123","repository":"team/project",'
         '"status":"opened","approvals":0,"needs_update":false,'
         '"unresolved_threads":0,"unresolved_comments":[],'
-        '"builds":{"ok":0,"failed":0,"unavailable":0}}]}'
+        '"builds":{"ok":0,"failed":0,"unavailable":0},'
+        '"build_details":[{"name":"Build Name","status":"SUCCESSFUL","details":"Tests passed: 649"}]}]}'
     )
 
 
