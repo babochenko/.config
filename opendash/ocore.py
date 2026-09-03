@@ -757,6 +757,15 @@ def move_instance_dir(session_id: str, directory: str,
     rec["branch"] = branch
     rec["repo"] = repo
     _write_json(path, rec)
+    # The opencode server pins the session's directory at creation time;
+    # the only way to move the agent is to tell it explicitly.
+    try:
+        send_prompt(session_id,
+                    f"Your working directory has been changed to `{directory}`."
+                    f" Please `cd` there for all future work.",
+                    directory)
+    except ApiError:
+        pass                  # the record is still updated; next manual prompt will use the new dir
 
 
 def abort_instance(session_id: str) -> None:
