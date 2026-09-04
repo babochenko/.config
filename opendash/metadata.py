@@ -375,6 +375,23 @@ def _normalise_pr_status(value: dict) -> str | None:
     }.get(raw, raw or None)
 
 
+def _normalise_comment(comment: dict) -> dict:
+    """Flatten the shapes Bitbucket/the agent may report for one comment."""
+    author = comment.get("author") or comment.get("display_name")
+    user = comment.get("user")
+    if not author and isinstance(user, dict):
+        author = user.get("display_name") or user.get("nickname")
+    text = comment.get("text")
+    if not isinstance(text, str):
+        text = comment.get("content")
+        if isinstance(text, dict):
+            text = text.get("raw") or text.get("html")
+    created = (comment.get("created") or comment.get("created_on")
+               or comment.get("updated_on") or comment.get("updated"))
+    return {"author": str(author or ""), "created": str(created or ""),
+            "text": str(text or "")}
+
+
 def _normalise_pr(value: dict, candidate: dict) -> dict:
     approvals = value.get("approvals")
     builds = value.get("builds") if isinstance(value.get("builds"), dict) else {}
@@ -391,7 +408,8 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
         "approvals": approvals if isinstance(approvals, int) else None,
         "needs_update": bool(value.get("needs_update")),
         "unresolved_threads": int(value.get("unresolved_threads") or 0),
-        "unresolved_comments": [comment for comment in comments if isinstance(comment, dict)],
+        "unresolved_comments": [_normalise_comment(comment)
+                             for comment in comments if isinstance(comment, dict)],
         "builds": {"ok": int(builds.get("ok") or 0), "failed": int(builds.get("failed") or 0),
                    "unavailable": int(builds.get("unavailable") or 0),
                    "error": builds.get("error")},
@@ -468,7 +486,9 @@ def _agent_prompt(prs: list[dict]) -> str:
         '{"prs":[{"number":"123","repository":"team/project",'
         '"title":"Human readable pull request title",'
         '"status":"opened","approvals":0,"needs_update":false,'
-        '"unresolved_threads":0,"unresolved_comments":[],'
+        '"unresolved_threads":0,"unresolved_comments":'
+        '[{"author":"Comment Author","created":"2026-01-01 12:34",'
+        '"text":"What the comment says"}],'
         '"builds":{"ok":0,"failed":0,"unavailable":0},'
         '"build_details":[{"name":"Build Name","status":"SUCCESSFUL","details":"Tests passed: 649"}]}]}'
     )
