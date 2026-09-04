@@ -762,6 +762,18 @@ def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, bool, str | None
             segs.append((text, colour, False, None))
         lines.append(segs)
 
+    for check in pr.get("merge_checks") or []:
+        label = str(check.get("check") or "")
+        if not label:
+            continue
+        passed = check.get("passed")
+        if passed is True:
+            lines.append([(f"    ✓ {label}", C_OK, False, None)])
+        elif passed is False:
+            lines.append([(f"    ✗ {label}", C_ERR, False, None)])
+        else:
+            lines.append([(f"    · {label}", C_DIM, False, None)])
+
     tickets = pr.get("tickets") or []
     if tickets:
         lines.append([("  tickets: ", C_DIM, False, None),

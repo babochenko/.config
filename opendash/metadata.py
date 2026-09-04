@@ -399,6 +399,18 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
     build_details = value.get("build_details") or []
     if not isinstance(build_details, list):
         build_details = []
+    raw_checks = value.get("merge_checks") or []
+    if not isinstance(raw_checks, list):
+        raw_checks = []
+    checks = []
+    for check in raw_checks:
+        if isinstance(check, dict):
+            label = str(check.get("check") or check.get("name") or "")
+            passed = check.get("passed")
+            checks.append({"check": label,
+                            "passed": passed if isinstance(passed, bool) else None})
+        elif str(check):
+            checks.append({"check": str(check), "passed": None})
     return {
         "fetched": time.time(), "number": str(value.get("number") or candidate.get("number")),
         "label": f"#{value.get('number') or candidate.get('number')}",
@@ -410,6 +422,7 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
         "unresolved_threads": int(value.get("unresolved_threads") or 0),
         "unresolved_comments": [_normalise_comment(comment)
                              for comment in comments if isinstance(comment, dict)],
+        "merge_checks": checks,
         "builds": {"ok": int(builds.get("ok") or 0), "failed": int(builds.get("failed") or 0),
                    "unavailable": int(builds.get("unavailable") or 0),
                    "error": builds.get("error")},
@@ -482,6 +495,9 @@ def _agent_prompt(prs: list[dict]) -> str:
         "or perform any write operation. Fetch the current pull request title, "
         "status, approval count, whether updates are needed, unresolved review threads "
         "and comments, and build results for these candidates: " + candidates + "\n"
+        "Also read each pull request's merge checks -- the same list the PR overview "
+        "page shows (approval requirement, in-progress builds, failed builds, open "
+        "tasks and any other blocking requirement) -- reporting each as passed or not. "
         "Return exactly one JSON object and no markdown in this schema: "
         '{"prs":[{"number":"123","repository":"team/project",'
         '"title":"Human readable pull request title",'
@@ -489,6 +505,8 @@ def _agent_prompt(prs: list[dict]) -> str:
         '"unresolved_threads":0,"unresolved_comments":'
         '[{"author":"Comment Author","created":"2026-01-01 12:34",'
         '"text":"What the comment says"}],'
+        '"merge_checks":[{"check":"2+ approvals","passed":true},'
+        '{"check":"no in progress builds","passed":false}],'
         '"builds":{"ok":0,"failed":0,"unavailable":0},'
         '"build_details":[{"name":"Build Name","status":"SUCCESSFUL","details":"Tests passed: 649"}]}]}'
     )
