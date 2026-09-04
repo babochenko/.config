@@ -829,6 +829,29 @@ def _pr_label(pr: dict, loading: bool = False, frame: int = 0) -> str:
     return label
 
 
+def _grouped_pr_labels(prs: list, loading: bool = False, frame: int = 0) -> list[str]:
+    """Group PRs by repository name: parrot#123 infra-apps-conf(#1001 #1002)."""
+    by_repo: dict[str, list] = {}
+    order: list[str] = []
+    for pr in prs:
+        repo = pr.get("repository") or ""
+        name = repo.rsplit("/", 1)[-1] if repo else ""
+        if name not in by_repo:
+            by_repo[name] = []
+            order.append(name)
+        by_repo[name].append(pr)
+    labels = []
+    for name in order:
+        group = by_repo[name]
+        pr_labels = [_pr_label(pr, loading, frame) for pr in group]
+        if len(group) == 1:
+            labels.append(f"{name}{pr_labels[0]}" if name else pr_labels[0])
+        else:
+            inner = " ".join(pr_labels)
+            labels.append(f"{name}({inner})" if name else f"({inner})")
+    return labels
+
+
 def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) -> None:
     state = item["state"]
     pair = curses.color_pair(C_DIM if minimized else STATE_COLOR.get(state, C_DIM))
@@ -879,7 +902,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         pr_suffix = ""
         if prs:
             pr_suffix = "  " + "  ".join(
-                _pr_label(pr, item.get("pr_loading", False), frame) for pr in prs)
+                _grouped_pr_labels(prs, item.get("pr_loading", False), frame))
         suffix = "  " + _location_label(item, branch) + pr_suffix
         printw(stdscr, y, x, clip(ocore._headline(item) + suffix, max(4, status_x - x - 2)),
                title_attr)
@@ -918,8 +941,8 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
                           (f"-{gitinfo.get('dels', 0)}", C_ERR, None)))
 
     prs = item.get("pr_info") or item.get("prs") or []
-    for pr in prs:
-        git_parts.append((_pr_label(pr, item.get("pr_loading", False), frame), C_DIM, None))
+    for pr_label in _grouped_pr_labels(prs, item.get("pr_loading", False), frame):
+        git_parts.append((pr_label, C_DIM, None))
     comments = []
     for pr in prs:
         comments.extend(pr.get("unresolved_comments") or [])
