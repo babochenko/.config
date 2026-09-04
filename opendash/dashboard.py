@@ -757,10 +757,16 @@ def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, bool, str | None
         lines.append([(f"    ✓ {len(passed)} passed — ", C_OK, False, None),
                       (names, C_OK, False, None)])
     for comment in comments:
-        author = comment.get("author") or comment.get("display_name") or "?"
-        text = str(comment.get("text") or comment.get("content") or "")[:120]
-        lines.append([(f"    ⊟ {author}: ", C_ERR, False, None),
-                      (text, C_DIM, False, None)])
+        author = comment.get("author") or ""
+        text = comment.get("text") or ""
+        created = str(comment.get("created") or "")[:16].replace("T", " ").rstrip()
+        if not author and not text:
+            continue  # count is already in the stats line
+        prefix = f"    ⊟ {author}".rstrip()
+        if created:
+            prefix += f" {created}"
+        lines.append([(prefix + ": ", C_ERR, False, None),
+                      (clip(text, 120), C_DIM, False, None)])
     return lines
 
 
