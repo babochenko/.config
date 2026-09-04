@@ -130,6 +130,8 @@ class Data:
         self._terminals_cache: dict[str, str] = {}
         self._attention_cache: dict[str, str] = {}
         self._server_up_cache: bool = False
+        self.pr_forcing = False
+        self._meta_lock = threading.Lock()
 
     def start(self):
         threading.Thread(target=self._loop, daemon=True).start()
@@ -145,6 +147,28 @@ class Data:
 
     def refresh_now(self):
         self._wake.set()
+
+    def refresh_prs_now(self, item: dict):
+        """Force a fresh metadata fetch for one instance's PRs, off the UI thread."""
+        prs = list(item.get("prs") or [])
+        with self.lock:
+            if not prs or self.pr_forcing:
+                return
+            self.pr_forcing = True
+
+        def worker():
+            try:
+                with self._meta_lock:
+                    _, pr_cache = metadata.refresh_remote(ocore.STATE, [], prs, 0)
+                with self.lock:
+                    self.pr = pr_cache
+            except Exception:
+                pass
+            finally:
+                with self.lock:
+                    self.pr_forcing = False
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def create(self, task: str, directory: str, worktree: str | None) -> None:
         """Create an instance off the UI thread while showing a local placeholder."""
@@ -251,7 +275,8 @@ class Data:
                     loading = bool(prs)
                     with self.lock:
                         self.pr_loading = loading
-                    cache, pr_cache = metadata.refresh_remote(ocore.STATE, tickets, prs)
+                    with self._meta_lock:
+                        cache, pr_cache = metadata.refresh_remote(ocore.STATE, tickets, prs)
                     with self.lock:
                         self.jira = cache
                         self.pr = pr_cache
@@ -553,7 +578,7 @@ CODE_ACTIONS = [
     ("i", "[i]nject open PRs, check comments and builds"),
     ("m", "[m]erge master"),
     ("p", "[p]ush commit"),
-    ("P", "show all [P]ull requests with details"),
+    ("P", "show all [P]ull requests, fetch fresh checks"),
     ("r", "[r]eview branch"),
     ("s", "[s]how git status"),
     ("U", "[U]pdate config and relaunch"),
@@ -815,29 +840,44 @@ def _inject_links(win, links: list[tuple[int, int, str, str, int, bool]]) -> Non
         sys.stdout.flush()
 
 
-def prs_overlay(stdscr, item: dict, frame: int) -> None:
-    """Show every PR linked to the instance in a scrollable modal."""
-    prs = item.get("pr_info") or item.get("prs") or []
-    if not prs:
+def prs_overlay(stdscr, item: dict, data, frame: int) -> None:
+    """Show every PR linked to the instance in a scrollable modal.
+
+    Opening it forces a fresh metadata fetch (checks, comments, builds) in the
+    background; the modal re-reads the live cache and redraws until it lands.
+    """
+    def live_prs() -> list[dict]:
+        cache = data.pr
+        return [cache.get(metadata._candidate_key(p), cache.get(str(p.get("number")), p))
+                for p in item.get("prs") or []]
+
+    if not live_prs():
         return
-    all_segments: list[list[tuple[str, int, bool, str | None]]] = []
-    for n, pr in enumerate(prs):
-        if n:
-            all_segments.append([("", C_DIM, False, None)])
-        all_segments.extend(_pr_overlay_segments(pr))
-    maxy, maxx = stdscr.getmaxyx()
-    longest = max(sum(_tw(text) for text, _, _, _ in line) for line in all_segments)
-    height = min(maxy - 4, max(7, len(all_segments) + 4))
-    width = min(maxx - 4, max(40, longest + 8))
+    data.refresh_prs_now(item)
     top = 0
+    maxy, maxx = stdscr.getmaxyx()
     while True:
+        prs = live_prs()
+        all_segments: list[list[tuple[str, int, bool, str | None]]] = []
+        for n, pr in enumerate(prs):
+            if n:
+                all_segments.append([("", C_DIM, False, None)])
+            all_segments.extend(_pr_overlay_segments(pr))
+        if not all_segments:
+            all_segments = [[("(no PR metadata yet)", C_DIM, False, None)]]
+        longest = max(sum(_tw(text) for text, _, _, _ in line) for line in all_segments)
+        height = min(maxy - 4, max(7, len(all_segments) + 4))
+        width = min(maxx - 4, max(40, longest + 8))
         wy = max(0, (maxy - height) // 2)
         wx = max(0, (maxx - width) // 2)
         win = curses.newwin(height, width, wy, wx)
         # No colour on bkgd: it OR-merges into every written colour pair.
         win.bkgd(" ")
         win.border()
-        printw(win, 0, 2, f" PRs for {ocore._headline(item)[:40]} ",
+        title = f" PRs for {ocore._headline(item)[:40]} "
+        if data.pr_forcing:
+            title = f" {SPINNER[int(time.time() * 4) % len(SPINNER)]} fetching checks… " + title.strip() + " "
+        printw(win, 0, 2, title[:width - 4],
                curses.color_pair(C_ACCENT) | curses.A_BOLD)
         visible = max(1, height - 4)
         links: list[tuple[int, int, str, str, int, bool]] = []
@@ -856,12 +896,14 @@ def prs_overlay(stdscr, item: dict, frame: int) -> None:
             printw(win, height - 2, width - 4, "↓", curses.color_pair(C_DIM))
         win.refresh()
         _inject_links(win, links)
-        with blocking(stdscr):
-            try:
-                ch = stdscr.get_wch()
-            except curses.error:
-                ch = "\x1b"
+        stdscr.timeout(250)
+        try:
+            ch = stdscr.get_wch()
+        except curses.error:
+            ch = None
         del win
+        if ch is None:
+            continue
         if ch in ("\x1b", "q", "?", "c", "P"):
             break
         if ch in ("j", curses.KEY_DOWN):
@@ -870,6 +912,7 @@ def prs_overlay(stdscr, item: dict, frame: int) -> None:
             top = max(0, top - 1)
         else:
             break
+    stdscr.timeout(TICK_MS)
     stdscr.touchwin()
     stdscr.refresh()
 
@@ -1325,7 +1368,7 @@ def run(stdscr, start_dir: str) -> None:
                     elif action == "s":
                         git_status_overlay(stdscr, cur.get("directory") or last_dir)
                     elif action == "P":
-                        prs_overlay(stdscr, cur, frame)
+                        prs_overlay(stdscr, cur, data, frame)
                     elif action == "r":
                         directory = cur.get("directory") or last_dir
                         branch = ocore.review_branch(directory)
