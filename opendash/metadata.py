@@ -461,11 +461,12 @@ def _agent_prompt(prs: list[dict]) -> str:
     ], separators=(",", ":"))
     return (
         "Use the Bitbucket MCP tools only. Do not edit files, run shell commands, "
-        "or perform any write operation. Fetch the current pull request status, "
-        "approval count, whether updates are needed, unresolved review threads "
+        "or perform any write operation. Fetch the current pull request title, "
+        "status, approval count, whether updates are needed, unresolved review threads "
         "and comments, and build results for these candidates: " + candidates + "\n"
         "Return exactly one JSON object and no markdown in this schema: "
         '{"prs":[{"number":"123","repository":"team/project",'
+        '"title":"Human readable pull request title",'
         '"status":"opened","approvals":0,"needs_update":false,'
         '"unresolved_threads":0,"unresolved_comments":[],'
         '"builds":{"ok":0,"failed":0,"unavailable":0},'
@@ -557,7 +558,7 @@ def refresh_remote(state: Path, tickets: list[str], prs: list[dict], ttl: float 
                         "directory": conf["directory"]},
             "tickets": ticket_candidates, "prs": pr_candidates,
             "requirements": {"jira": ["status", "link"], "bitbucket": [
-                "status", "link", "number", "approvals", "needs_update", "unresolved_threads",
+                "status", "link", "number", "title", "approvals", "needs_update", "unresolved_threads",
                 "builds_matching_changed_project"]}}
     try:
         result = _post_json(conf["url"], body, conf["timeout"])

@@ -67,6 +67,11 @@ def _w(ch: str) -> int:
     return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
 
 
+def _tw(text: str) -> int:
+    """Total display width of a string."""
+    return sum(_w(c) for c in text)
+
+
 def clip(text: str, width: int) -> str:
     """Truncate to a printed width, ellipsising when it does not fit."""
     if width <= 0:
@@ -650,7 +655,9 @@ def git_status_overlay(stdscr, directory: str) -> None:
     while True:
         win = curses.newwin(height, width, max(0, (maxy - height) // 2),
                             max(0, (maxx - width) // 2))
-        win.bkgd(" ", curses.color_pair(C_DIM))
+        # A coloured bkgd OR-merges its pair into every explicitly coloured
+        # addstr, corrupting those pairs -- keep it attribute-free.
+        win.bkgd(" ")
         win.border()
         printw(win, 0, 2, " git status ", curses.color_pair(C_ACCENT) | curses.A_BOLD)
         visible = max(1, height - 4)
@@ -681,56 +688,116 @@ def git_status_overlay(stdscr, directory: str) -> None:
     stdscr.refresh()
 
 
-def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, str | None]]]:
-    """Build displayable lines (segments of (text, color, url)) for one PR."""
+def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, bool, str | None]]]:
+    """Build displayable lines (segments of (text, color pair, bold, url)) for one PR."""
     status = str(pr.get("status") or "").lower()
-    icon = _PR_STATUS_ICON.get(status, "·")
-    status_color = {"merged": C_OK, "approved": C_OK, "opened": C_TICKET,
-                    "rejected": C_ERR, "needs changes": C_ERR}.get(status, C_DIM)
+    pair = {"merged": C_OK, "approved": C_OK, "open": C_TICKET, "opened": C_TICKET,
+            "draft": C_WORK, "rejected": C_ERR, "declined": C_ERR,
+            "superseded": C_ERR, "needs changes": C_ERR}.get(status, C_DIM)
     url = pr.get("url") or ""
-    lines: list[list[tuple[str, int, str | None]]] = [
-        [(f"  {icon} #{pr.get('number')} ", status_color, None),
-         (str(status or "unknown"), status_color, None),
-         (f"  {pr.get('title') or ''}", 0, None)],
-        [(url, C_TICKET, url)],
+    comments = pr.get("unresolved_comments") or []
+    lines: list[list[tuple[str, int, bool, str | None]]] = [
+        [("  ", C_DIM, False, None),
+         (f"#{pr.get('number')} ", C_SEL, True, None),
+         (status or "unknown", pair, False, None),
+         (f"  {pr.get('title') or ''}", C_SEL, True, None)],
+        [("  ", C_DIM, False, None),
+         (url, C_TICKET, False, url or None)],
     ]
     repo = pr.get("repository") or ""
     if repo:
-        lines.append([(f"  repo: {repo}", C_DIM, None)])
-    stats = []
+        lines.append([(f"  repo: {repo}", C_DIM, False, None)])
+
+    stats: list[tuple[str, int]] = []
     if pr.get("approvals") is not None:
-        stats.append(f"approvals: {pr.get('approvals')}")
+        stats.append((f"approvals: {pr.get('approvals')}",
+                      C_OK if pr.get("approvals") else C_DIM))
     if pr.get("needs_update"):
-        stats.append("needs update")
+        stats.append(("needs update", C_ERR))
     if pr.get("unresolved_threads"):
-        stats.append(f"unresolved threads: {pr['unresolved_threads']}")
+        stats.append((f"unresolved threads: {pr['unresolved_threads']}", C_DIM))
+    if comments:
+        stats.append((f"open comments: {len(comments)}", C_ERR))
     builds = pr.get("builds") or {}
     if builds.get("ok") or builds.get("failed") or builds.get("unavailable"):
-        parts = []
+        parts: list[tuple[str, int]] = []
         if builds.get("ok"):
-            parts.append(f"{builds['ok']}✓")
+            parts.append((f"{builds['ok']}✓", C_OK))
         if builds.get("failed"):
-            parts.append(f"{builds['failed']}✗")
+            parts.append((f"{builds['failed']}✗", C_ERR))
         if builds.get("unavailable"):
-            parts.append(f"{builds['unavailable']}?")
-        stats.append(f"builds: {'/'.join(parts)}")
+            parts.append((f"{builds['unavailable']}?", C_DIM))
+        stats.append(("builds: " + "/".join(text for text, _ in parts),
+                      parts[-1][1]))
     if stats:
-        lines.append([("  " + "  ".join(stats), C_DIM, None)])
+        segs: list[tuple[str, int, bool, str | None]] = [("  ", C_DIM, False, None)]
+        for n, (text, colour) in enumerate(stats):
+            if n:
+                segs.append(("  ", C_DIM, False, None))
+            segs.append((text, colour, False, None))
+        lines.append(segs)
+
     tickets = pr.get("tickets") or []
     if tickets:
-        lines.append([("  tickets: " + ", ".join(tickets), C_DIM, None)])
+        lines.append([("  tickets: ", C_DIM, False, None),
+                      (", ".join(tickets), C_TICKET, False, None)])
+    passed, troubled = [], []
     for build in pr.get("build_details") or []:
         bstatus = str(build.get("status") or "").upper()
-        bcolor = C_OK if "SUCCESS" in bstatus else C_ERR if "FAIL" in bstatus else C_DIM
-        lines.append([(f"    ⚙ {build.get('name') or '?'}", bcolor, None),
-                      (f" — {bstatus}", bcolor, None)])
+        (passed if "SUCCESS" in bstatus else troubled).append((build, bstatus))
+    for build, bstatus in troubled:
+        bpair = C_ERR if "FAIL" in bstatus else C_WORK
+        lines.append([(f"    ✗ {build.get('name') or '?'}", bpair, True, None),
+                      (f" — {bstatus}", bpair, True, None)])
         if build.get("details"):
-            lines.append([(f"      {build['details']}", C_DIM, None)])
-    for comment in pr.get("unresolved_comments") or []:
+            lines.append([(f"      {build['details']}", C_DIM, False, None)])
+    if passed:
+        names = ", ".join((b.get("name") or "?").rsplit("/", 1)[-1].strip()
+                          for b, _ in passed)
+        lines.append([(f"    ✓ {len(passed)} passed — ", C_OK, False, None),
+                      (names, C_OK, False, None)])
+    for comment in comments:
         author = comment.get("author") or comment.get("display_name") or "?"
         text = str(comment.get("text") or comment.get("content") or "")[:120]
-        lines.append([(f"    ⊟ {author}: {text}", C_ERR, None)])
+        lines.append([(f"    ⊟ {author}: ", C_ERR, False, None),
+                      (text, C_DIM, False, None)])
     return lines
+
+
+# ANSI SGR matching the curses colour pairs, for direct-tty link injection.
+_PAIR_SGR = {C_WORK: "\x1b[33m", C_OK: "\x1b[32m", C_ERR: "\x1b[31m",
+             C_ATT: "\x1b[35m", C_TICKET: "\x1b[36m", C_ACCENT: "\x1b[34m",
+             C_SEL: "\x1b[37m", C_DIM: "\x1b[90m"}
+
+
+def _inject_links(win, links: list[tuple[int, int, str, str, int, bool]]) -> None:
+    """Make already-drawn text clickable by re-emitting it as an OSC 8 span.
+
+    ncurses renders ESC bytes as caret notation, so OSC 8 hyperlinks cannot go
+    through addstr. Instead, park the window cursor on each link (ncurses
+    moves the real cursor there -- through tmux too), then write the span
+    straight to the tty. The rewritten text is identical to what is already on
+    screen, so this is visually a no-op; the terminal just records the link.
+    Plain OSC 8 (no DCS passthrough) is safe: tmux >= 3.4 carries hyperlinks
+    natively and older versions just ignore the escapes.
+    """
+    for row, x, text, url, pair, bold in links:
+        try:
+            win.move(row, x)
+            win.refresh()
+        except curses.error:
+            continue
+        sgr = _PAIR_SGR.get(pair, "")
+        if bold:
+            sgr += "\x1b[1m"
+        # Save/restore around the span: without it the real cursor ends up
+        # past the label while ncurses still believes it is at (row, x), so
+        # its next optimised cursor move is computed from a stale position
+        # and the following link lands in the wrong place.
+        sys.stdout.write("\x1b7" + sgr
+                         + f"\x1b]8;;{url}\x1b\\{text}\x1b]8;;\x1b\\"
+                         + "\x1b[0m\x1b8")
+        sys.stdout.flush()
 
 
 def prs_overlay(stdscr, item: dict, frame: int) -> None:
@@ -738,38 +805,42 @@ def prs_overlay(stdscr, item: dict, frame: int) -> None:
     prs = item.get("pr_info") or item.get("prs") or []
     if not prs:
         return
-    all_segments: list[list[tuple[str, int, str | None]]] = []
+    all_segments: list[list[tuple[str, int, bool, str | None]]] = []
     for n, pr in enumerate(prs):
         if n:
-            all_segments.append([("", 0, None)])
+            all_segments.append([("", C_DIM, False, None)])
         all_segments.extend(_pr_overlay_segments(pr))
     maxy, maxx = stdscr.getmaxyx()
-    longest = max(sum(_w(text) for text, _, _ in line) for line in all_segments)
+    longest = max(sum(_tw(text) for text, _, _, _ in line) for line in all_segments)
     height = min(maxy - 4, max(7, len(all_segments) + 4))
     width = min(maxx - 4, max(40, longest + 8))
     top = 0
     while True:
-        win = curses.newwin(height, width, max(0, (maxy - height) // 2),
-                            max(0, (maxx - width) // 2))
-        win.bkgd(" ", curses.color_pair(C_DIM))
+        wy = max(0, (maxy - height) // 2)
+        wx = max(0, (maxx - width) // 2)
+        win = curses.newwin(height, width, wy, wx)
+        # No colour on bkgd: it OR-merges into every written colour pair.
+        win.bkgd(" ")
         win.border()
         printw(win, 0, 2, f" PRs for {ocore._headline(item)[:40]} ",
                curses.color_pair(C_ACCENT) | curses.A_BOLD)
         visible = max(1, height - 4)
+        links: list[tuple[int, int, str, str, int, bool]] = []
         for row, line in enumerate(all_segments[top:top + visible], 2):
             x = 3
-            for text, color, url in line:
+            for text, pair, bold, url in line:
+                attr = curses.color_pair(pair) | (curses.A_BOLD if bold else 0)
                 if url:
-                    x = _print_link(win, row, x, text, url,
-                                    curses.color_pair(color))
-                else:
-                    x = printw(win, row, x, text,
-                               curses.color_pair(color) if color else 0)
+                    drawn = clip(text, width - 1 - x)
+                    if drawn:
+                        links.append((row, x, drawn, url, pair, bold))
+                x = printw(win, row, x, text, attr)
         if top > 0:
             printw(win, 1, width - 4, "↑", curses.color_pair(C_DIM))
         if top + visible < len(all_segments):
             printw(win, height - 2, width - 4, "↓", curses.color_pair(C_DIM))
         win.refresh()
+        _inject_links(win, links)
         with blocking(stdscr):
             try:
                 ch = stdscr.get_wch()
