@@ -741,18 +741,25 @@ def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, bool, str | None
     if tickets:
         lines.append([("  tickets: ", C_DIM, False, None),
                       (", ".join(tickets), C_TICKET, False, None)])
-    passed, troubled = [], []
+    passed, queued, failed = [], [], []
     for build in pr.get("build_details") or []:
         bstatus = str(build.get("status") or "").upper()
-        (passed if "SUCCESS" in bstatus else troubled).append((build, bstatus))
-    for build, bstatus in troubled:
-        failed = "FAIL" in bstatus
-        bpair = C_ERR if failed else C_WORK
-        bicon = "✗" if failed else "◔"
-        lines.append([(f"    {bicon} {build.get('name') or '?'}", bpair, True, None),
-                      (f" — {bstatus}", bpair, True, None)])
+        if "FAIL" in bstatus:
+            failed.append((build, bstatus))
+        elif "SUCCESS" in bstatus:
+            passed.append((build, bstatus))
+        else:
+            queued.append((build, bstatus))
+    for build, bstatus in failed:
+        lines.append([(f"    ✗ {build.get('name') or '?'}", C_ERR, True, None),
+                      (f" — {bstatus}", C_ERR, True, None)])
         if build.get("details"):
             lines.append([(f"      {build['details']}", C_DIM, False, None)])
+    if queued:
+        names = ", ".join((b.get("name") or "?").rsplit("/", 1)[-1].strip()
+                          for b, _ in queued)
+        lines.append([(f"    ◔ {len(queued)} in progress — ", C_WORK, False, None),
+                      (names, C_WORK, False, None)])
     if passed:
         names = ", ".join((b.get("name") or "?").rsplit("/", 1)[-1].strip()
                           for b, _ in passed)
