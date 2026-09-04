@@ -548,6 +548,7 @@ CODE_ACTIONS = [
     ("i", "[i]nject open PRs, check comments and builds"),
     ("m", "[m]erge master"),
     ("p", "[p]ush commit"),
+    ("P", "show all [P]ull requests with details"),
     ("r", "[r]eview branch"),
     ("s", "[s]how git status"),
     ("U", "[U]pdate config and relaunch"),
@@ -594,7 +595,7 @@ def code_actions_overlay(stdscr) -> str | None:
     with blocking(stdscr):
         try:
             ch = stdscr.get_wch()
-            if isinstance(ch, str) and ch in ("h", "m", "p", "s", "r", "i", "U"):
+            if isinstance(ch, str) and ch in ("h", "m", "p", "s", "r", "i", "U", "P"):
                 choice = ch
         except curses.error:
             pass
@@ -672,6 +673,113 @@ def git_status_overlay(stdscr, directory: str) -> None:
             break
         if ch in ("j", curses.KEY_DOWN):
             top = min(top + 1, max(0, len(lines) - visible))
+        elif ch in ("k", curses.KEY_UP):
+            top = max(0, top - 1)
+        else:
+            break
+    stdscr.touchwin()
+    stdscr.refresh()
+
+
+def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, str | None]]]:
+    """Build displayable lines (segments of (text, color, url)) for one PR."""
+    status = str(pr.get("status") or "").lower()
+    icon = _PR_STATUS_ICON.get(status, "·")
+    status_color = {"merged": C_OK, "approved": C_OK, "opened": C_TICKET,
+                    "rejected": C_ERR, "needs changes": C_ERR}.get(status, C_DIM)
+    url = pr.get("url") or ""
+    lines: list[list[tuple[str, int, str | None]]] = [
+        [(f"  {icon} #{pr.get('number')} ", status_color, None),
+         (str(status or "unknown"), status_color, None),
+         (f"  {pr.get('title') or ''}", 0, None)],
+        [(url, C_TICKET, url)],
+    ]
+    repo = pr.get("repository") or ""
+    if repo:
+        lines.append([(f"  repo: {repo}", C_DIM, None)])
+    stats = []
+    if pr.get("approvals") is not None:
+        stats.append(f"approvals: {pr.get('approvals')}")
+    if pr.get("needs_update"):
+        stats.append("needs update")
+    if pr.get("unresolved_threads"):
+        stats.append(f"unresolved threads: {pr['unresolved_threads']}")
+    builds = pr.get("builds") or {}
+    if builds.get("ok") or builds.get("failed") or builds.get("unavailable"):
+        parts = []
+        if builds.get("ok"):
+            parts.append(f"{builds['ok']}✓")
+        if builds.get("failed"):
+            parts.append(f"{builds['failed']}✗")
+        if builds.get("unavailable"):
+            parts.append(f"{builds['unavailable']}?")
+        stats.append(f"builds: {'/'.join(parts)}")
+    if stats:
+        lines.append([("  " + "  ".join(stats), C_DIM, None)])
+    tickets = pr.get("tickets") or []
+    if tickets:
+        lines.append([("  tickets: " + ", ".join(tickets), C_DIM, None)])
+    for build in pr.get("build_details") or []:
+        bstatus = str(build.get("status") or "").upper()
+        bcolor = C_OK if "SUCCESS" in bstatus else C_ERR if "FAIL" in bstatus else C_DIM
+        lines.append([(f"    ⚙ {build.get('name') or '?'}", bcolor, None),
+                      (f" — {bstatus}", bcolor, None)])
+        if build.get("details"):
+            lines.append([(f"      {build['details']}", C_DIM, None)])
+    for comment in pr.get("unresolved_comments") or []:
+        author = comment.get("author") or comment.get("display_name") or "?"
+        text = str(comment.get("text") or comment.get("content") or "")[:120]
+        lines.append([(f"    ⊟ {author}: {text}", C_ERR, None)])
+    return lines
+
+
+def prs_overlay(stdscr, item: dict, frame: int) -> None:
+    """Show every PR linked to the instance in a scrollable modal."""
+    prs = item.get("pr_info") or item.get("prs") or []
+    if not prs:
+        return
+    all_segments: list[list[tuple[str, int, str | None]]] = []
+    for n, pr in enumerate(prs):
+        if n:
+            all_segments.append([("", 0, None)])
+        all_segments.extend(_pr_overlay_segments(pr))
+    maxy, maxx = stdscr.getmaxyx()
+    longest = max(sum(_w(text) for text, _, _ in line) for line in all_segments)
+    height = min(maxy - 4, max(7, len(all_segments) + 4))
+    width = min(maxx - 4, max(40, longest + 8))
+    top = 0
+    while True:
+        win = curses.newwin(height, width, max(0, (maxy - height) // 2),
+                            max(0, (maxx - width) // 2))
+        win.bkgd(" ", curses.color_pair(C_DIM))
+        win.border()
+        printw(win, 0, 2, f" PRs for {ocore._headline(item)[:40]} ",
+               curses.color_pair(C_ACCENT) | curses.A_BOLD)
+        visible = max(1, height - 4)
+        for row, line in enumerate(all_segments[top:top + visible], 2):
+            x = 3
+            for text, color, url in line:
+                if url:
+                    x = _print_link(win, row, x, text, url,
+                                    curses.color_pair(color))
+                else:
+                    x = printw(win, row, x, text,
+                               curses.color_pair(color) if color else 0)
+        if top > 0:
+            printw(win, 1, width - 4, "↑", curses.color_pair(C_DIM))
+        if top + visible < len(all_segments):
+            printw(win, height - 2, width - 4, "↓", curses.color_pair(C_DIM))
+        win.refresh()
+        with blocking(stdscr):
+            try:
+                ch = stdscr.get_wch()
+            except curses.error:
+                ch = "\x1b"
+        del win
+        if ch in ("\x1b", "q", "?", "c", "P"):
+            break
+        if ch in ("j", curses.KEY_DOWN):
+            top = min(top + 1, max(0, len(all_segments) - visible))
         elif ch in ("k", curses.KEY_UP):
             top = max(0, top - 1)
         else:
@@ -1130,6 +1238,8 @@ def run(stdscr, start_dir: str) -> None:
                         flash(stdscr, " asked agent to commit and push", C_OK)
                     elif action == "s":
                         git_status_overlay(stdscr, cur.get("directory") or last_dir)
+                    elif action == "P":
+                        prs_overlay(stdscr, cur, frame)
                     elif action == "r":
                         directory = cur.get("directory") or last_dir
                         branch = ocore.review_branch(directory)
