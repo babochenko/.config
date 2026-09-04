@@ -746,8 +746,10 @@ def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, bool, str | None
         bstatus = str(build.get("status") or "").upper()
         (passed if "SUCCESS" in bstatus else troubled).append((build, bstatus))
     for build, bstatus in troubled:
-        bpair = C_ERR if "FAIL" in bstatus else C_WORK
-        lines.append([(f"    ✗ {build.get('name') or '?'}", bpair, True, None),
+        failed = "FAIL" in bstatus
+        bpair = C_ERR if failed else C_WORK
+        bicon = "✗" if failed else "◔"
+        lines.append([(f"    {bicon} {build.get('name') or '?'}", bpair, True, None),
                       (f" — {bstatus}", bpair, True, None)])
         if build.get("details"):
             lines.append([(f"      {build['details']}", C_DIM, False, None)])
