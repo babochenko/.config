@@ -762,17 +762,22 @@ def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, bool, str | None
             segs.append((text, colour, False, None))
         lines.append(segs)
 
+    checks_passed = [str(c.get("check") or "") for c in pr.get("merge_checks") or []
+                     if c.get("passed") is True]
+    checks_failed = [str(c.get("check") or "") for c in pr.get("merge_checks") or []
+                      if c.get("passed") is False]
     for check in pr.get("merge_checks") or []:
         label = str(check.get("check") or "")
-        if not label:
+        if not label or check.get("passed") is not None:
             continue
-        passed = check.get("passed")
-        if passed is True:
-            lines.append([(f"    ✓ {label}", C_OK, False, None)])
-        elif passed is False:
-            lines.append([(f"    ✗ {label}", C_ERR, False, None)])
-        else:
-            lines.append([(f"    · {label}", C_DIM, False, None)])
+        lines.append([(f"    · {label}", C_DIM, False, None)])
+    if checks_failed:
+        lines.append([(f"    ✗ {len(checks_failed)} check{'s' if len(checks_failed) != 1 else ''} failed — ",
+                       C_ERR, False, None),
+                      (", ".join(checks_failed), C_ERR, False, None)])
+    if checks_passed:
+        lines.append([(f"    ✓ {len(checks_passed)} check{'s' if len(checks_passed) != 1 else ''} passed — ", C_OK, False, None),
+                      (", ".join(checks_passed), C_OK, False, None)])
 
     tickets = pr.get("tickets") or []
     if tickets:
@@ -795,12 +800,12 @@ def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, bool, str | None
     if queued:
         names = ", ".join((b.get("name") or "?").rsplit("/", 1)[-1].strip()
                           for b, _ in queued)
-        lines.append([(f"    ◔ {len(queued)} in progress — ", C_WORK, False, None),
+        lines.append([(f"    ◔ {len(queued)} build{'s' if len(queued) != 1 else ''} in progress — ", C_WORK, False, None),
                       (names, C_WORK, False, None)])
     if passed:
         names = ", ".join((b.get("name") or "?").rsplit("/", 1)[-1].strip()
                           for b, _ in passed)
-        lines.append([(f"    ✓ {len(passed)} passed — ", C_OK, False, None),
+        lines.append([(f"    ✓ {len(passed)} build{'s' if len(passed) != 1 else ''} passed — ", C_OK, False, None),
                       (names, C_OK, False, None)])
     for comment in comments:
         author = comment.get("author") or ""
