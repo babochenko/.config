@@ -717,7 +717,7 @@ def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, bool, str | None
     if pr.get("unresolved_threads"):
         stats.append((f"unresolved threads: {pr['unresolved_threads']}", C_DIM))
     if comments:
-        stats.append((f"open comments: {len(comments)}", C_ERR))
+        stats.append((f"open comments: {len(comments)}", C_DIM))
     builds = pr.get("builds") or {}
     if builds.get("ok") or builds.get("failed") or builds.get("unavailable"):
         parts: list[tuple[str, int]] = []
@@ -774,7 +774,7 @@ def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, bool, str | None
         prefix = f"    ⊟ {author}".rstrip()
         if created:
             prefix += f" {created}"
-        lines.append([(prefix + ": ", C_ERR, False, None),
+        lines.append([(prefix + ": ", C_DIM, False, None),
                       (clip(text, 120), C_DIM, False, None)])
     return lines
 
