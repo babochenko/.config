@@ -260,8 +260,9 @@ The bridge receives a POST document containing `contract: "opendash-mcp-v1"`,
 `prs`. It must return JSON with `tickets` keyed by ID and `prs` either in
 request order or keyed by `repository#number`. PR results may contain
 `status` (`opened`, `rejected`, `needs changes`, `approved`, or `merged`), `url`,
-`number`, `title`, `approvals`, `needs_update`, `unresolved_threads`,
-`unresolved_comments`, `merge_checks` (list of `{check, passed}` mirroring the PR
+`number`, `title`, `author`, `approvals`, `needs_update`, `unresolved_threads`,
+`unresolved_comments` (author comments and Clarity "review completed" summaries
+excluded), `merge_checks` (list of `{check, passed}` mirroring the PR
 overview page), `tickets`, and `builds` (`ok`, `failed`, `unavailable`,
 optional `error`). The
 bridge must count unresolved threads only when the last comment author is not

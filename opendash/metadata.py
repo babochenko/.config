@@ -411,6 +411,23 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
                             "passed": passed if isinstance(passed, bool) else None})
         elif str(check):
             checks.append({"check": str(check), "passed": None})
+    pr_author = str(value.get("author") or "").strip().lower()
+    open_comments = []
+    for comment in comments:
+        if not isinstance(comment, dict):
+            continue
+        norm = _normalise_comment(comment)
+        author = str(norm.get("author") or "").strip().lower()
+        text = str(norm.get("text") or "").lower()
+        if pr_author and author == pr_author:
+            continue  # the author's own comments are never open feedback
+        if "clarity" in author and "review completed" in text:
+            continue  # Clarity review summaries, not unresolved comments
+        open_comments.append(norm)
+    threads = int(value.get("unresolved_threads") or 0)
+    if open_comments or threads:
+        # a thread needs at least one listed comment to be unresolved here
+        threads = min(threads, len(open_comments))
     return {
         "fetched": time.time(), "number": str(value.get("number") or candidate.get("number")),
         "label": f"#{value.get('number') or candidate.get('number')}",
@@ -419,9 +436,8 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
         "status": _normalise_pr_status(value),
         "approvals": approvals if isinstance(approvals, int) else None,
         "needs_update": bool(value.get("needs_update")),
-        "unresolved_threads": int(value.get("unresolved_threads") or 0),
-        "unresolved_comments": [_normalise_comment(comment)
-                             for comment in comments if isinstance(comment, dict)],
+        "unresolved_threads": threads,
+        "unresolved_comments": open_comments,
         "merge_checks": checks,
         "builds": {"ok": int(builds.get("ok") or 0), "failed": int(builds.get("failed") or 0),
                    "unavailable": int(builds.get("unavailable") or 0),
@@ -495,12 +511,17 @@ def _agent_prompt(prs: list[dict]) -> str:
         "or perform any write operation. Fetch the current pull request title, "
         "status, approval count, whether updates are needed, unresolved review threads "
         "and comments, and build results for these candidates: " + candidates + "\n"
+        "Count as unresolved only what Bitbucket itself shows as unresolved. Do not "
+        "list or count comments written by the pull request author, and do not list "
+        "or count Clarity AI reviewer messages that contain 'review completed' -- "
+        "those are review summaries, not open feedback. "
         "Also read each pull request's merge checks -- the same list the PR overview "
         "page shows (approval requirement, in-progress builds, failed builds, open "
         "tasks and any other blocking requirement) -- reporting each as passed or not. "
         "Return exactly one JSON object and no markdown in this schema: "
         '{"prs":[{"number":"123","repository":"team/project",'
         '"title":"Human readable pull request title",'
+        '"author":"Pull request author display name",'
         '"status":"opened","approvals":0,"needs_update":false,'
         '"unresolved_threads":0,"unresolved_comments":'
         '[{"author":"Comment Author","created":"2026-01-01 12:34",'

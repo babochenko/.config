@@ -729,6 +729,9 @@ def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, bool, str | None
         [("  ", C_DIM, False, None),
          (url, C_TICKET, False, url or None)],
     ]
+    # a merged PR is done -- no stats, checks, builds or comments to review
+    if status == "merged":
+        return lines
     repo = pr.get("repository") or ""
     if repo:
         lines.append([(f"  repo: {repo}", C_DIM, False, None)])
