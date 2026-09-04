@@ -892,6 +892,9 @@ def prs_overlay(stdscr, item: dict, data, frame: int) -> None:
         win.bkgd(" ")
         win.border()
         title = f" PRs for {ocore._headline(item)[:40]} "
+        stale = _pr_stale_age(prs)
+        if stale:
+            title = f" PRs for {ocore._headline(item)[:40]} — updated {stale} ago "
         if data.pr_forcing:
             title = f" {SPINNER[int(time.time() * 4) % len(SPINNER)]} fetching checks… " + title.strip() + " "
         printw(win, 0, 2, title[:width - 4],
@@ -1083,6 +1086,40 @@ def _pr_label(pr: dict, loading: bool = False, frame: int = 0) -> str:
     return label
 
 
+_STALE_AFTER: float | None = None
+
+
+def _stale_after() -> float:
+    """Age (seconds) beyond which cached PR metadata counts as stale: twice the refresh period."""
+    global _STALE_AFTER
+    if _STALE_AFTER is None:
+        _STALE_AFTER = 2.0 * metadata.DEFAULT_REFRESH
+        with contextlib.suppress(Exception):
+            _STALE_AFTER = 2.0 * float(metadata.mcp_config()["refresh"])
+    return _STALE_AFTER
+
+
+def _pr_stale_age(prs: list) -> str | None:
+    """Age of the oldest successful PR fetch, if it exceeds twice the refresh period.
+
+    Failed fetches (entries with an error) do not count as successful: their
+    `fetched` keeps moving forward, so they are skipped and the badge tracks
+    the last time real data landed.
+    """
+    worst = 0.0
+    for pr in prs:
+        if pr.get("error"):
+            continue
+        fetched = pr.get("fetched")
+        try:
+            worst = max(worst, time.time() - float(fetched))
+        except (TypeError, ValueError):
+            pass
+    if worst <= _stale_after():
+        return None
+    return ocore.fmt_age(int((time.time() - worst) * 1000))
+
+
 def _grouped_pr_labels(prs: list, loading: bool = False, frame: int = 0) -> list[str]:
     """Group PRs by repository name: parrot#123 infra-apps-conf(#1001 #1002)."""
     by_repo: dict[str, list] = {}
@@ -1157,6 +1194,9 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         if prs:
             pr_suffix = "  " + "  ".join(
                 _grouped_pr_labels(prs, item.get("pr_loading", False), frame))
+            stale = _pr_stale_age(prs)
+            if stale:
+                pr_suffix += f" ({stale})"
         suffix = "  " + _location_label(item, branch) + pr_suffix
         printw(stdscr, y, x, clip(ocore._headline(item) + suffix, max(4, status_x - x - 2)),
                title_attr)
@@ -1197,6 +1237,9 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     prs = item.get("pr_info") or item.get("prs") or []
     for pr_label in _grouped_pr_labels(prs, item.get("pr_loading", False), frame):
         git_parts.append((pr_label, C_DIM, None))
+    stale = _pr_stale_age(prs)
+    if stale:
+        git_parts.append((f"({stale})", C_WORK, None))
     comments = []
     for pr in prs:
         comments.extend(pr.get("unresolved_comments") or [])
