@@ -1718,6 +1718,30 @@ def _cmd_ci(args) -> int:
         status = (cached.get("status") or "").lower() if isinstance(cached, dict) else ""
         if status not in ("merged", "declined", "superseded"):
             open_prs.append(p)
+
+    directory = record["directory"]
+
+    # If the agent's last response mentions a Bitbucket push with a "create PR" link,
+    # ask it to create the PR first, even if other PRs are already linked.
+    try:
+        response = latest_assistant_response(sid)
+        if response and "bitbucket" in response[0].lower():
+            text = response[0].lower()
+            if "create pr" in text or "pull-requests/new" in text or "create a pull request" in text:
+                send_prompt(sid,
+                    "It looks like you just pushed to Bitbucket and were prompted to create a PR. "
+                    "Please create a pull request for this branch using the Bitbucket MCP tools "
+                    "if one does not already exist. "
+                    "Set the title to a concise description of the changes. "
+                    "Set the description to summarize what was done and why. "
+                    "Target the main/master branch. "
+                    "After creating the PR, report its number and URL.",
+                    directory)
+                print(f"asked {sid} to create a PR")
+                return 0
+    except Exception:
+        pass
+
     if not open_prs:
         print("no open PRs linked to this instance")
         return 0
@@ -1731,7 +1755,7 @@ def _cmd_ci(args) -> int:
                 f"If builds are failing, investigate and fix the failures. "
                 f"Do not edit files unless fixing a real issue found in "
                 f"review comments or build failures.",
-                record["directory"])
+                directory)
     print(f"injected {len(open_prs)} open PR(s) to {sid}")
     return 0
 
