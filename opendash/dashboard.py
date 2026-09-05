@@ -877,7 +877,7 @@ def prs_overlay(stdscr, item: dict, data, frame: int) -> None:
     top = 0
     maxy, maxx = stdscr.getmaxyx()
     while True:
-        prs = live_prs()
+        prs = sorted(live_prs(), key=_pr_rank)
         all_segments: list[list[tuple[str, int, bool, str | None]]] = []
         for n, pr in enumerate(prs):
             if n:
@@ -1123,11 +1123,44 @@ def _pr_stale_age(prs: list) -> str | None:
     return ocore.fmt_age(int((time.time() - worst) * 1000))
 
 
-def _grouped_pr_labels(prs: list, loading: bool = False, frame: int = 0) -> list[str]:
-    """Group PRs by repository name: parrot#123 infra-apps-conf(#1001 #1002)."""
+def _pr_row_pair(pr: dict) -> int:
+    """Colour for a PR's row label: merged -> green, ready for review -> yellow, other -> blue.
+
+    "Ready for review" means every merge check passes except the required
+    approvals one: the only failing check, if any, must be an approval check.
+    """
+    if str(pr.get("status") or "").lower() == "merged":
+        return C_OK
+    checks = pr.get("merge_checks") or []
+    fails = [str(c.get("check") or "").lower() for c in checks if c.get("passed") is False]
+    if checks and (not fails or (len(fails) == 1 and "approval" in fails[0])):
+        return C_WORK
+    return C_TICKET
+
+
+# display order for PRs: in progress (blue) -> ready for review (yellow) -> merged (green)
+_PR_RANK = {C_TICKET: 0, C_WORK: 1, C_OK: 2}
+
+
+def _pr_rank(pr: dict) -> tuple:
+    try:
+        number = int(str(pr.get("number") or 0))
+    except ValueError:
+        number = 0
+    return (_PR_RANK.get(_pr_row_pair(pr), 3), number)
+
+
+def _grouped_pr_labels(prs: list, loading: bool = False, frame: int = 0) -> list[tuple[str, int]]:
+    """Group PRs by repository name: parrot#123 infra-apps-conf(#1001 #1002).
+
+    PRs sort by state first (in progress, ready for review, merged), so both
+    the groups and the PRs inside a group follow that order. Each group label
+    carries a colour: green when all its PRs are merged, yellow when any of
+    them is ready for review, blue otherwise.
+    """
     by_repo: dict[str, list] = {}
     order: list[str] = []
-    for pr in prs:
+    for pr in sorted(prs, key=_pr_rank):
         repo = pr.get("repository") or ""
         name = repo.rsplit("/", 1)[-1] if repo else ""
         if name not in by_repo:
@@ -1139,10 +1172,13 @@ def _grouped_pr_labels(prs: list, loading: bool = False, frame: int = 0) -> list
         group = by_repo[name]
         pr_labels = [_pr_label(pr, loading, frame) for pr in group]
         if len(group) == 1:
-            labels.append(f"{name}{pr_labels[0]}" if name else pr_labels[0])
+            label = f"{name}{pr_labels[0]}" if name else pr_labels[0]
         else:
             inner = " ".join(pr_labels)
-            labels.append(f"{name}({inner})" if name else f"({inner})")
+            label = f"{name}({inner})" if name else f"({inner})"
+        pairs = [_pr_row_pair(pr) for pr in group]
+        pair = C_OK if all(p == C_OK for p in pairs) else (C_WORK if C_WORK in pairs else C_TICKET)
+        labels.append((label, pair))
     return labels
 
 
@@ -1193,16 +1229,27 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     if minimized:
         branch = (item.get("git") or {}).get("branch") or item.get("branch")
         prs = item.get("pr_info") or item.get("prs") or []
-        pr_suffix = ""
+        segments: list[tuple[str, int]] = [
+            (ocore._headline(item), title_attr),
+            ("  " + _location_label(item, branch), title_attr)]
         if prs:
-            pr_suffix = "  " + "  ".join(
-                _grouped_pr_labels(prs, item.get("pr_loading", False), frame))
+            for label, pair in _grouped_pr_labels(prs, item.get("pr_loading", False), frame):
+                segments.append(("  ", curses.color_pair(C_DIM)))
+                segments.append((label, curses.color_pair(pair)))
             stale = _pr_stale_age(prs)
             if stale:
-                pr_suffix += f" ({stale})"
-        suffix = "  " + _location_label(item, branch) + pr_suffix
-        printw(stdscr, y, x, clip(ocore._headline(item) + suffix, max(4, status_x - x - 2)),
-               title_attr)
+                segments.append((f" ({stale})", curses.color_pair(C_WORK)))
+        cx = x
+        limit = status_x - 2
+        for text, attr in segments:
+            if cx >= limit:
+                break
+            if cx + len(text) > limit:
+                text = clip(text, limit - cx)
+            if not text:
+                break
+            printw(stdscr, y, cx, text, attr)
+            cx += len(text)
         return
 
     # a `t` terminal still running something gets its own spinner and command,
@@ -1238,8 +1285,8 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
                           (f"-{gitinfo.get('dels', 0)}", C_ERR, None)))
 
     prs = item.get("pr_info") or item.get("prs") or []
-    for pr_label in _grouped_pr_labels(prs, item.get("pr_loading", False), frame):
-        git_parts.append((pr_label, C_DIM, None))
+    for pr_label, pair in _grouped_pr_labels(prs, item.get("pr_loading", False), frame):
+        git_parts.append((pr_label, pair, None))
     stale = _pr_stale_age(prs)
     if stale:
         git_parts.append((f"({stale})", C_WORK, None))
