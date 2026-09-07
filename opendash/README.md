@@ -97,6 +97,8 @@ Pass `-t` to set it explicitly.
 Associations are stored separately in `~/.local/state/opendash/metadata.json`.
 `opendash unlink ses_... PROJ-1` (or `#123`) removes a local association and
 suppresses rediscovery. Omitting the association unlinks detected tickets.
+`unlink -am` unlinks every PR that the metadata cache shows as merged,
+keeping the open ones.
 
 ### PR metadata agent
 

@@ -1543,6 +1543,27 @@ def _cmd_unlink(args) -> int:
     sid = _resolve_session_id(args.session_id)
     if not sid:
         return 1
+    if args.all_merged:
+        md = metadata.load(STATE)
+        prs = list((md.get(sid) or {}).get("prs") or [])
+        if not prs:
+            print(f"no PRs linked to {sid}")
+            return 1
+        cache = metadata.pr_cache(STATE)
+        merged = [str(p.get("number")) for p in prs
+                  if str((cache.get(metadata._candidate_key(p))
+                          or cache.get(str(p.get("number"))) or {})
+                         .get("status") or "").lower() == "merged"]
+        if not merged:
+            print(f"no merged PRs linked to {sid}")
+            return 1
+        if not _confirm(args, f"Unlink {len(merged)} merged PR(s) from {sid}?"):
+            print("cancelled")
+            return 1
+        for number in merged:
+            unlink_association(sid, f"#{number}")
+        print(f"unlinked {len(merged)} merged PR(s) from {sid}")
+        return 0
     if args.ticket_all:
         if not _confirm(args, f"Unlink all tickets from {sid}?"):
             print("cancelled")
@@ -1918,6 +1939,8 @@ def main(argv=None) -> int:
                    help="unlink the ticket from this instance")
     p.add_argument("-ta", "-all-tickets", "--ticket-all", action="store_true",
                    help="unlink all tickets from this instance (keeps PRs)")
+    p.add_argument("-am", "-all-merged", "--all-merged", action="store_true",
+                   help="unlink all merged PRs from this instance (keeps open PRs)")
     p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
     p.set_defaults(fn=_cmd_unlink)
 
