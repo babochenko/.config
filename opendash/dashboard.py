@@ -1150,13 +1150,13 @@ def _pr_rank(pr: dict) -> tuple:
     return (_PR_RANK.get(_pr_row_pair(pr), 3), number)
 
 
-def _grouped_pr_labels(prs: list, loading: bool = False, frame: int = 0) -> list[tuple[str, int]]:
+def _grouped_pr_labels(prs: list, loading: bool = False, frame: int = 0) -> list[list[tuple[str, int]]]:
     """Group PRs by repository name: parrot#123 infra-apps-conf(#1001 #1002).
 
     PRs sort by state first (in progress, ready for review, merged), so both
-    the groups and the PRs inside a group follow that order. Each group label
-    carries a colour: green when all its PRs are merged, yellow when any of
-    them is ready for review, blue otherwise.
+    the groups and the PRs inside a group follow that order. Each group is a
+    list of (text, colour) segments: the repository name and parentheses in
+    white, every PR and its stats in its own state colour.
     """
     by_repo: dict[str, list] = {}
     order: list[str] = []
@@ -1167,21 +1167,23 @@ def _grouped_pr_labels(prs: list, loading: bool = False, frame: int = 0) -> list
             by_repo[name] = []
             order.append(name)
         by_repo[name].append(pr)
-    labels = []
+    groups = []
     for name in order:
-        group = by_repo[name]
         if len(name) > 16:
             name = clip(name, 16)  # uuid-style repo names must not eat the row
-        pr_labels = [_pr_label(pr, loading, frame) for pr in group]
+        group = by_repo[name]
+        pr_labels = [(_pr_label(pr, loading, frame), _pr_row_pair(pr)) for pr in group]
         if len(group) == 1:
-            label = f"{name}{pr_labels[0]}" if name else pr_labels[0]
+            segments = ([(name, C_SEL), pr_labels[0]] if name else [pr_labels[0]])
         else:
-            inner = " ".join(pr_labels)
-            label = f"{name}({inner})" if name else f"({inner})"
-        pairs = [_pr_row_pair(pr) for pr in group]
-        pair = C_OK if all(p == C_OK for p in pairs) else (C_WORK if C_WORK in pairs else C_TICKET)
-        labels.append((label, pair))
-    return labels
+            segments = [(f"{name}(", C_SEL)]
+            for n, (text, pair) in enumerate(pr_labels):
+                if n:
+                    segments.append((" ", C_SEL))
+                segments.append((text, pair))
+            segments.append((")", C_SEL))
+        groups.append(segments)
+    return groups
 
 
 def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) -> None:
@@ -1235,9 +1237,12 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
             (ocore._headline(item), title_attr),
             ("  " + _location_label(item, branch), title_attr)]
         if prs:
-            for label, pair in _grouped_pr_labels(prs, item.get("pr_loading", False), frame):
-                segments.append(("  ", curses.color_pair(C_DIM)))
-                segments.append((label, curses.color_pair(pair)))
+            # in the compact row the PR labels stay plain: colour only the full row
+            groups = ["".join(text for text, _ in group)
+                      for group in _grouped_pr_labels(prs, item.get("pr_loading", False), frame)]
+            for label in groups:
+                segments.append(("  ", title_attr))
+                segments.append((label, title_attr))
             stale = _pr_stale_age(prs)
             if stale:
                 segments.append((f" ({stale})", curses.color_pair(C_WORK)))
@@ -1271,7 +1276,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         printw(stdscr, y, headline_end + 2, f"❯{label}", curses.color_pair(label_pair))
 
     gitinfo = item.get("git") or {}
-    git_parts: list[tuple[str, int, str | None]] = []
+    git_parts: list[tuple] = []
     if gitinfo.get("ahead"):
         git_parts.append((f"↑{gitinfo['ahead']}", C_OK, None))
     if gitinfo.get("behind"):
@@ -1287,8 +1292,10 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
                           (f"-{gitinfo.get('dels', 0)}", C_ERR, None)))
 
     prs = item.get("pr_info") or item.get("prs") or []
-    for pr_label, pair in _grouped_pr_labels(prs, item.get("pr_loading", False), frame):
-        git_parts.append((pr_label, pair, None))
+    for group_segments in _grouped_pr_labels(prs, item.get("pr_loading", False), frame):
+        for n, (text, pair) in enumerate(group_segments):
+            # glued: segments inside a group touch, only groups get separated
+            git_parts.append((text, pair, None, n > 0))
     stale = _pr_stale_age(prs)
     if stale:
         git_parts.append((f"({stale})", C_WORK, None))
@@ -1297,14 +1304,17 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         comments.extend(pr.get("unresolved_comments") or [])
 
     if git_parts:
-        total_width = sum(len(text) for text, _, _ in git_parts) + len(git_parts) - 1
+        # a part may carry a 4th flag "glued": no separator space before it
+        total_width = sum(len(part[0]) for part in git_parts) + \
+            sum(1 for n, part in enumerate(git_parts) if n and not (len(part) > 3 and part[3]))
         right_start = max(3, maxx - 2 - total_width)
         avail_right = maxx - 2 - right_start
         if total_width > avail_right:
             right_start = 3
             git_x = right_start
-            for n, (text, color, url) in enumerate(git_parts):
-                if n:
+            for n, part in enumerate(git_parts):
+                text, color, url = part[0], part[1], part[2]
+                if n and not (len(part) > 3 and part[3]):
                     git_x = printw(stdscr, y + 2, git_x, " ", curses.color_pair(C_DIM))
                 if git_x >= maxx - 3:
                     printw(stdscr, y + 2, git_x, "…", curses.color_pair(C_DIM))
@@ -1312,8 +1322,9 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
                 git_x = _print_link(stdscr, y + 2, git_x, text, url, curses.color_pair(color))
         else:
             git_x = right_start
-            for n, (text, color, url) in enumerate(git_parts):
-                if n:
+            for n, part in enumerate(git_parts):
+                text, color, url = part[0], part[1], part[2]
+                if n and not (len(part) > 3 and part[3]):
                     git_x = printw(stdscr, y + 2, git_x, " ", curses.color_pair(C_DIM))
                 git_x = _print_link(stdscr, y + 2, git_x, text, url, curses.color_pair(color))
     else:
