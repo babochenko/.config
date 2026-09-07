@@ -431,7 +431,7 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
     return {
         "fetched": time.time(), "number": str(value.get("number") or candidate.get("number")),
         "label": f"#{value.get('number') or candidate.get('number')}",
-        "repository": candidate.get("repository"),
+        "repository": value.get("repository") or candidate.get("repository"),
         "title": value.get("title"), "url": value.get("url") or value.get("link") or candidate.get("url"),
         "status": _normalise_pr_status(value),
         "approvals": approvals if isinstance(approvals, int) else None,
@@ -514,7 +514,10 @@ def _agent_prompt(prs: list[dict]) -> str:
         "Count as unresolved only what Bitbucket itself shows as unresolved. Do not "
         "list or count comments written by the pull request author, and do not list "
         "or count Clarity AI reviewer messages that contain 'review completed' -- "
-        "those are review summaries, not open feedback. "
+        "those are review summaries, not open feedback. For the repository field "
+        "report the pull request's real repository full name as Bitbucket shows it "
+        "(for example \"team/repo\"), even when the candidate link only has a UUID "
+        "path. "
         "Also read each pull request's merge checks -- the same list the PR overview "
         "page shows (approval requirement, in-progress builds, failed builds, open "
         "tasks and any other blocking requirement) -- reporting each as passed or not. "
