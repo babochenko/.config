@@ -1618,9 +1618,10 @@ def _cmd_link(args) -> int:
     sid = _resolve_session_id(args.session_id)
     if not sid:
         return 1
-    changed = link_association(sid, args.association)
-    print(f"linked {args.association} to {sid}" if changed
-          else f"already linked: {args.association} on {sid}")
+    for association in args.association:
+        changed = link_association(sid, association)
+        print(f"linked {association} to {sid}" if changed
+              else f"already linked: {association} on {sid}")
     return 0
 
 
@@ -1946,7 +1947,8 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("link", help="add or restore a ticket or PR association")
     p.add_argument("session_id")
-    p.add_argument("association", help="ticket ID, PR number (#123), or PR URL")
+    p.add_argument("association", nargs="+",
+                   help="one or more ticket IDs, PR numbers (#123), or PR URLs")
     p.set_defaults(fn=_cmd_link)
 
     p = sub.add_parser("screen", help="print the running dashboard's current screen")
