@@ -1170,6 +1170,8 @@ def _grouped_pr_labels(prs: list, loading: bool = False, frame: int = 0) -> list
     labels = []
     for name in order:
         group = by_repo[name]
+        if len(name) > 16:
+            name = clip(name, 16)  # uuid-style repo names must not eat the row
         pr_labels = [_pr_label(pr, loading, frame) for pr in group]
         if len(group) == 1:
             label = f"{name}{pr_labels[0]}" if name else pr_labels[0]
