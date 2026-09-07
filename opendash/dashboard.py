@@ -1337,7 +1337,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
 
     if comments:
         thread_text = "threads: " + "; ".join(
-            f"{comment.get('author', 'reviewer')}: {comment.get('text', '')}"
+            " ".join(f"{comment.get('author', 'reviewer')}: {comment.get('text', '')}".split())
             for comment in comments[:3]
         )
         printw(stdscr, y + 1, 3, clip(thread_text, maxx - 6),
@@ -1357,7 +1357,8 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         meta.append(f"${item['cost']:.2f}")
     meta_text = " · ".join(meta)
 
-    note = item.get("attention") or ocore.worked_on(item)
+    # a note with embedded newlines would spill onto line 3 and erase it
+    note = " ".join((item.get("attention") or ocore.worked_on(item)).split())
     lead = "◆ " if state == "attention" else ("▸ " if state == "working" else "")
     avail = maxx - 6 - (len(meta_text) + 2 if meta_text else 0)
     x2 = printw(stdscr, y + 1, 3, lead, pair)
