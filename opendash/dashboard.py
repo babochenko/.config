@@ -64,6 +64,8 @@ JIRA_COLOR = {"todo": C_DIM, "progress": C_WORK, "done": C_OK}
 # ------------------------------------------------------------------ text utils
 
 def _w(ch: str) -> int:
+    if ch in ("\ufe0e", "\ufe0f"):
+        return 0            # variation selectors are zero-width
     return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
 
 
@@ -1057,6 +1059,9 @@ _PR_STATUS_ICON = {
 }
 
 
+GEAR = "☰"  # builds icon; drawn single-cell by every font, unlike the ⚙ emoji
+
+
 def _pr_label(pr: dict, loading: bool = False, frame: int = 0) -> str:
     """Format the compact PR status shown on the location line."""
     status = str(pr.get("status") or "").lower()
@@ -1082,7 +1087,7 @@ def _pr_label(pr: dict, loading: bool = False, frame: int = 0) -> str:
     if any(builds.get(k) for k in ("ok", "in_progress", "failed", "unavailable")):
         if builds.get("ok") and not any(builds.get(k) for k in
                                         ("in_progress", "failed", "unavailable")):
-            label += " ⚙"  # every build green: the count is noise
+            label += f" {GEAR}"  # every build green: the count is noise
         else:
             parts = []
             if builds.get("ok"):
@@ -1091,7 +1096,7 @@ def _pr_label(pr: dict, loading: bool = False, frame: int = 0) -> str:
                 parts.append(f"{builds['in_progress']}◔")
             if builds.get("failed"):
                 parts.append(f"{builds['failed']}✗")
-            label += " ⚙" + "/".join(parts)
+            label += f" {GEAR}" + "/".join(parts)
             if builds.get("unavailable"):
                 label += f"/{builds['unavailable']}?"
     return label
