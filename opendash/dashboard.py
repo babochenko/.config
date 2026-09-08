@@ -397,69 +397,80 @@ def blocking(stdscr):
         stdscr.timeout(TICK_MS)
 
 
-def ask(stdscr, label: str, default: str = "") -> str | None:
-    """One-line editor on the last row. Returns None on escape."""
+def ask(stdscr, label: str, default: str = "", tick=None) -> str | None:
+    """One-line editor on the last row. Returns None on escape.
+
+    With ``tick`` provided, the dashboard keeps redrawing behind the prompt
+    while typing instead of freezing until Enter.
+    """
     maxy, maxx = stdscr.getmaxyx()
     buf = list(default)
     pos = len(buf)
     curses.curs_set(1)
-    with blocking(stdscr):
-      try:
-          while True:
-              row = maxy - 1
-              stdscr.move(row, 0)
-              stdscr.clrtoeol()
-              printw(stdscr, row, 0, label, curses.color_pair(C_ACCENT) | curses.A_BOLD)
-              off = len(label) + 1
-              text = "".join(buf)
-              visible = maxx - off - 2
-              start = max(0, pos - visible + 1)
-              printw(stdscr, row, off, text[start:start + visible])
-              try:
-                  stdscr.move(row, min(maxx - 1, off + pos - start))
-              except curses.error:
-                  pass
-              stdscr.refresh()
-              ch = stdscr.get_wch()
-              if isinstance(ch, str):
-                  if ch in ("\x1b",):
-                      return None
-                  if ch in ("\n", "\r"):
-                      return "".join(buf).strip()
-                  if ch in ("\x7f", "\b"):
-                      if pos:
-                          del buf[pos - 1]
-                          pos -= 1
-                  elif ch == "\x15":                      # ctrl+u
-                      buf, pos = [], 0
-                  elif ch == "\x17":                      # ctrl+w
-                      while pos and buf[pos - 1] == " ":
-                          del buf[pos - 1]; pos -= 1
-                      while pos and buf[pos - 1] != " ":
-                          del buf[pos - 1]; pos -= 1
-                  elif ch == "\x01":                      # ctrl+a
-                      pos = 0
-                  elif ch == "\x05":                      # ctrl+e
-                      pos = len(buf)
-                  elif ch.isprintable():
-                      buf.insert(pos, ch)
-                      pos += 1
-              else:
-                  if ch == curses.KEY_LEFT:
-                      pos = max(0, pos - 1)
-                  elif ch == curses.KEY_RIGHT:
-                      pos = min(len(buf), pos + 1)
-                  elif ch == curses.KEY_HOME:
-                      pos = 0
-                  elif ch == curses.KEY_END:
-                      pos = len(buf)
-                  elif ch == curses.KEY_BACKSPACE:
-                      if pos:
-                          del buf[pos - 1]; pos -= 1
-                  elif ch == curses.KEY_RESIZE:
-                      maxy, maxx = stdscr.getmaxyx()
-      finally:
-          curses.curs_set(0)
+    stdscr.timeout(250)          # poll: leave room for background redraws
+    try:
+        while True:
+            row = maxy - 1
+            stdscr.move(row, 0)
+            stdscr.clrtoeol()
+            printw(stdscr, row, 0, label, curses.color_pair(C_ACCENT) | curses.A_BOLD)
+            off = len(label) + 1
+            text = "".join(buf)
+            visible = maxx - off - 2
+            start = max(0, pos - visible + 1)
+            printw(stdscr, row, off, text[start:start + visible])
+            try:
+                stdscr.move(row, min(maxx - 1, off + pos - start))
+            except curses.error:
+                pass
+            stdscr.refresh()
+            try:
+                ch = stdscr.get_wch()
+            except curses.error:
+                if tick:
+                    tick()          # keep the dashboard alive behind the prompt
+                continue
+            if isinstance(ch, str):
+                if ch in ("\x1b",):
+                    return None
+                if ch in ("\n", "\r"):
+                    return "".join(buf).strip()
+                if ch in ("\x7f", "\b"):
+                    if pos:
+                        del buf[pos - 1]
+                        pos -= 1
+                elif ch == "\x15":                      # ctrl+u
+                    buf, pos = [], 0
+                elif ch == "\x17":                      # ctrl+w
+                    while pos and buf[pos - 1] == " ":
+                        del buf[pos - 1]; pos -= 1
+                    while pos and buf[pos - 1] != " ":
+                        del buf[pos - 1]; pos -= 1
+                elif ch == "\x01":                      # ctrl+a
+                    pos = 0
+                elif ch == "\x05":                      # ctrl+e
+                    pos = len(buf)
+                elif ch.isprintable():
+                    buf.insert(pos, ch)
+                    pos += 1
+            else:
+                if ch == curses.KEY_LEFT:
+                    pos = max(0, pos - 1)
+                elif ch == curses.KEY_RIGHT:
+                    pos = min(len(buf), pos + 1)
+                elif ch == curses.KEY_HOME:
+                    pos = 0
+                elif ch == curses.KEY_END:
+                    pos = len(buf)
+                elif ch == curses.KEY_BACKSPACE:
+                    if pos:
+                        del buf[pos - 1]
+                        pos -= 1
+                elif ch == curses.KEY_RESIZE:
+                    maxy, maxx = stdscr.getmaxyx()
+    finally:
+        stdscr.timeout(TICK_MS)
+        curses.curs_set(0)
 
 
 def confirm(stdscr, message: str) -> bool:
@@ -608,8 +619,11 @@ def help_overlay(stdscr) -> None:
     stdscr.refresh()
 
 
-def code_actions_overlay(stdscr) -> str | None:
-    """Show code actions and return the selected action, if any."""
+def code_actions_overlay(stdscr, tick=None) -> str | None:
+    """Show code actions and return the selected action, if any.
+
+    With ``tick`` the dashboard keeps redrawing behind the modal.
+    """
     maxy, maxx = stdscr.getmaxyx()
     h, w = len(CODE_ACTIONS) + 4, min(maxx - 4, 72)
     y0, x0 = max(0, (maxy - h) // 2), max(0, (maxx - w) // 2)
@@ -622,13 +636,20 @@ def code_actions_overlay(stdscr) -> str | None:
         printw(win, i + 2, 3, f"{key:<16}", curses.color_pair(C_TICKET) | curses.A_BOLD)
         printw(win, i + 2, 20, desc)
     win.refresh()
-    with blocking(stdscr):
-        try:
-            ch = stdscr.get_wch()
-            if isinstance(ch, str) and ch in ("h", "m", "p", "s", "r", "i", "U", "P"):
-                choice = ch
-        except curses.error:
-            pass
+    stdscr.timeout(250)             # poll: leave room for background redraws
+    try:
+        while True:
+            try:
+                ch = stdscr.get_wch()
+                if isinstance(ch, str) and ch in ("h", "m", "p", "s", "r", "i", "U", "P"):
+                    choice = ch
+                break
+            except curses.error:
+                if tick:
+                    tick()
+                    win.refresh()   # bring the modal back on top
+    finally:
+        stdscr.timeout(TICK_MS)
     del win
     stdscr.touchwin()
     stdscr.refresh()
@@ -1395,6 +1416,21 @@ def run(stdscr, start_dir: str) -> None:
     sel, filt, last_dir = 0, "", start_dir
     session_ids = {record["session_id"] for record in ocore.instance_records()}
     minimized = load_minimized(session_ids)
+
+    def tick() -> None:
+        """Redraw the rows without consuming keys: keeps the UI live in prompts."""
+        items, jira, server_up, err = data.read()
+        if filt:
+            low = filt.lower()
+            items = [i for i in items
+                     if low in (i.get("ticket") or "").lower()
+                     or low in ocore._headline(i).lower()
+                     or low in (i.get("directory") or "").lower()]
+        nonlocal sel
+        sel = max(0, min(sel, len(items) - 1)) if items else 0
+        draw(stdscr, items, jira, server_up, err, sel,
+             int(time.time() * (1000 / TICK_MS)) % len(SPINNER), filt, minimized)
+
     while True:
         for pending, record, creation_error in data.take_completions():
             if creation_error:
@@ -1483,7 +1519,7 @@ def run(stdscr, start_dir: str) -> None:
         elif ch == "t" and cur:
             _open(stdscr, data, cur, terminal=True)
         elif ch == "c":
-            action = code_actions_overlay(stdscr)
+            action = code_actions_overlay(stdscr, tick)
             if action == "U":
                 data.stop()
                 data.wait_creations()
@@ -1551,14 +1587,14 @@ def run(stdscr, start_dir: str) -> None:
                     error_pause(stdscr, f"failed: {e}")
                 data.refresh_now()
         elif ch == "n":
-            where = ask(stdscr, " dir :", last_dir)
+            where = ask(stdscr, " dir :", last_dir, tick)
             if where is not None:
                 where = os.path.expanduser(where.strip() or last_dir)
                 if not Path(where).is_dir():
                     error_pause(stdscr, f"no such directory: {where}")
                 else:
                     last_dir = where
-                    tree = ask(stdscr, " tree :", "")   # branch name, blank to skip
+                    tree = ask(stdscr, " tree :", "", tick)   # branch name, blank to skip
                     if tree is not None:
                         tree = tree.strip()
                         task = compose(stdscr, where)
@@ -1570,7 +1606,7 @@ def run(stdscr, start_dir: str) -> None:
                                   else " starting instance…")
                         data.refresh_now()
         elif ch == "f" and cur:
-            msg = ask(stdscr, " follow up:")
+            msg = ask(stdscr, " follow up:", tick=tick)
             if msg:
                 try:
                     # no model/agent: keep the session on whatever it is using
@@ -1628,7 +1664,8 @@ def run(stdscr, start_dir: str) -> None:
                             error_pause(stdscr, f"{e}")
                         data.refresh_now()
         elif ch in ("r", "R") and cur:
-            name = ask(stdscr, " title:", ocore._headline(cur) if ch == "r" else "")
+            name = ask(stdscr, " title:",
+                                 ocore._headline(cur) if ch == "r" else "", tick)
             if name:
                 try:
                     ocore.rename_instance(cur["session_id"], name)
@@ -1647,7 +1684,7 @@ def run(stdscr, start_dir: str) -> None:
                     error_pause(stdscr, f"failed: {e}")
                 data.refresh_now()
         elif ch == "/":
-            got = ask(stdscr, " filter:", filt)
+            got = ask(stdscr, " filter:", filt, tick)
             filt = got or ""
         elif ch == "\x1b":
             filt = ""
