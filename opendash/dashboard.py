@@ -891,6 +891,12 @@ def publish_screen(stdscr) -> None:
         pass
 
 
+def _confirm_label(item: dict) -> str:
+    """Ticket and name together -- the row's identity, not either half of it."""
+    ticket = item.get("ticket")
+    return f"{ticket} {ocore._headline(item)}" if ticket else ocore._headline(item)
+
+
 def _location_label(item: dict, branch: str | None) -> str:
     directory = item.get("directory") or ""
     if not item.get("worktree"):
@@ -1336,7 +1342,7 @@ def run(stdscr, start_dir: str) -> None:
                     flash(stdscr, " cancelled")
                     data.refresh_now()
             else:
-                label = cur.get("ticket") or ocore._headline(cur)[:40]
+                label = clip(_confirm_label(cur), 40)
                 tree = cur.get("worktree")
                 question = f" remove “{label}” from the dashboard?"
                 if tree:
