@@ -156,3 +156,24 @@ class Staleness(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class JiraStatusColors(unittest.TestCase):
+    def test_status_colours_by_how_it_reads(self):
+        self.assertEqual(prview.jira_status_pair("Done"), prview.C_OK)
+        self.assertEqual(prview.jira_status_pair("Won't Do"), prview.C_OK)
+        self.assertEqual(prview.jira_status_pair("In Product QA"), prview.C_ATT)
+        self.assertEqual(prview.jira_status_pair("In Review"), prview.C_WORK)
+        self.assertEqual(prview.jira_status_pair("In Progress"), prview.C_ACCENT)
+        self.assertEqual(prview.jira_status_pair("To Do"), prview.C_SEL)
+        self.assertEqual(prview.jira_status_pair("Blocked"), prview.C_SEL)
+        self.assertEqual(prview.jira_status_pair(None), prview.C_SEL)
+
+    def test_shorten_and_align(self):
+        self.assertEqual(prview.shorten_status("In Product QA"), "in QA")
+        self.assertEqual(prview.shorten_status("In Progress"), "In Progress")
+        self.assertEqual(prview.shorten_status("  In   Review  "), "In Review")
+        self.assertEqual(prview.shorten_status(None), "")
+        cache = {"A": {"status": "In Progress"}, "B": {"status": "In Product QA"},
+                 "C": {"status": "Done"}, "D": {}}
+        self.assertEqual(prview.status_width(cache), prview._tw("In Progress"))
+        self.assertEqual(prview.status_width({}), 0)

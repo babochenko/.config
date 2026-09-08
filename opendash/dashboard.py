@@ -23,9 +23,10 @@ from pathlib import Path
 import ocore
 import metadata
 from prview import (C_ACCENT, C_ATT, C_DIM, C_ERR, C_OK, C_SEL, C_TICKET,
-                     C_WORK, SPINNER, _PR_STATUS_ICON, _grouped_pr_labels,
+                     C_WORK, SPINNER, TICKET_W, _PR_STATUS_ICON, _grouped_pr_labels,
                      _pr_label, _pr_overlay_segments, _pr_rank, _pr_row_pair,
-                     _pr_stale_age, _stale_after, _tw, _w, clip)
+                     _pr_stale_age, _stale_after, _tw, _w, clip,
+                     jira_status_pair, shorten_status, status_width)
 
 REFRESH = 1.5          # seconds between db snapshots
 METADATA_EVERY = 5.0   # wake the worker; remote cache TTL controls actual polls
@@ -123,18 +124,21 @@ class Data:
         self._wake.set()
 
     def refresh_prs_now(self, item: dict):
-        """Force a fresh metadata fetch for one instance's PRs, off the UI thread."""
+        """Force a fresh metadata fetch for one instance's ticket and PRs, off the UI thread."""
         prs = list(item.get("prs") or [])
+        tickets = [t for t in [item.get("ticket")] if t]
         with self.lock:
-            if not prs or self.pr_forcing:
+            if (not prs and not tickets) or self.pr_forcing:
                 return
             self.pr_forcing = True
 
         def worker():
             try:
                 with self._meta_lock:
-                    _, pr_cache = metadata.refresh_remote(ocore.STATE, [], prs, 0)
+                    jira_cache, pr_cache = metadata.refresh_remote(
+                        ocore.STATE, tickets, prs, 0)
                 with self.lock:
+                    self.jira = jira_cache
                     self.pr = pr_cache
             except Exception:
                 pass
@@ -939,18 +943,22 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
         x = printw(stdscr, y, x, " ")
     if ticket:
         ticket_attr = curses.color_pair(C_DIM if minimized else C_TICKET) | emphasis
-        x = printw(stdscr, y, x, ticket, ticket_attr)
+        pad = " " * max(0, TICKET_W - _tw(ticket))
+        x = printw(stdscr, y, x, ticket + pad, ticket_attr)
+        jstatus = shorten_status((jinfo or {}).get("status"))
+        if jstatus:
+            # status colour by how it reads; wrapped rows stay grey
+            status_color = C_DIM if minimized else jira_status_pair(jstatus)
+            pad = " " * max(0, status_width(jira) - _tw(jstatus))
+            x = printw(stdscr, y, x, " " + jstatus + pad,
+                       curses.color_pair(status_color) | emphasis)
         x = printw(stdscr, y, x, "  ")
 
     # right side of line 1, in fixed columns so it reads as a table:
-    # jira status (or the run state when there is no ticket) then age
+    # the run state, then age
     age = ocore.fmt_age(item.get("last_activity"))
-    status_text = (jinfo or {}).get("status")
-    if status_text:
-        status_pair = curses.color_pair(JIRA_COLOR.get(jinfo.get("category"), C_DIM))
-    else:
-        status_text = LABELS.get(state, state)
-        status_pair = pair
+    status_text = LABELS.get(state) or state
+    status_pair = pair
     age_x = maxx - 2 - AGE_W
     status_x = age_x - 2 - len(status_text)
     if minimized:

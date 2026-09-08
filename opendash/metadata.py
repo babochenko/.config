@@ -522,17 +522,24 @@ def _json_response(text: str) -> dict | None:
     return None
 
 
-def _agent_prompt(prs: list[dict]) -> str:
+def _agent_prompt(prs: list[dict], tickets: list[str] | None = None) -> str:
     candidates = json.dumps([
         {key: value for key, value in candidate.items()
          if key in ("number", "repository", "url")}
         for candidate in prs
     ], separators=(",", ":"))
+    ticket_ids = json.dumps(sorted({str(t).upper() for t in (tickets or [])}),
+                            separators=(",", ":"))
     return (
-        "Use the Bitbucket MCP tools only. Do not edit files, run shell commands, "
-        "or perform any write operation. Fetch the current pull request title, "
+        "Use the Bitbucket and Jira (Atlassian) MCP tools only. Do not edit files, "
+        "run shell commands, or perform any write operation. Fetch the current "
+        "pull request title, "
         "status, approval count, whether updates are needed, unresolved review threads "
         "and comments, and build results for these candidates: " + candidates + "\n"
+        "Fetch the current status of these Jira tickets with the Jira MCP issue "
+        "tool (one call per ticket): " + ticket_ids + "\n"
+        "Report each ticket's status name exactly as Jira shows it, together with "
+        "its status category (\"To Do\", \"In Progress\" or \"Done\").\n"
         "Verify each comment's thread resolution state in Bitbucket and set its "
         "resolved flag accordingly -- resolved threads must never be listed "
         "or counted. Do not "
@@ -557,19 +564,25 @@ def _agent_prompt(prs: list[dict]) -> str:
         '"merge_checks":[{"check":"2+ approvals","passed":true},'
         '{"check":"no in progress builds","passed":false}],'
         '"builds":{"ok":0,"in_progress":0,"failed":0,"unavailable":0},'
-        '"build_details":[{"name":"Build Name","status":"SUCCESSFUL","details":"Tests passed: 649"}]}]}'
+        '"build_details":[{"name":"Build Name","status":"SUCCESSFUL","details":"Tests passed: 649"}]}],'
+        '"tickets":[{"id":"PCYXC-123","status":"In Product QA",'
+        '"category":"In Progress","url":"https://jira/browse/PCYXC-123",'
+        '"summary":"Ticket summary"}]}'
     )
 
 
-def _refresh_via_agent(state: Path, prs: list[dict], conf: dict,
-                       pull_requests: dict, ttl: float) -> None:
-    """Ask a hidden read-only OpenCode session for Bitbucket PR metadata."""
+def _refresh_via_agent(state: Path, tickets: list[str], prs: list[dict], conf: dict,
+                       pull_requests: dict, jira: dict, ttl: float) -> None:
+    """Ask a hidden read-only OpenCode session for Bitbucket PR and Jira metadata."""
     now = time.time()
     prs = [candidate for candidate in prs
            if now - float((pull_requests.get(_candidate_key(candidate)) or
                            pull_requests.get(str(candidate.get("number"))) or {})
                           .get("fetched", 0)) > ttl]
-    if not prs:
+    wanted = {str(t).upper() for t in tickets}
+    tickets = sorted(t for t in wanted
+                     if now - float(jira.get(t, {}).get("fetched", 0)) > ttl)
+    if not prs and not tickets:
         return
     try:
         # Lazy import avoids a metadata -> ocore -> metadata import cycle.
@@ -587,7 +600,7 @@ def _refresh_via_agent(state: Path, prs: list[dict], conf: dict,
             _write_cache(state, "metadata-agent-session.json", {"id": sid})
 
         started = int(time.time() * 1000)
-        ocore.send_prompt(sid, _agent_prompt(prs), conf["directory"],
+        ocore.send_prompt(sid, _agent_prompt(prs, tickets), conf["directory"],
                           agent=conf["agent"])
         deadline = time.monotonic() + AGENT_TIMEOUT
         response = None
@@ -599,16 +612,24 @@ def _refresh_via_agent(state: Path, prs: list[dict], conf: dict,
         if not response or not response[1]:
             raise TimeoutError("metadata agent did not complete")
         result = _json_response(response[0])
-        if not result or not isinstance(result.get("prs"), list):
+        if not result or not (isinstance(result.get("prs"), list)
+                              or isinstance(result.get("tickets"), list)):
             raise ValueError("metadata agent returned invalid JSON")
         candidates = {_candidate_key(candidate): candidate for candidate in prs}
         by_number = {str(candidate.get("number")): candidate for candidate in prs}
-        for value in result["prs"]:
+        for value in result.get("prs") or []:
             if not isinstance(value, dict):
                 continue
             candidate = candidates.get(_candidate_key(value)) or by_number.get(str(value.get("number")))
             if candidate:
                 pull_requests[_candidate_key(candidate)] = _normalise_pr(value, candidate)
+        for value in result.get("tickets") or []:
+            if not isinstance(value, dict):
+                continue
+            ticket = str(value.get("id") or value.get("key") or "").upper()
+            if ticket in wanted:
+                jira[ticket] = _normalise_ticket(value, ticket)
+        _write_cache(state, "jira.json", jira)
         _write_cache(state, "pr.json", pull_requests)
         ocore.prune_session_messages(sid)
     except (OSError, ValueError, TypeError, TimeoutError):
@@ -628,7 +649,8 @@ def refresh_remote(state: Path, tickets: list[str], prs: list[dict], ttl: float 
     if not conf["url"]:
         if conf["provider"] == "agent":
             effective_ttl = conf["refresh"] if ttl is None else ttl
-            _refresh_via_agent(state, prs, conf, pull_requests, effective_ttl)
+            _refresh_via_agent(state, tickets, prs, conf, pull_requests, jira,
+                                effective_ttl)
         return jira, pull_requests
     ttl = conf["refresh"] if ttl is None else ttl
     now = time.time()

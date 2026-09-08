@@ -17,6 +17,7 @@ C_WORK, C_OK, C_ERR, C_ATT, C_DIM, C_TICKET, C_ACCENT, C_SEL = range(1, 9)
 
 
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+TICKET_W = 10          # every ticket id aligns to this column
 
 
 # ------------------------------------------------------------------ text utils
@@ -48,6 +49,37 @@ def clip(text: str, width: int) -> str:
         out.append(c)
         used += cw
     return "".join(out) + "…"
+
+
+def jira_status_pair(status: str | None) -> int:
+    """Colour a Jira status by how it reads.
+
+    done / won't do -> green, QA -> purple, review -> yellow,
+    in progress -> blue, anything else -> white. Wrapped (minimized)
+    rows override this with grey.
+    """
+    s = " ".join(str(status or "").lower().split())
+    if "won't do" in s or "wont do" in s or "done" in s:
+        return C_OK
+    if "qa" in s:
+        return C_ATT
+    if "review" in s:
+        return C_WORK
+    if "progress" in s:
+        return C_ACCENT
+    return C_SEL
+
+
+def shorten_status(status: str | None) -> str:
+    """'In Product QA' reads 'in QA' on the row; everything else as Jira shows it."""
+    s = " ".join(str(status or "").split())
+    return "in QA" if s.lower() == "in product qa" else s
+
+
+def status_width(jira: dict) -> int:
+    """Widest shortened status in the cache -- the column all rows align to."""
+    return max((_tw(shorten_status(entry.get("status"))) for entry in jira.values()
+                if isinstance(entry, dict) and entry.get("status")), default=0)
 
 
 

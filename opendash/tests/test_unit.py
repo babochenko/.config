@@ -69,6 +69,28 @@ class RemoteMetadata(unittest.TestCase):
         self.assertEqual(prs["a/r#12"]["status"], "opened")
         self.assertEqual(prs["a/r#12"]["builds"]["ok"], 2)
 
+    def test_agent_provider_fetches_ticket_statuses(self):
+        import ocore
+        prompts = []
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
+                "OPENDASH_MCP_URL": "",
+                "OPENDASH_METADATA_PROVIDER": "agent",
+                "OPENDASH_MCP_AGENT": "",
+                "OPENDASH_MCP_DIRECTORY": tmp}, clear=False), \
+                patch.object(ocore, "server_url", return_value="http://server"), \
+                patch.object(ocore, "http", return_value={"id": "metadata-2"}), \
+                patch.object(ocore, "send_prompt",
+                             side_effect=lambda sid, prompt, *a, **k: prompts.append(prompt)), \
+                patch.object(ocore, "latest_assistant_response", return_value=(
+                    '{"tickets":[{"id":"proj-1","status":"In Product QA",'
+                    '"category":"In Progress","url":"https://jira/PROJ-1"}]}', True)):
+            jira, prs = metadata.refresh_remote(Path(tmp), ["PROJ-1"], [])
+        self.assertEqual(jira["PROJ-1"]["status"], "In Product QA")
+        self.assertEqual(jira["PROJ-1"]["category"], "progress")
+        self.assertEqual(prs, {})
+        self.assertIn("PROJ-1", prompts[0])
+        self.assertIn("Jira", prompts[0])
+
     def test_bridge_sends_read_only_candidates_and_normalizes_response(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
                 "OPENDASH_MCP_URL": "http://bridge.test/metadata",

@@ -101,14 +101,17 @@ suppresses rediscovery. Omitting the association unlinks detected tickets.
 keeping the open ones. `opendash link ses_... PROJ-1 #123 <url>` adds one or
 more associations back, space separated.
 
-### PR metadata agent
+### Metadata agent
 
-When `OPENDASH_MCP_URL` is unset, PR metadata is fetched by a hidden, reusable
-OpenCode session using OpenCode's normal default agent and MCP configuration.
-Set `OPENDASH_MCP_AGENT` only if a separate named agent is needed, and set
-`OPENDASH_MCP_DIRECTORY` to a permitted directory. The agent must return
-the JSON schema requested by OpenDash; its response is validated and cached in
-`~/.local/state/opendash/pr.json`. Set `OPENDASH_METADATA_PROVIDER=none` to
+When `OPENDASH_MCP_URL` is unset, PR and Jira metadata is fetched by a hidden,
+reusable OpenCode session using OpenCode's normal default agent and MCP
+configuration. Set `OPENDASH_MCP_AGENT` only if a separate named agent is
+needed, and set `OPENDASH_MCP_DIRECTORY` to a permitted directory. The agent
+uses the Bitbucket and Jira (Atlassian) MCP tools and must return the JSON
+schema requested by OpenDash; its response is validated and cached in
+`~/.local/state/opendash/pr.json` (PRs) and `jira.json` (ticket statuses,
+shown next to the ticket id on each row; opening the cP overlay forces a fresh
+fetch). Set `OPENDASH_METADATA_PROVIDER=none` to
 disable this fallback, or set `OPENDASH_MCP_URL` to use the existing HTTP
 bridge instead.
 
