@@ -389,7 +389,8 @@ def _normalise_comment(comment: dict) -> dict:
     created = (comment.get("created") or comment.get("created_on")
                or comment.get("updated_on") or comment.get("updated"))
     return {"author": str(author or ""), "created": str(created or ""),
-            "text": str(text or "")}
+            "text": str(text or ""),
+            "resolved": bool(comment.get("resolved"))}
 
 
 def _normalise_pr(value: dict, candidate: dict) -> dict:
@@ -417,6 +418,8 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
         if not isinstance(comment, dict):
             continue
         norm = _normalise_comment(comment)
+        if norm.get("resolved"):
+            continue  # the thread was resolved: not open feedback
         author = str(norm.get("author") or "").strip().lower()
         text = str(norm.get("text") or "").lower()
         if pr_author and author == pr_author:
@@ -514,7 +517,9 @@ def _agent_prompt(prs: list[dict]) -> str:
         "or perform any write operation. Fetch the current pull request title, "
         "status, approval count, whether updates are needed, unresolved review threads "
         "and comments, and build results for these candidates: " + candidates + "\n"
-        "Count as unresolved only what Bitbucket itself shows as unresolved. Do not "
+        "Verify each comment's thread resolution state in Bitbucket and set its "
+        "resolved flag accordingly -- resolved threads must never be listed "
+        "or counted. Do not "
         "list or count comments written by the pull request author, Clarity AI "
         "reviewer messages that contain 'review completed' (review summaries, "
         "not open feedback), or messages from the 'Security Integration' and "
@@ -532,7 +537,7 @@ def _agent_prompt(prs: list[dict]) -> str:
         '"status":"opened","approvals":0,"needs_update":false,'
         '"unresolved_threads":0,"unresolved_comments":'
         '[{"author":"Comment Author","created":"2026-01-01 12:34",'
-        '"text":"What the comment says"}],'
+        '"text":"What the comment says","resolved":false}],'
         '"merge_checks":[{"check":"2+ approvals","passed":true},'
         '{"check":"no in progress builds","passed":false}],'
         '"builds":{"ok":0,"in_progress":0,"failed":0,"unavailable":0},'
