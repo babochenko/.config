@@ -987,7 +987,8 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
                 segments.append((label, title_attr))
             stale = _pr_stale_age(prs)
             if stale:
-                segments.append((f" ({stale})", curses.color_pair(C_WORK)))
+                # wrapped rows are grey throughout: no yellow warning
+                segments.append((f" ({stale})", title_attr))
         cx = x
         limit = status_x - 2
         for text, attr in segments:
