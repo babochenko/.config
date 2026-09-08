@@ -18,7 +18,7 @@ URL_TICKET_RE = re.compile(r"(?:/browse/|selectedIssue=|/issues/)([A-Za-z][A-Za-
 PR_URL_RE = re.compile(r"https?://[^\s)>]+/(?:pull-requests|pullrequests)/([0-9]+)", re.I)
 PR_REF_RE = re.compile(r"\b(?:PR|pull\s+request|pullrequest)\s*#?\s*([0-9]+)\b", re.I)
 DEFAULT_REFRESH = 45.0
-AGENT_TIMEOUT = 30.0
+AGENT_TIMEOUT = 60.0
 
 
 def extract_tickets(text: str) -> list[str]:
