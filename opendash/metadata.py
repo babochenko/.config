@@ -393,18 +393,13 @@ def _normalise_comment(comment: dict) -> dict:
             "resolved": bool(comment.get("resolved"))}
 
 
-def _normalise_pr(value: dict, candidate: dict) -> dict:
-    approvals = value.get("approvals")
-    builds = value.get("builds") if isinstance(value.get("builds"), dict) else {}
-    comments = value.get("unresolved_comments") or []
-    build_details = value.get("build_details") or []
-    if not isinstance(build_details, list):
-        build_details = []
-    raw_checks = value.get("merge_checks") or []
-    if not isinstance(raw_checks, list):
-        raw_checks = []
+def _normalise_checks(value: dict) -> list:
+    """Merge checks as {'check', 'passed'} dicts, tolerating plain strings."""
+    raw = value.get("merge_checks") or []
+    if not isinstance(raw, list):
+        return []
     checks = []
-    for check in raw_checks:
+    for check in raw:
         if isinstance(check, dict):
             label = str(check.get("check") or check.get("name") or "")
             passed = check.get("passed")
@@ -412,9 +407,18 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
                             "passed": passed if isinstance(passed, bool) else None})
         elif str(check):
             checks.append({"check": str(check), "passed": None})
-    pr_author = str(value.get("author") or "").strip().lower()
+    return checks
+
+
+def _open_comments(value: dict, pr_author: str) -> list:
+    """Comments that are genuinely open feedback.
+
+    Dropped: resolved threads, the PR author's own comments, Clarity review
+    summaries ("review completed"), and Security Integration / Change
+    Approver bot messages.
+    """
     open_comments = []
-    for comment in comments:
+    for comment in value.get("unresolved_comments") or []:
         if not isinstance(comment, dict):
             continue
         norm = _normalise_comment(comment)
@@ -429,6 +433,18 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
         if "security integration" in author or "change approver service account" in author:
             continue  # bot status messages, never open feedback
         open_comments.append(norm)
+    return open_comments
+
+
+def _normalise_pr(value: dict, candidate: dict) -> dict:
+    approvals = value.get("approvals")
+    builds = value.get("builds") if isinstance(value.get("builds"), dict) else {}
+    build_details = value.get("build_details") or []
+    if not isinstance(build_details, list):
+        build_details = []
+    checks = _normalise_checks(value)
+    pr_author = str(value.get("author") or "").strip().lower()
+    open_comments = _open_comments(value, pr_author)
     threads = int(value.get("unresolved_threads") or 0)
     if open_comments or threads:
         # a thread needs at least one listed comment to be unresolved here
