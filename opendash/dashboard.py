@@ -747,10 +747,12 @@ def _pr_overlay_segments(pr: dict) -> list[list[tuple[str, int, bool, str | None
     if comments:
         stats.append((f"open comments: {len(comments)}", C_DIM))
     builds = pr.get("builds") or {}
-    if builds.get("ok") or builds.get("failed") or builds.get("unavailable"):
+    if any(builds.get(k) for k in ("ok", "in_progress", "failed", "unavailable")):
         parts: list[tuple[str, int]] = []
         if builds.get("ok"):
             parts.append((f"{builds['ok']}✓", C_OK))
+        if builds.get("in_progress"):
+            parts.append((f"{builds['in_progress']}◔", C_WORK))
         if builds.get("failed"):
             parts.append((f"{builds['failed']}✗", C_ERR))
         if builds.get("unavailable"):
@@ -1077,15 +1079,21 @@ def _pr_label(pr: dict, loading: bool = False, frame: int = 0) -> str:
     if pr.get("unresolved_threads"):
         label += f" ⊟{pr['unresolved_threads']}"
     builds = pr.get("builds") or {}
-    if builds.get("ok") or builds.get("failed"):
-        parts = []
-        if builds.get("ok"):
-            parts.append(f"{builds['ok']}✓")
-        if builds.get("failed"):
-            parts.append(f"{builds['failed']}✗")
-        label += " ⚙" + "/".join(parts)
-        if builds.get("unavailable"):
-            label += f"/{builds['unavailable']}?"
+    if any(builds.get(k) for k in ("ok", "in_progress", "failed", "unavailable")):
+        if builds.get("ok") and not any(builds.get(k) for k in
+                                        ("in_progress", "failed", "unavailable")):
+            label += " ⚙"  # every build green: the count is noise
+        else:
+            parts = []
+            if builds.get("ok"):
+                parts.append(f"{builds['ok']}✓")
+            if builds.get("in_progress"):
+                parts.append(f"{builds['in_progress']}◔")
+            if builds.get("failed"):
+                parts.append(f"{builds['failed']}✗")
+            label += " ⚙" + "/".join(parts)
+            if builds.get("unavailable"):
+                label += f"/{builds['unavailable']}?"
     return label
 
 

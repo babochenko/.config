@@ -423,6 +423,8 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
             continue  # the author's own comments are never open feedback
         if "clarity" in author and "review completed" in text:
             continue  # Clarity review summaries, not unresolved comments
+        if "security integration" in author or "change approver service account" in author:
+            continue  # bot status messages, never open feedback
         open_comments.append(norm)
     threads = int(value.get("unresolved_threads") or 0)
     if open_comments or threads:
@@ -439,9 +441,10 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
         "unresolved_threads": threads,
         "unresolved_comments": open_comments,
         "merge_checks": checks,
-        "builds": {"ok": int(builds.get("ok") or 0), "failed": int(builds.get("failed") or 0),
-                   "unavailable": int(builds.get("unavailable") or 0),
-                   "error": builds.get("error")},
+"builds": {"ok": int(builds.get("ok") or 0), "in_progress": int(builds.get("in_progress") or 0),
+                    "failed": int(builds.get("failed") or 0),
+                    "unavailable": int(builds.get("unavailable") or 0),
+                    "error": builds.get("error")},
         "build_details": [{"name": str(b.get("name") or ""),
                            "status": str(b.get("status") or "").upper(),
                            "details": str(b.get("details") or "")}
@@ -512,9 +515,10 @@ def _agent_prompt(prs: list[dict]) -> str:
         "status, approval count, whether updates are needed, unresolved review threads "
         "and comments, and build results for these candidates: " + candidates + "\n"
         "Count as unresolved only what Bitbucket itself shows as unresolved. Do not "
-        "list or count comments written by the pull request author, and do not list "
-        "or count Clarity AI reviewer messages that contain 'review completed' -- "
-        "those are review summaries, not open feedback. For the repository field "
+        "list or count comments written by the pull request author, Clarity AI "
+        "reviewer messages that contain 'review completed' (review summaries, "
+        "not open feedback), or messages from the 'Security Integration' and "
+        "'Change Approver Service Account' bots. For the repository field "
         "report the pull request's real repository full name as Bitbucket shows it "
         "(for example \"team/repo\"), even when the candidate link only has a UUID "
         "path. "
@@ -531,7 +535,7 @@ def _agent_prompt(prs: list[dict]) -> str:
         '"text":"What the comment says"}],'
         '"merge_checks":[{"check":"2+ approvals","passed":true},'
         '{"check":"no in progress builds","passed":false}],'
-        '"builds":{"ok":0,"failed":0,"unavailable":0},'
+        '"builds":{"ok":0,"in_progress":0,"failed":0,"unavailable":0},'
         '"build_details":[{"name":"Build Name","status":"SUCCESSFUL","details":"Tests passed: 649"}]}]}'
     )
 
