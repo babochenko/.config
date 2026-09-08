@@ -108,8 +108,6 @@ def _pr_label(pr: dict, loading: bool = False, frame: int = 0) -> str:
         label += " " + SPINNER[frame % len(SPINNER)]
     if pr.get("approvals"):
         label += f" ✓{pr['approvals']}"
-    if pr.get("needs_update"):
-        label += " !"
     if pr.get("unresolved_threads"):
         label += f" ⊟{pr['unresolved_threads']}"
     builds = pr.get("builds") or {}
