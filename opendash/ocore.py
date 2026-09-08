@@ -1499,7 +1499,7 @@ def _cmd_rm(args) -> int:
         return 1
     for sid in sids:
         remove_instance(sid, force=args.force)
-        print(f"removed {sid}")
+        print(f"removed {_session_label(sid)}")
     return 0
 
 
@@ -1510,8 +1510,21 @@ def _cmd_abort(args) -> int:
         return 1
     for sid in sids:
         abort_instance(sid)
-        print(f"aborted {sid}")
+        print(f"aborted {_session_label(sid)}")
     return 0
+
+
+def _session_label(sid: str) -> str:
+    """'name (id)' for confirmations and output when a display name exists."""
+    records = instance_records() or []
+    md = metadata_agent_record()
+    if md:
+        records.append(md)
+    for record in records:
+        if record.get("session_id") == sid:
+            name = _label(record)
+            return f"{name} ({sid})" if name else sid
+    return sid
 
 
 def _resolve_session_id(query: str) -> str | None:
@@ -1557,15 +1570,15 @@ def _cmd_unlink(args) -> int:
         if not merged:
             print(f"no merged PRs linked to {sid}")
             return 1
-        if not _confirm(args, f"Unlink {len(merged)} merged PR(s) from {sid}?"):
+        if not _confirm(args, f"Unlink {len(merged)} merged PR(s) from {_session_label(sid)}?"):
             print("cancelled")
             return 1
         for number in merged:
             unlink_association(sid, f"#{number}")
-        print(f"unlinked {len(merged)} merged PR(s) from {sid}")
+        print(f"unlinked {len(merged)} merged PR(s) from {_session_label(sid)}")
         return 0
     if args.ticket_all:
-        if not _confirm(args, f"Unlink all tickets from {sid}?"):
+        if not _confirm(args, f"Unlink all tickets from {_session_label(sid)}?"):
             print("cancelled")
             return 1
         md = metadata.load(STATE)
@@ -1575,18 +1588,18 @@ def _cmd_unlink(args) -> int:
         if rec_ticket and rec_ticket not in tickets:
             tickets.append(rec_ticket)
         if not tickets:
-            print(f"no tickets linked to {sid}")
+            print(f"no tickets linked to {_session_label(sid)}")
             return 1
         for ticket in tickets:
             unlink_association(sid, ticket)
-        print(f"unlinked {len(tickets)} ticket(s) from {sid}")
+        print(f"unlinked {len(tickets)} ticket(s) from {_session_label(sid)}")
         return 0
     if args.all:
-        if not _confirm(args, f"Unlink all associations from {sid}?"):
+        if not _confirm(args, f"Unlink all associations from {_session_label(sid)}?"):
             print("cancelled")
             return 1
         count = metadata.clear_associations(STATE, sid)
-        print(f"cleared {count} linked association(s) from {sid}")
+        print(f"cleared {count} linked association(s) from {_session_label(sid)}")
         return 0
     if args.ticket:
         rec = _read_json(INSTANCES / f"{sid}.json")
@@ -1598,19 +1611,19 @@ def _cmd_unlink(args) -> int:
         if not ticket:
             print(f"no ticket linked to {sid}")
             return 1
-        if not _confirm(args, f"Unlink ticket {ticket} from {sid}?"):
+        if not _confirm(args, f"Unlink ticket {ticket} from {_session_label(sid)}?"):
             print("cancelled")
             return 1
         unlink_association(sid, ticket)
-        print(f"unlinked ticket {ticket} from {sid}")
+        print(f"unlinked ticket {ticket} from {_session_label(sid)}")
         return 0
     desc = args.association or "all ticket associations"
-    if not _confirm(args, f"Unlink {desc} from {sid}?"):
+    if not _confirm(args, f"Unlink {desc} from {_session_label(sid)}?"):
         print("cancelled")
         return 1
     changed = unlink_association(sid, args.association)
     print(f"unlinked {args.association or 'associations'} from {sid}" if changed
-          else f"no local association for {sid}")
+          else f"no local association for {_session_label(sid)}")
     return 0
 
 
@@ -1620,8 +1633,8 @@ def _cmd_link(args) -> int:
         return 1
     for association in args.association:
         changed = link_association(sid, association)
-        print(f"linked {association} to {sid}" if changed
-              else f"already linked: {association} on {sid}")
+        print(f"linked {association} to {_session_label(sid)}" if changed
+              else f"already linked: {association} on {_session_label(sid)}")
     return 0
 
 
@@ -1666,7 +1679,7 @@ def _cmd_clear(args) -> int:
     sid = _resolve_session_id(args.session_id)
     if not sid:
         return 1
-    if not _confirm(args, f"Delete all messages from {sid}?"):
+    if not _confirm(args, f"Delete all messages from {_session_label(sid)}?"):
         print("cancelled")
         return 1
     p = db_path()
@@ -1680,7 +1693,7 @@ def _cmd_clear(args) -> int:
     con.execute("DELETE FROM session_message WHERE session_id = ?", (sid,))
     con.commit()
     con.close()
-    print(f"cleared messages from {sid}")
+    print(f"cleared messages from {_session_label(sid)}")
     return 0
 
 
@@ -1693,9 +1706,9 @@ def _cmd_cd(args) -> int:
         print(f"opendash: no such directory: {directory}", file=sys.stderr)
         return 1
     if args.worktree:
-        desc = f"switch {sid} to a new worktree at {directory} branch {args.worktree}"
+        desc = f"switch {_session_label(sid)} to a new worktree at {directory} branch {args.worktree}"
     else:
-        desc = f"switch {sid} to {directory}"
+        desc = f"switch {_session_label(sid)} to {directory}"
     if not _confirm(args, f"{desc}?"):
         print("cancelled")
         return 1
