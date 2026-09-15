@@ -1149,12 +1149,15 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     x = printw(stdscr, y, 2, icon, pair | emphasis)
     x += 1
 
-    ticket = item.get("ticket")
+    tickets = item.get("tickets") or []
+    ticket = item.get("ticket") or (tickets[0] if tickets else None)
     jinfo = jira.get(ticket) if ticket else None
     if ticket:
         ticket_attr = curses.color_pair(C_DIM if minimized else C_TICKET) | emphasis
-        pad = " " * max(0, TICKET_W - _tw(ticket))
-        x = printw(stdscr, y, x, ticket + pad, ticket_attr)
+        extra = f" +{len(tickets) - 1}" if len(tickets) > 1 else ""
+        ticket_label = ticket + extra
+        pad = " " * max(0, TICKET_W - _tw(ticket_label))
+        x = printw(stdscr, y, x, ticket_label + pad, ticket_attr)
         jstatus = shorten_status((jinfo or {}).get("status"))
         if jstatus:
             # status colour by how it reads; wrapped rows stay grey
