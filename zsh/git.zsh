@@ -159,6 +159,8 @@ function gitpp()                  { gitcc $@; git push -u origin HEAD && "$CFGS/
 
 alias gd='git-diff'
 alias gg='git-log'
+function compact-git-log() { GIT_LOG_LINES=10 git-log "$@"; }
+alias ggc='compact-git-log'
 alias gitri='git-rebase-interactive'
 alias gitsm='git-switch-master'
 alias grestore='git-restore'
