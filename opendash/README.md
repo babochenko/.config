@@ -79,6 +79,7 @@ opendash new -d ~/dev/payments -m anthropic/claude-sonnet-5 "…"
 opendash new -w TIX-001-fix-tests "…"   # in a worktree ../<repo>-<branch>
 opendash list                   # plain text, no curses
 opendash doctor                # check that instances can actually start
+opendash healthcheck           # check sources without sending prompts
 opendash abort <session-id>     # interrupt a run
 opendash rm <session-id>        # stop it and drop it from the list
 opendash clear <session-id>     # clear messages, keeping the session

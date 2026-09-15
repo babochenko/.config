@@ -1924,6 +1924,74 @@ def _cmd_doctor(args) -> int:
     return 0 if ok else 1
 
 
+def _cmd_healthcheck(args) -> int:
+    failed = False
+
+    def line(status: str, label: str, detail: str = "") -> None:
+        nonlocal failed
+        failed = failed or status == "FAIL"
+        print(f"  {status:<4} {label:<22} {detail}")
+
+    for tool in ("opencode", "tmux", "git"):
+        path = shutil.which(tool) or (opencode_bin() if tool == "opencode" else None)
+        line("ok" if path and Path(path).exists() else "FAIL", tool,
+             path or "not on PATH")
+
+    info = server_info()
+    if info and _server_process_owned(info) and _server_alive(info["url"], timeout=2):
+        line("ok", "server", f"{info['url']} pid={info.get('pid')}")
+    else:
+        line("FAIL", "server", "not running or not owned by opendash")
+
+    db = db_path()
+    if not db.exists():
+        line("FAIL", "opencode db", str(db))
+    else:
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+            tables = {row[0] for row in con.execute(
+                "select name from sqlite_master where type = 'table'")}
+            missing = {"session", "message", "part"} - tables
+            con.close()
+            line("FAIL" if missing else "ok", "opencode db",
+                 f"{db} (missing: {', '.join(sorted(missing))})" if missing else str(db))
+        except sqlite3.Error as error:
+            line("FAIL", "opencode db", str(error))
+
+    records = instance_records()
+    line("ok", "instance records", str(len(records)))
+
+    for name in ("metadata.json", "pr.json", "jira.json", "metadata-agent-session.json",
+                 metadata.AGENT_CONTROL):
+        path = STATE / name
+        if not path.exists():
+            line("ok", name, "not created")
+            continue
+        try:
+            json.loads(path.read_text())
+            line("ok", name, "valid JSON")
+        except (OSError, json.JSONDecodeError) as error:
+            line("FAIL", name, str(error))
+
+    if metadata.agent_enabled(STATE):
+        sid = metadata_agent_sid()
+        line("ok" if sid else "WARN", "metadata agent", "enabled" if sid else "enabled, not started")
+    else:
+        line("ok", "metadata agent", "disabled")
+
+    log = opencode_log()
+    line("ok" if log.exists() else "WARN", "opencode log", str(log))
+    screen = STATE / "dashboard-screen.txt"
+    if not screen.exists():
+        line("WARN", "dashboard screen", "not published")
+    else:
+        age = time.time() - screen.stat().st_mtime
+        line("ok" if age <= 5 else "WARN", "dashboard screen", f"{age:.1f}s old")
+
+    print("\n  healthcheck passed" if not failed else "\n  healthcheck found failures")
+    return 0 if not failed else 1
+
+
 def _cmd_server(args) -> int:
     if args.action == "start":
         print(server_url())
@@ -2036,6 +2104,9 @@ def main(argv=None) -> int:
     p = sub.add_parser("doctor", help="check that instances can actually start")
     p.add_argument("-d", "--dir", help="directory to test in (default /tmp)")
     p.set_defaults(fn=_cmd_doctor)
+
+    p = sub.add_parser("healthcheck", help="check OpenDash sources without sending prompts")
+    p.set_defaults(fn=_cmd_healthcheck)
 
     p = sub.add_parser("server", help="manage the shared opencode server")
     p.add_argument("action", nargs="?", default="status",

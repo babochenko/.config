@@ -170,6 +170,98 @@ function __cmds() {
 
 compdef __cmds -command-
 
+# Native completion for the OpenDash CLI and its `oo` alias. Keep nested command
+# completion word-aware so `oo me<TAB> st<TAB>` resolves metadata -> status.
+function _opendash() {
+  local -a commands actions
+  commands=(
+    'new:start a background instance'
+    'n:start a background instance'
+    'list:list instances'
+    'ls:list instances'
+    'rm:stop and forget instances'
+    'remove:stop and forget instances'
+    'quit:stop every instance and the shared server'
+    'doctor:check that instances can start'
+    'healthcheck:check sources without sending prompts'
+    'abort:interrupt a running instance'
+    'stop:interrupt a running instance'
+    'cd:change an instance working directory'
+    'unlink:ignore a ticket or PR association'
+    'link:add or restore a ticket or PR association'
+    'screen:print the dashboard screen'
+    'agent:find the instance assigned to a directory'
+    'prompt:send a prompt to an instance'
+    'ci:ask an agent to check PR comments and builds'
+    'clear:clear session messages or linked metadata'
+    'metadata:control background metadata fetching'
+    'meta:control background metadata fetching'
+    'server:manage the shared OpenCode server'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe 'opendash command' commands
+    return
+  fi
+
+  case "${words[2]}" in
+    metadata)
+      actions=('start:enable fetching' 'stop:disable fetching' 'status:show state')
+      _describe 'metadata action' actions
+      ;;
+    server)
+      actions=('start:start server' 'stop:stop server' 'status:show state')
+      _describe 'server action' actions
+      ;;
+    new)
+      _arguments '-t[set Jira ticket]:ticket:' '-d[working directory]:directory:_directories'
+                 '-w[worktree branch]:branch:' '-m[provider/model]:model:'
+                 '--agent[OpenCode agent]:agent:' '*:task:'
+      ;;
+    list)
+      _arguments '-f[show full output]' '-i[print session IDs only]' '*:name:'
+      ;;
+    rm|abort)
+      _arguments '-y[skip confirmation]' '-f[force worktree removal]' '*:session:_opendash_sessions'
+      ;;
+    clear)
+      _arguments '-a[clear all linked metadata]' '-all[clear all linked metadata]'
+                 '--all[clear all linked metadata]' '-y[skip confirmation]'
+                 ':session:_opendash_sessions'
+      ;;
+    prompt)
+      _arguments ':session:_opendash_sessions' '*:text:'
+      ;;
+    cd)
+      _arguments '-w[create a worktree]:branch:' '-y[skip confirmation]'
+                 ':session:_opendash_sessions' ':directory:_directories'
+      ;;
+    unlink)
+      _arguments '-a[unlink all associations]' '-all[unlink all associations]'
+                 '--all[unlink all associations]' '-t[unlink ticket]' '-ta[unlink all tickets]'
+                 '--ticket[unlink ticket]' '--ticket-all[unlink all tickets]'
+                 '-y[skip confirmation]' ':session:_opendash_sessions' ':association:'
+      ;;
+    link)
+      _arguments ':session:_opendash_sessions' '*:association:'
+      ;;
+    agent)
+      _arguments ':directory:_directories'
+      ;;
+    ci)
+      _arguments ':session:_opendash_sessions'
+      ;;
+  esac
+}
+
+function _opendash_sessions() {
+  local -a sessions
+  sessions=( ${(f)"$(opendash list --id-only 2>/dev/null)"} )
+  (( ${#sessions} )) && compadd -- "${sessions[@]}"
+}
+
+compdef _opendash opendash oo
+
 # Refresh project choices after each printable character typed as the argument
 # to p() or v().  `list-choices` only redraws the candidates; __fuzzy_unique still
 # inserts a lone match immediately, just as it does when TAB is pressed.
