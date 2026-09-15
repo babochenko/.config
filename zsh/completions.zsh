@@ -175,45 +175,23 @@ compdef __cmds -command-
 function _opendash() {
   local -a commands actions
   commands=(
-    'new:start a background instance'
-    'n:start a background instance'
-    'list:list instances'
-    'ls:list instances'
-    'rm:stop and forget instances'
-    'remove:stop and forget instances'
-    'quit:stop every instance and the shared server'
-    'doctor:check that instances can start'
-    'healthcheck:check sources without sending prompts'
-    'abort:interrupt a running instance'
-    'stop:interrupt a running instance'
-    'cd:change an instance working directory'
-    'unlink:ignore a ticket or PR association'
-    'link:add or restore a ticket or PR association'
-    'screen:print the dashboard screen'
-    'log:show all agent messages'
-    'agent:find the instance assigned to a directory'
-    'prompt:send a prompt to an instance'
-    'ci:ask an agent to check PR comments and builds'
-    'clear:clear session messages or linked metadata'
-    'metadata:control background metadata fetching'
-    'meta:control background metadata fetching'
-    'server:manage the shared OpenCode server'
+    new n list ls rm remove quit doctor healthcheck abort stop cd unlink link
+    screen log agent prompt ci clear metadata meta server
   )
 
   if (( CURRENT == 2 )); then
-    _describe 'opendash command' commands
+    compadd -Q -- "${commands[@]}"
     return
   fi
 
   case "${words[2]}" in
     metadata|meta)
-      actions=('start:enable fetching' 'stop:disable fetching' 'status:show state'
-               'messages:print retained messages')
-      _describe 'metadata action' actions
+      actions=(start stop status messages)
+      compadd -Q -- "${actions[@]}"
       ;;
     server)
-      actions=('start:start server' 'stop:stop server' 'status:show state')
-      _describe 'server action' actions
+      actions=(start stop status)
+      compadd -Q -- "${actions[@]}"
       ;;
     new)
       _arguments '-t[set Jira ticket]:ticket:' '-d[working directory]:directory:_directories'
@@ -254,7 +232,8 @@ function _opendash() {
       _arguments ':session:_opendash_sessions'
       ;;
     log)
-      _describe 'log scope' 'meta:show metadata-agent messages' 'metadata:show metadata-agent messages' 'errors:show error messages'
+      actions=(meta metadata errors)
+      compadd -Q -- "${actions[@]}"
       ;;
   esac
 }
