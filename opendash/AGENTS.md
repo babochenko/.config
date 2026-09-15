@@ -273,7 +273,7 @@ are kept, so reopening still lists the work, idle and ready to continue.
 
 `n` asks three things: the directory (prefilled with wherever you launched
 `opendash`), then a worktree branch, then the request itself in nvim. At the
-worktree prompt, `Option+Enter` opens a one-line prompt like follow-up instead;
+worktree prompt, `Shift+Enter` opens a one-line prompt like follow-up instead;
 submitting non-empty text starts the agent directly, preserving the branch.
 
 Leave the branch blank and the agent works in the directory you gave. Name it
