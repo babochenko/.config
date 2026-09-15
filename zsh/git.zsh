@@ -152,7 +152,7 @@ function git-show-head()          { git show head; }
 function git-rebase-interactive() { git rebase -i $@; }
 function git-restore()            { git restore $@; }
 function git-undo()               { git restore --source=$(master) $@; }
-function git-switch-master()      { git switch $(master) && git pull; }
+function git-switch-master()      { git switch $(master) && git pull --autostash; }
 function gitcc()                  { git add .; gitc $@; }
 function gitp()                   { gitc $@; git push; }
 function gitpp()                  { gitcc $@; git push -u origin HEAD && "$CFGS/zsh/git-pr-link.rb"; }
