@@ -108,6 +108,20 @@ class GroupedLabels(unittest.TestCase):
         self.assertEqual(pairs, [prview.C_SEL, prview.C_WORK, prview.C_SEL,
                                  prview.C_OK, prview.C_SEL])
 
+    def test_failed_builds_suffix_is_red(self):
+        groups = prview._grouped_pr_labels(
+            [pr(1478, "revolut/parrot", approvals=9, builds={"failed": 4})])
+        segments = groups[0]
+        self.assertEqual("".join(t for t, _ in segments), "parrot#1478 ✓9 ⚙4✗")
+        self.assertEqual([p for _, p in segments],
+                         [prview.C_SEL, prview.C_TICKET, prview.C_ERR])
+
+    def test_passing_builds_keep_the_state_colour(self):
+        groups = prview._grouped_pr_labels(
+            [pr(1478, "revolut/parrot", builds={"ok": 5})])
+        self.assertEqual([p for _, p in groups[0]],
+                         [prview.C_SEL, prview.C_TICKET])
+
 
 class OverlaySegments(unittest.TestCase):
     def test_merged_pr_stops_after_the_header(self):

@@ -129,6 +129,17 @@ def _pr_label(pr: dict, loading: bool = False, frame: int = 0) -> str:
     return label
 
 
+def _pr_label_segments(pr: dict, loading: bool = False, frame: int = 0) -> list[tuple[str, int]]:
+    """Compact label as (text, colour) segments, failed builds highlighted red."""
+    pair = _pr_row_pair(pr)
+    label = _pr_label(pr, loading, frame)
+    if (pr.get("builds") or {}).get("failed"):
+        at = label.rfind(" ⚙")
+        if at > 0:
+            return [(label[:at], pair), (label[at:], C_ERR)]
+    return [(label, pair)]
+
+
 _STALE_AFTER: float | None = None
 
 
@@ -212,15 +223,15 @@ def _grouped_pr_labels(prs: list, loading: bool = False, frame: int = 0) -> list
         group = by_repo[name]
         if len(name) > 16:
             name = clip(name, 16)  # uuid-style repo names must not eat the row
-        pr_labels = [(_pr_label(pr, loading, frame), _pr_row_pair(pr)) for pr in group]
+        pr_labels = _pr_label_segments(group[0], loading, frame)
         if len(group) == 1:
-            segments = ([(name, C_SEL), pr_labels[0]] if name else [pr_labels[0]])
+            segments = ([(name, C_SEL), *pr_labels] if name else pr_labels)
         else:
             segments = [(f"{name}(", C_SEL)]
-            for n, (text, pair) in enumerate(pr_labels):
-                if n:
+            for pr in group:
+                if len(segments) > 1:
                     segments.append((" ", C_SEL))
-                segments.append((text, pair))
+                segments.extend(_pr_label_segments(pr, loading, frame))
             segments.append((")", C_SEL))
         groups.append(segments)
     return groups
