@@ -91,6 +91,26 @@ class RemoteMetadata(unittest.TestCase):
         self.assertIn("PROJ-1", prompts[0])
         self.assertIn("Jira", prompts[0])
 
+    def test_a_wedged_agent_session_is_discarded(self):
+        import ocore
+        replies = [('{"prs":[]}', True), ("", True)]
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
+                "OPENDASH_MCP_URL": "",
+                "OPENDASH_METADATA_PROVIDER": "agent",
+                "OPENDASH_MCP_AGENT": "",
+                "OPENDASH_MCP_DIRECTORY": tmp}, clear=False), \
+                patch.object(ocore, "server_url", return_value="http://server"), \
+                patch.object(ocore, "http", return_value={"id": "metadata-3"}), \
+                patch.object(ocore, "send_prompt"), \
+                patch.object(ocore, "latest_assistant_response", side_effect=replies):
+            # a healthy cycle creates the session and keeps it
+            metadata.refresh_remote(Path(tmp), ["PROJ-1"], [])
+            self.assertTrue((Path(tmp) / "metadata-agent-session.json").exists())
+            # the wedged session answers with nothing: drop it so the next
+            # cycle starts fresh instead of failing forever
+            metadata.refresh_remote(Path(tmp), ["PROJ-1"], [])
+            self.assertFalse((Path(tmp) / "metadata-agent-session.json").exists())
+
     def test_bridge_sends_read_only_candidates_and_normalizes_response(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
                 "OPENDASH_MCP_URL": "http://bridge.test/metadata",

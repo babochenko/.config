@@ -17,7 +17,7 @@ TICKET_RE = re.compile(r"\b([A-Z][A-Z0-9]{1,9}-\d+)\b")
 URL_TICKET_RE = re.compile(r"(?:/browse/|selectedIssue=|/issues/)([A-Za-z][A-Za-z0-9]{1,9}-\d+)", re.I)
 PR_URL_RE = re.compile(r"https?://[^\s)>]+/(?:pull-requests|pullrequests)/([0-9]+)", re.I)
 PR_REF_RE = re.compile(r"\b(?:PR|pull\s+request|pullrequest)\s*#?\s*([0-9]+)\b", re.I)
-DEFAULT_REFRESH = 45.0
+DEFAULT_REFRESH = 300.0
 AGENT_TIMEOUT = 60.0
 
 
@@ -631,9 +631,20 @@ def _refresh_via_agent(state: Path, tickets: list[str], prs: list[dict], conf: d
                 jira[ticket] = _normalise_ticket(value, ticket)
         _write_cache(state, "jira.json", jira)
         _write_cache(state, "pr.json", pull_requests)
-        ocore.prune_session_messages(sid)
+        # every cycle is a self-contained prompt/response pair -- the agent
+        # needs no memory, so wipe the session's messages entirely and give
+        # the next cycle a clean context. Fat JSON pairs would otherwise
+        # overflow a 200k window and wedge the session into empty replies.
+        ocore.prune_session_messages(sid, keep=0)
     except (OSError, ValueError, TypeError, TimeoutError):
         # A provider outage must never erase the last known PR state.
+        # But a session that answers with nothing (context overflow,
+        # dead session id after a server restart) would fail forever:
+        # drop it so the next cycle starts from a fresh session.
+        try:
+            (state / "metadata-agent-session.json").unlink(missing_ok=True)
+        except OSError:
+            pass
         return
 
 
