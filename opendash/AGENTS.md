@@ -1,5 +1,13 @@
 # opendash
 
+## Agent Instructions
+
+- Keep the dashboard non-blocking: database, Git, MCP, and server operations belong in background workers or subprocesses, never in the curses input loop.
+- Preserve the distinction between OpenDash instance records and OpenCode's session database. Removing an instance record must not delete its OpenCode conversation unless a command explicitly requests message deletion.
+- Treat Jira and Bitbucket metadata as optional provider data. A timeout, malformed response, unavailable MCP, or stale cache must not stop the dashboard.
+- Run `./tests/run` after behavioral changes. Use `./tests/run --fast` during iteration, then run the full suite before committing.
+- Keep user-facing command help, README/AGENTS documentation, shell wrapper dispatch, and Zsh completion definitions synchronized.
+
 A dashboard for opencode instances working in the background.
 
 Each instance is an opencode session hosted by one shared, detached
@@ -124,6 +132,33 @@ bridge instead.
 dashboard, which is useful for diagnosing layout without a screenshot. A dump
 older than five seconds is treated as unavailable. It does not include terminal
 font rendering or colors.
+
+## Operational Gotchas
+
+The dashboard pauses its own curses loop while an agent view is attached. It
+hands terminal ownership to `opencode attach` and resumes only after
+`option+q` returns to the dashboard. Interrupting an agent's thinking does not
+leave that view; close the view to resume screen publishing. Consequently,
+`opendash screen` may report an unavailable or stale buffer while an agent view
+is open.
+
+PR associations are discovered from conversation content and are not inferred
+from a branch alone. User PR references and concrete provider URLs are trusted;
+assistant prose can contain examples and must not create associations. Use
+`opendash link` for an explicit association and `opendash unlink` or
+`opendash unlink --all` to suppress an unwanted association. Use
+`opendash clear --all <session>` only to clear linked metadata for that one
+session; never implement an all-sessions metadata clear.
+
+The hidden metadata agent is separate from user agents. `opendash metadata
+start|stop|status` controls fetching, and `opendash meta messages` shows only
+messages still retained before the normal post-request pruning. `oo log` shows
+retained messages from all OpenDash-managed sessions and uses `less -R` when
+interactive; `oo log meta` is the metadata-only shortcut.
+
+After changing Python or shell code, a running dashboard process still has the
+old code loaded. Use the dashboard's `cU` action or restart the dashboard before
+diagnosing screen output or key/completion behavior.
 
 ### Neovim
 
