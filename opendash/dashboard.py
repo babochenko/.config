@@ -385,69 +385,86 @@ def blocking(stdscr):
         stdscr.timeout(TICK_MS)
 
 
-def ask(stdscr, label: str, default: str = "") -> str | None:
+COMMAND_ENTER = object()
+
+
+def ask(stdscr, label: str, default: str = "", command_enter: bool = False):
     """One-line editor on the last row. Returns None on escape."""
     maxy, maxx = stdscr.getmaxyx()
     buf = list(default)
     pos = len(buf)
     curses.curs_set(1)
     with blocking(stdscr):
-      try:
-          while True:
-              row = maxy - 1
-              stdscr.move(row, 0)
-              stdscr.clrtoeol()
-              printw(stdscr, row, 0, label, curses.color_pair(C_ACCENT) | curses.A_BOLD)
-              off = len(label) + 1
-              text = "".join(buf)
-              visible = maxx - off - 2
-              start = max(0, pos - visible + 1)
-              printw(stdscr, row, off, text[start:start + visible])
-              try:
-                  stdscr.move(row, min(maxx - 1, off + pos - start))
-              except curses.error:
-                  pass
-              stdscr.refresh()
-              ch = stdscr.get_wch()
-              if isinstance(ch, str):
-                  if ch in ("\x1b",):
-                      return None
-                  if ch in ("\n", "\r"):
-                      return "".join(buf).strip()
-                  if ch in ("\x7f", "\b"):
-                      if pos:
-                          del buf[pos - 1]
-                          pos -= 1
-                  elif ch == "\x15":                      # ctrl+u
-                      buf, pos = [], 0
-                  elif ch == "\x17":                      # ctrl+w
-                      while pos and buf[pos - 1] == " ":
-                          del buf[pos - 1]; pos -= 1
-                      while pos and buf[pos - 1] != " ":
-                          del buf[pos - 1]; pos -= 1
-                  elif ch == "\x01":                      # ctrl+a
-                      pos = 0
-                  elif ch == "\x05":                      # ctrl+e
-                      pos = len(buf)
-                  elif ch.isprintable():
-                      buf.insert(pos, ch)
-                      pos += 1
-              else:
-                  if ch == curses.KEY_LEFT:
-                      pos = max(0, pos - 1)
-                  elif ch == curses.KEY_RIGHT:
-                      pos = min(len(buf), pos + 1)
-                  elif ch == curses.KEY_HOME:
-                      pos = 0
-                  elif ch == curses.KEY_END:
-                      pos = len(buf)
-                  elif ch == curses.KEY_BACKSPACE:
-                      if pos:
-                          del buf[pos - 1]; pos -= 1
-                  elif ch == curses.KEY_RESIZE:
-                      maxy, maxx = stdscr.getmaxyx()
-      finally:
-          curses.curs_set(0)
+        try:
+            while True:
+                row = maxy - 1
+                stdscr.move(row, 0)
+                stdscr.clrtoeol()
+                printw(stdscr, row, 0, label, curses.color_pair(C_ACCENT) | curses.A_BOLD)
+                off = len(label) + 1
+                text = "".join(buf)
+                visible = maxx - off - 2
+                start = max(0, pos - visible + 1)
+                printw(stdscr, row, off, text[start:start + visible])
+                try:
+                    stdscr.move(row, min(maxx - 1, off + pos - start))
+                except curses.error:
+                    pass
+                stdscr.refresh()
+                ch = stdscr.get_wch()
+                if isinstance(ch, str):
+                    if ch == "\x1b":
+                        if command_enter:
+                            sequence = ch
+                            stdscr.timeout(50)
+                            try:
+                                while not sequence.endswith("u"):
+                                    part = stdscr.get_wch()
+                                    if not isinstance(part, str):
+                                        break
+                                    sequence += part
+                            except curses.error:
+                                pass
+                            stdscr.timeout(-1)
+                            if sequence in ("\x1b[13;9u", "\x1b[13;2u"):
+                                return COMMAND_ENTER, "".join(buf).strip()
+                        return None
+                    if ch in ("\n", "\r"):
+                        return "".join(buf).strip()
+                    if ch in ("\x7f", "\b"):
+                        if pos:
+                            del buf[pos - 1]
+                            pos -= 1
+                    elif ch == "\x15":                      # ctrl+u
+                        buf, pos = [], 0
+                    elif ch == "\x17":                      # ctrl+w
+                        while pos and buf[pos - 1] == " ":
+                            del buf[pos - 1]; pos -= 1
+                        while pos and buf[pos - 1] != " ":
+                            del buf[pos - 1]; pos -= 1
+                    elif ch == "\x01":                      # ctrl+a
+                        pos = 0
+                    elif ch == "\x05":                      # ctrl+e
+                        pos = len(buf)
+                    elif ch.isprintable():
+                        buf.insert(pos, ch)
+                        pos += 1
+                else:
+                    if ch == curses.KEY_LEFT:
+                        pos = max(0, pos - 1)
+                    elif ch == curses.KEY_RIGHT:
+                        pos = min(len(buf), pos + 1)
+                    elif ch == curses.KEY_HOME:
+                        pos = 0
+                    elif ch == curses.KEY_END:
+                        pos = len(buf)
+                    elif ch == curses.KEY_BACKSPACE:
+                        if pos:
+                            del buf[pos - 1]; pos -= 1
+                    elif ch == curses.KEY_RESIZE:
+                        maxy, maxx = stdscr.getmaxyx()
+        finally:
+            curses.curs_set(0)
 
 
 def confirm(stdscr, message: str) -> bool:
@@ -545,7 +562,7 @@ HELP = [
     ("", "or just detaches if something is still running)"),
     ("n", "new instance — asks for the directory, then a worktree"),
     ("", "branch (blank to skip), then opens nvim for the task;"),
-    ("", "save to start it, :cq or an empty buffer cancels"),
+    ("", "Cmd+Enter uses a one-line prompt instead; empty input cancels"),
     ("f", "follow up: send another message without opening it"),
     ("a", "abort whatever the instance is doing right now (asks first)"),
     ("d", "stop and remove from the dashboard, asks first (the opencode"),
@@ -1324,10 +1341,17 @@ def run(stdscr, start_dir: str) -> None:
                     error_pause(stdscr, f"no such directory: {where}")
                 else:
                     last_dir = where
-                    tree = ask(stdscr, " tree :", "")   # branch name, blank to skip
-                    if tree is not None:
+                    tree_result = ask(stdscr, " tree :", "", command_enter=True)
+                    if tree_result is not None:
+                        shortcut_task = None
+                        shortcut = isinstance(tree_result, tuple)
+                        if shortcut:
+                            _, tree = tree_result
+                            shortcut_task = ask(stdscr, " prompt:")
+                        else:
+                            tree = tree_result
                         tree = tree.strip()
-                        task = compose(stdscr, where)
+                        task = (shortcut_task if shortcut else compose(stdscr, where))
                         if not task:
                             flash(stdscr, " cancelled — nothing written")
                         else:
