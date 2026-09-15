@@ -89,6 +89,7 @@ opendash metadata start         # resume background metadata fetching
 opendash metadata messages      # print retained metadata-agent messages
 opendash unlink <session-id> [ID|#PR]  # unlink and ignore a local association
 opendash screen                 # print the running dashboard screen
+opendash log                    # show all agent messages through less
 opendash quit                   # stop every instance and the shared server
 opendash server [status|start|stop]
 ```

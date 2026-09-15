@@ -1728,6 +1728,11 @@ def _cmd_metadata_messages() -> int:
     if not db.exists():
         print(f"opendash: db not found at {db}", file=sys.stderr)
         return 1
+    color = sys.stdout.isatty()
+    blue = "\033[34m" if color else ""
+    yellow = "\033[33m" if color else ""
+    white = "\033[37m" if color else ""
+    reset = "\033[0m" if color else ""
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
     try:
         rows = con.execute(
@@ -1747,12 +1752,73 @@ def _cmd_metadata_messages() -> int:
                     text.append(value["text"])
             subject = " ".join(" ".join(text).split()) or "[no text]"
             stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp / 1000))
-            print(f"{stamp} {str(role or '?'):<9} {subject[:160]}")
+            print(f"{blue}{stamp}{reset} {yellow}{str(role or '?'):<9}{reset} "
+                  f"{white}{subject[:160]}{reset}")
     except sqlite3.Error as error:
         print(f"opendash: could not read metadata messages: {error}", file=sys.stderr)
         return 1
     finally:
         con.close()
+    return 0
+
+
+def _cmd_log(args) -> int:
+    if args.scope in ("meta", "metadata"):
+        return _cmd_metadata_messages()
+    records = instance_records()
+    md = metadata_agent_record()
+    if md:
+        records.append(md)
+    sessions = {record["session_id"]: record for record in records}
+    if not sessions:
+        return 0
+    db = db_path()
+    if not db.exists():
+        print(f"opendash: db not found at {db}", file=sys.stderr)
+        return 1
+    color = sys.stdout.isatty()
+    blue = "\033[34m" if color else ""
+    yellow = "\033[33m" if color else ""
+    grey_italic = "\033[90;3m" if color else ""
+    white = "\033[37m" if color else ""
+    reset = "\033[0m" if color else ""
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+    try:
+        placeholders = ",".join("?" for _ in sessions)
+        rows = con.execute(
+            "select m.id, m.session_id, m.time_created, json_extract(m.data, '$.role')"
+            f" from message m where m.session_id in ({placeholders})"
+            " order by m.time_created desc, m.id desc", tuple(sessions)).fetchall()
+        lines = []
+        for message_id, sid, timestamp, role in rows:
+            text = []
+            for (raw,) in con.execute(
+                    "select p.data from part p where p.message_id = ?"
+                    " order by p.time_created, p.id", (message_id,)):
+                try:
+                    text.extend(metadata._text(json.loads(raw)))
+                except (TypeError, json.JSONDecodeError):
+                    continue
+            subject = " ".join(" ".join(text).split())
+            if not subject:
+                continue
+            record = sessions[sid]
+            agent = ("metadata" if record.get("_metadata_agent")
+                     else record.get("agent") or "default")
+            agent = str(agent)[:50]
+            stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp / 1000))
+            lines.append(f"{blue}{stamp}{reset} {yellow}{str(role or '?').upper():<9}{reset} "
+                         f"{grey_italic}({agent}){reset} {white}{subject}{reset}")
+    except sqlite3.Error as error:
+        print(f"opendash: could not read log: {error}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    output = "\n".join(lines) + ("\n" if lines else "")
+    if output and sys.stdout.isatty() and shutil.which("less"):
+        subprocess.run(["less", "-R"], input=output, text=True, check=False)
+    else:
+        sys.stdout.write(output)
     return 0
 
 
@@ -2112,6 +2178,11 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("screen", help="print the running dashboard's current screen")
     p.set_defaults(fn=_cmd_screen)
+
+    p = sub.add_parser("log", help="show all OpenDash agent messages")
+    p.add_argument("scope", nargs="?", choices=["meta", "metadata"],
+                   help="show only metadata-agent messages")
+    p.set_defaults(fn=_cmd_log)
 
     p = sub.add_parser("agent", help="find the instance assigned to a directory")
     p.add_argument("directory")

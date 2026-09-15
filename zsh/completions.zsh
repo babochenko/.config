@@ -190,6 +190,7 @@ function _opendash() {
     'unlink:ignore a ticket or PR association'
     'link:add or restore a ticket or PR association'
     'screen:print the dashboard screen'
+    'log:show all agent messages'
     'agent:find the instance assigned to a directory'
     'prompt:send a prompt to an instance'
     'ci:ask an agent to check PR comments and builds'
@@ -251,6 +252,9 @@ function _opendash() {
       ;;
     ci)
       _arguments ':session:_opendash_sessions'
+      ;;
+    log)
+      _describe 'log scope' 'meta:show metadata-agent messages' 'metadata:show metadata-agent messages'
       ;;
   esac
 }

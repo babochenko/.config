@@ -24,6 +24,7 @@ opendash - background opencode instances
   opendash link <session-id> ID|#PR|URL
                                    add or restore a ticket/PR association
   opendash screen                 print the running dashboard's current screen
+  opendash log                    show all agent messages (paged)
   opendash agent <directory>      find instances assigned to a directory
   opendash prompt <session-id> <text...>
                                   send a prompt to an instance
@@ -95,6 +96,7 @@ case ${1-} in
   unlink)              shift; exec $py "$here/ocore.py" unlink "$@" ;;
   link)                shift; exec $py "$here/ocore.py" link "$@" ;;
   screen)              shift; exec $py "$here/ocore.py" screen "$@" ;;
+  log)                 shift; exec $py "$here/ocore.py" log "$@" ;;
   agent)               shift; exec $py "$here/ocore.py" agent "$@" ;;
   prompt)              shift; exec $py "$here/ocore.py" prompt "$@" ;;
   ci)                  shift; exec $py "$here/ocore.py" ci "$@" ;;
