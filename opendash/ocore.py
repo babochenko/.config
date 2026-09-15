@@ -2047,87 +2047,6 @@ def _cmd_quit(args) -> int:
     return 0
 
 
-def _cmd_doctor(args) -> int:
-    """Check everything an instance needs, in the order it needs it."""
-    ok = True
-
-    def line(good: bool, label: str, detail: str = "") -> None:
-        nonlocal ok
-        ok = ok and good
-        print(f"  {'ok  ' if good else 'FAIL'} {label:<22} {detail}")
-
-    for tool in ("opencode", "tmux", "git"):
-        path = shutil.which(tool) or (opencode_bin() if tool == "opencode" else None)
-        line(bool(path and Path(path).exists()), tool, path or "not on PATH")
-
-    try:
-        url = server_url()
-        info = server_info() or {}
-        line(True, "server", f"{url} pid={info.get('pid')}")
-    except ApiError as e:
-        line(False, "server", str(e))
-        return 1
-
-    agents = server_agents(url)
-    line(bool(agents), "server agents", ", ".join(sorted(agents)) or "none reported")
-
-    wanted = CONFIG.get("agent")
-    if wanted:
-        try:
-            _check_agent(url, wanted)
-            line(True, "configured agent", wanted)
-        except ApiError as e:
-            line(False, "configured agent", str(e))
-    else:
-        line(True, "configured agent", "none (opencode default)")
-
-    line(True, "configured model", CONFIG.get("model") or "none (opencode default)")
-    line(db_path().exists(), "opencode db", str(db_path()))
-    line(True, "instances", str(len(instance_records())))
-
-    print("\n  sending a test prompt…")
-    directory = str(Path(args.dir or "/tmp").resolve())
-    session = http(f"{url}/session?{urllib.parse.urlencode({'directory': directory})}",
-                   "POST", {}, timeout=20) or {}
-    sid = session.get("id")
-    if not sid:
-        line(False, "test session", "server did not return a session")
-        return 1
-    try:
-        body: dict = {"parts": [{"type": "text", "text": "Reply with just: OK"}]}
-        m = _split_model(CONFIG.get("model"))
-        if m:
-            body["model"] = m
-        if wanted:
-            body["agent"] = wanted
-        http(f"{url}/session/{sid}/prompt_async"
-             f"?{urllib.parse.urlencode({'directory': directory})}", "POST", body, timeout=20)
-        deadline = time.time() + 30
-        replied = False
-        while time.time() < deadline:
-            con = _connect()
-            try:
-                count = con.execute("select count(*) from message where session_id = ?"
-                                    " and json_extract(data,'$.role') = 'assistant'",
-                                    (sid,)).fetchone()[0]
-            finally:
-                con.close()
-            if count:
-                replied = True
-                break
-            time.sleep(1)
-        line(replied, "test run started",
-             "the agent replied" if replied
-             else (launch_failure(sid) or "nothing came back; see " + str(opencode_log())))
-    finally:
-        try:
-            http(f"{url}/session/{sid}", "DELETE", timeout=8)
-        except ApiError:
-            pass
-    print("\n  all good" if ok else "\n  something above needs fixing")
-    return 0 if ok else 1
-
-
 def _cmd_healthcheck(args) -> int:
     failed = False
 
@@ -2142,10 +2061,30 @@ def _cmd_healthcheck(args) -> int:
              path or "not on PATH")
 
     info = server_info()
-    if info and _server_process_owned(info) and _server_alive(info["url"], timeout=2):
+    server_ok = bool(info and _server_process_owned(info) and
+                      _server_alive(info["url"], timeout=2))
+    if server_ok:
         line("ok", "server", f"{info['url']} pid={info.get('pid')}")
     else:
         line("FAIL", "server", "not running or not owned by opendash")
+
+    if server_ok:
+        agents = server_agents(info["url"])
+        line("ok" if agents else "FAIL", "server agents",
+             ", ".join(sorted(agents)) or "none reported")
+        wanted = CONFIG.get("agent")
+        if wanted:
+            try:
+                _check_agent(info["url"], wanted)
+                line("ok", "configured agent", wanted)
+            except ApiError as error:
+                line("FAIL", "configured agent", str(error))
+        else:
+            line("ok", "configured agent", "none (opencode default)")
+    else:
+        line("FAIL", "server agents", "server unavailable")
+        line("FAIL", "configured agent", "server unavailable")
+    line("ok", "configured model", CONFIG.get("model") or "none (opencode default)")
 
     db = db_path()
     if not db.exists():
@@ -2314,11 +2253,7 @@ def main(argv=None) -> int:
     p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
     p.set_defaults(fn=_cmd_quit)
 
-    p = sub.add_parser("doctor", help="check that instances can actually start")
-    p.add_argument("-d", "--dir", help="directory to test in (default /tmp)")
-    p.set_defaults(fn=_cmd_doctor)
-
-    p = sub.add_parser("healthcheck", help="check OpenDash sources without sending prompts")
+    p = sub.add_parser("healthcheck", help="check sources and instance configuration")
     p.set_defaults(fn=_cmd_healthcheck)
 
     p = sub.add_parser("server", help="manage the shared opencode server")

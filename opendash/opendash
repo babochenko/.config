@@ -46,8 +46,7 @@ opendash - background opencode instances
                                   switch into a new worktree on <branch>
 
   destructive commands ask for confirmation; -y/--yes skips it
-  opendash doctor [-d DIR]        check that instances can actually start
-  opendash healthcheck            check sources without sending prompts
+  opendash healthcheck            check sources and instance configuration
   opendash server [status|start|stop]
                                   the shared background opencode server
 
@@ -93,7 +92,6 @@ case ${1-} in
   links)               shift; exec $py "$here/ocore.py" links "$@" ;;
   rm|remove)           shift; exec $py "$here/ocore.py" rm "$@" ;;
   quit)                shift; exec $py "$here/ocore.py" quit "$@" ;;
-  doctor)              shift; exec $py "$here/ocore.py" doctor "$@" ;;
   healthcheck)         shift; exec $py "$here/ocore.py" healthcheck "$@" ;;
   abort|stop)          shift; exec $py "$here/ocore.py" abort "$@" ;;
   cd)                  shift; exec $py "$here/ocore.py" cd "$@" ;;

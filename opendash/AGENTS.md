@@ -88,8 +88,7 @@ opendash new -w TIX-001-fix-tests "…"   # in a worktree ../<repo>-<branch>
 opendash list                   # plain text, no curses
 opendash links                  # show linked tickets and PRs for all agents
 opendash links payments         # show links for one matching agent
-opendash doctor                # check that instances can actually start
-opendash healthcheck           # check sources without sending prompts
+opendash healthcheck           # check sources and instance configuration
 opendash abort <session-id>     # interrupt a run
 opendash rm <session-id>        # stop it and drop it from the list
 opendash clear <session-id>     # clear messages, keeping the session
@@ -466,14 +465,13 @@ an error rather than staying queued, and the row shows the server's own reason,
 read out of `opencode.log` — `prompt_async` answers 204 and can still die
 afterwards, so its log is the only place the cause exists.
 
-`opendash doctor` checks the whole chain in the order an instance needs it —
-binaries, server, the agents it knows, the configured agent and model, the
-database — and then actually sends a test prompt and waits for a reply:
+`opendash healthcheck` checks the whole chain in the order an instance needs it
+— binaries, server, the agents it knows, the configured agent and model, the
+database — without creating sessions or sending prompts:
 
 ```
   ok   server agents          build, compaction, …, myagent
   ok   configured agent       myagent
-  ok   test run started       the agent replied
 ```
 
 Run it on a machine where instances will not start; it names the broken link.
