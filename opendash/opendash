@@ -18,6 +18,7 @@ opendash - background opencode instances
   opendash                        open the dashboard
   opendash new [opts] <task...>   start an instance in the current directory
   opendash list                   list instances (plain text)
+  opendash links [agent-grep]     show linked tickets and PRs
   opendash abort <session-id>...  interrupt what an instance is doing
   opendash unlink <session-id> [ID|#PR]
                                    remove and ignore a ticket/PR association
@@ -89,6 +90,7 @@ case ${1-} in
   ""|dash|dashboard)   exec $py "$here/dashboard.py" ;;
   new|n)               shift; exec $py "$here/ocore.py" new "$@" ;;
   list|ls)             shift; exec $py "$here/ocore.py" list "$@" ;;
+  links)               shift; exec $py "$here/ocore.py" links "$@" ;;
   rm|remove)           shift; exec $py "$here/ocore.py" rm "$@" ;;
   quit)                shift; exec $py "$here/ocore.py" quit "$@" ;;
   doctor)              shift; exec $py "$here/ocore.py" doctor "$@" ;;

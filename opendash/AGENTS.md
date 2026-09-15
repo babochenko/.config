@@ -86,6 +86,8 @@ opendash new "PROJ-1204 make the retry backoff configurable"   # start one here
 opendash new -d ~/dev/payments -m anthropic/claude-sonnet-5 "…"
 opendash new -w TIX-001-fix-tests "…"   # in a worktree ../<repo>-<branch>
 opendash list                   # plain text, no curses
+opendash links                  # show linked tickets and PRs for all agents
+opendash links payments         # show links for one matching agent
 opendash doctor                # check that instances can actually start
 opendash healthcheck           # check sources without sending prompts
 opendash abort <session-id>     # interrupt a run

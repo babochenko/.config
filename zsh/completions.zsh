@@ -176,7 +176,7 @@ function _opendash() {
   local -a commands actions
   commands=(
     new n list ls rm remove quit doctor healthcheck abort stop cd unlink link
-    screen log agent prompt ci clear metadata meta server
+    screen log links agent prompt ci clear metadata meta server
   )
 
   if (( CURRENT == 2 )); then

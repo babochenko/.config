@@ -1503,6 +1503,33 @@ def _cmd_list(args) -> int:
     return 0
 
 
+def _cmd_links(args) -> int:
+    records = instance_records()
+    md = metadata_agent_record()
+    if md:
+        records.append(md)
+    items = snapshot(records)
+    if args.agent:
+        needle = args.agent.lower()
+        items = [item for item in items
+                 if needle in item["session_id"].lower()
+                 or needle in _label(item).lower()
+                 or needle in _headline(item).lower()
+                 or needle in (item.get("directory") or "").lower()
+                 or needle in (item.get("ticket") or "").lower()]
+        if len(items) > 1:
+            print(f"opendash: '{args.agent}' matches {len(items)} agents", file=sys.stderr)
+            return 1
+    for item in items:
+        tickets = item.get("tickets") or []
+        prs = item.get("prs") or []
+        print(f"{_label(item) or item['session_id']} ({item['session_id']})")
+        print("  tickets: " + (", ".join(tickets) if tickets else "(none)"))
+        labels = [p.get("label") or f"#{p.get('number', '?')}" for p in prs]
+        print("  PRs:     " + (", ".join(labels) if labels else "(none)"))
+    return 0
+
+
 def _confirm(args, message: str) -> bool:
     """Ask for y/N confirmation unless --yes is set."""
     if getattr(args, "yes", False):
@@ -2197,6 +2224,10 @@ def main(argv=None) -> int:
                    help="print only session IDs")
     p.add_argument("name", nargs="?", help="filter by title or ticket (shows full output)")
     p.set_defaults(fn=_cmd_list)
+
+    p = sub.add_parser("links", help="show linked tickets and PRs")
+    p.add_argument("agent", nargs="?", help="agent name, title, directory, ticket, or session search")
+    p.set_defaults(fn=_cmd_links)
 
     p = sub.add_parser("rm", help="stop and forget instances")
     p.add_argument("session_id", nargs="+")
