@@ -610,7 +610,7 @@ HELP = [
     ("J K", "move the selected instance down / up the list"),
     ("g / G", "first / last"),
     ("enter or o", "open the instance (option+q comes back here)"),
-    ("c", "code actions: h check, m merge master, p commit/push, s git status, g git log, r review, U update/restart"),
+    ("c", "code actions: h check, m merge master, p commit/push, s git status, g git log, S linked items, r review, U update/restart"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
     ("", "or just detaches if something is still running)"),
     ("n", "new instance — asks for the directory, then a worktree"),
@@ -640,6 +640,7 @@ CODE_ACTIONS = [
     ("r", "[r]eview branch"),
     ("s", "[s]how git status"),
     ("g", "[g]it log, last 10 commits"),
+    ("S", "manage linked ticket[s] and PRs"),
     ("U", "[U]pdate config and relaunch"),
     ("esc", "[esc] cancel"),
 ]
@@ -684,7 +685,7 @@ def code_actions_overlay(stdscr) -> str | None:
     with blocking(stdscr):
         try:
             ch = stdscr.get_wch()
-            if isinstance(ch, str) and ch in ("h", "m", "p", "s", "g", "r", "i", "U", "P"):
+            if isinstance(ch, str) and ch in ("h", "m", "p", "s", "g", "r", "i", "U", "P", "S"):
                 choice = ch
         except curses.error:
             pass
@@ -907,6 +908,110 @@ def prs_overlay(stdscr, item: dict, data, frame: int) -> None:
         else:
             break
     stdscr.timeout(TICK_MS)
+    stdscr.touchwin()
+    stdscr.refresh()
+
+
+def linked_items_overlay(stdscr, item: dict, data) -> None:
+    """Manage the selected instance's ticket and PR associations."""
+    sid = item["session_id"]
+    tickets = list(item.get("tickets") or [])
+    prs = list(item.get("prs") or [])
+    selected = 0
+
+    def item_rows():
+        rows = []
+        for section, values in (("Tickets", tickets), ("PRs", prs)):
+            rows.append((True, section, None, section))
+            if values:
+                for value in values:
+                    if section == "Tickets":
+                        label = str(value)
+                    else:
+                        number = str(value.get("number", "?"))
+                        label = value.get("label") or f"#{number}"
+                        if value.get("title"):
+                            label += f" — {value['title']}"
+                    rows.append((False, section, value, label))
+            else:
+                rows.append((False, section, None, "(none linked)"))
+        return rows
+
+    def selectable(rows):
+        return [n for n, row in enumerate(rows) if not row[0] and row[2] is not None]
+
+    while True:
+        rows = item_rows()
+        choices = selectable(rows)
+        if choices:
+            selected = min(selected, len(choices) - 1)
+        else:
+            selected = 0
+        selected_row = choices[selected] if choices else None
+        maxy, maxx = stdscr.getmaxyx()
+        height = min(maxy - 4, max(9, len(rows) + 4))
+        width = min(maxx - 4, max(48, max(len(row[3]) for row in rows) + 8))
+        win = curses.newwin(height, width, max(0, (maxy - height) // 2),
+                            max(0, (maxx - width) // 2))
+        win.bkgd(" ")
+        win.border()
+        printw(win, 0, 2, " linked items ", curses.color_pair(C_ACCENT) | curses.A_BOLD)
+        for row_number, (header, section, value, label) in enumerate(rows, 2):
+            if row_number >= height - 1:
+                break
+            if header:
+                printw(win, row_number, 3, section,
+                       curses.color_pair(C_TICKET) | curses.A_BOLD)
+                continue
+            is_selected = selected_row is not None and row_number - 2 == selected_row
+            attr = curses.color_pair(C_SEL) | curses.A_REVERSE if is_selected else curses.color_pair(C_DIM)
+            printw(win, row_number, 5, clip(label, width - 8), attr)
+        printw(win, height - 2, 3, "j/k navigate · a add · d unlink · D clear section · esc close",
+               curses.color_pair(C_DIM))
+        win.refresh()
+        with blocking(stdscr):
+            try:
+                ch = stdscr.get_wch()
+            except curses.error:
+                ch = "\x1b"
+        del win
+        if ch in ("\x1b", "q", "c"):
+            break
+        if ch in ("j", curses.KEY_DOWN) and choices:
+            selected = min(selected + 1, len(choices) - 1)
+        elif ch in ("k", curses.KEY_UP) and choices:
+            selected = max(0, selected - 1)
+        elif ch == "a":
+            association = ask(stdscr, " link:")
+            if association:
+                association = association.strip()
+                if ocore.link_association(sid, association):
+                    if "-" in association and not association.lstrip("#").isdigit() \
+                            and "://" not in association:
+                        tickets.insert(0, association.upper())
+                    else:
+                        number = metadata._parse_association(association)
+                        prs.append({"number": number, "label": f"#{number}",
+                                    "manual": True})
+                    data.refresh_now()
+        elif ch in ("d", "D") and selected_row is not None:
+            section = rows[selected_row][1]
+            if ch == "D":
+                values = tickets if section == "Tickets" else prs
+                if not values or not confirm(stdscr, f" unlink all {section.lower()}?"):
+                    continue
+                for value in list(values):
+                    association = value if section == "Tickets" else f"#{value.get('number')}"
+                    ocore.unlink_association(sid, association)
+                values.clear()
+            else:
+                value = rows[selected_row][2]
+                association = value if section == "Tickets" else f"#{value.get('number')}"
+                if not confirm(stdscr, f" unlink {association}?"):
+                    continue
+                if ocore.unlink_association(sid, association):
+                    (tickets if section == "Tickets" else prs).remove(value)
+            data.refresh_now()
     stdscr.touchwin()
     stdscr.refresh()
 
@@ -1335,6 +1440,8 @@ def run(stdscr, start_dir: str) -> None:
                         git_status_overlay(stdscr, cur.get("directory") or last_dir)
                     elif action == "g":
                         git_log_overlay(stdscr, cur.get("directory") or last_dir)
+                    elif action == "S":
+                        linked_items_overlay(stdscr, cur, data)
                     elif action == "P":
                         prs_overlay(stdscr, cur, data, frame)
                     elif action == "r":
