@@ -1023,14 +1023,16 @@ def linked_items_overlay(stdscr, item: dict, data) -> None:
                     continue
                 for value in list(values):
                     association = value if section == "Tickets" else f"#{value.get('number')}"
-                    ocore.unlink_association(sid, association)
+                    ocore.unlink_association(sid, association,
+                                             "pr" if section == "PRs" else "ticket")
                 values.clear()
             else:
                 value = selected_value
                 association = value if section == "Tickets" else f"#{value.get('number')}"
                 if not confirm(stdscr, f" unlink {association}?"):
                     continue
-                if ocore.unlink_association(sid, association):
+                if ocore.unlink_association(sid, association,
+                                             "pr" if section == "PRs" else "ticket"):
                     (tickets if section == "Tickets" else prs).remove(value)
             data.refresh_now()
     stdscr.touchwin()

@@ -146,6 +146,75 @@ class RemoteMetadata(unittest.TestCase):
         self.assertEqual(jira["PROJ-1"]["status"], "Done")
 
 
+class AssociationRouting(unittest.TestCase):
+    """Ticket-vs-PR classification for links and unlinks."""
+
+    def _state(self) -> Path:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        return Path(tmp.name)
+
+    def test_jira_url_links_a_ticket_not_a_pr(self):
+        state = self._state()
+        metadata.link(state, "s1", "https://revolut.atlassian.net/browse/PCYXC-2193")
+        entry = metadata.load(state)["s1"]
+        self.assertEqual(entry["tickets"], ["PCYXC-2193"])
+        self.assertEqual(entry.get("prs", []), [])
+
+    def test_unlink_by_jira_url_removes_the_ticket(self):
+        state = self._state()
+        metadata.link(state, "s1", "PCYXC-2193")
+        changed = metadata.unlink(
+            state, "s1", "https://revolut.atlassian.net/browse/PCYXC-2193")
+        entry = metadata.load(state)["s1"]
+        self.assertTrue(changed)
+        self.assertIn("PCYXC-2193", entry["ignored"]["tickets"])
+
+    def test_unlinking_a_pr_row_whose_number_is_a_jira_url(self):
+        state = self._state()
+        metadata.link(state, "s1", "https://bitbucket.org/revolut/parrot/pull-requests/1441")
+        data = metadata.load(state)
+        data["s1"]["prs"].append(
+            {"number": "https://revolut.atlassian.net/browse/PCYXC-2193",
+             "label": "#https://revolut.atlassian.net/browse/PCYXC-2193",
+             "manual": True})
+        metadata.save(state, data)
+        changed = metadata.unlink(
+            state, "s1", "#https://revolut.atlassian.net/browse/PCYXC-2193", "pr")
+        entry = metadata.load(state)["s1"]
+        self.assertTrue(changed)
+        self.assertEqual([p["number"] for p in entry["prs"]], ["1441"])
+        self.assertIn("https://revolut.atlassian.net/browse/PCYXC-2193",
+                      entry["ignored"]["prs"])
+
+    def test_unlink_pr_ref_still_routes_to_prs(self):
+        state = self._state()
+        metadata.link(state, "s1", "#123")
+        metadata.unlink(state, "s1", "#123")
+        entry = metadata.load(state)["s1"]
+        self.assertEqual(entry.get("prs", []), [])
+        self.assertIn("123", entry["ignored"]["prs"])
+        self.assertEqual(entry["ignored"]["tickets"], [])
+
+    def test_unlink_ticket_with_a_dash_routes_to_tickets(self):
+        state = self._state()
+        metadata.link(state, "s1", "PCYXC-2193")
+        metadata.unlink(state, "s1", "PCYXC-2193")
+        entry = metadata.load(state)["s1"]
+        self.assertIn("PCYXC-2193", entry["ignored"]["tickets"])
+        self.assertEqual(entry["ignored"].get("prs", []), [])
+
+    def test_unlink_by_bitbucket_url_matches_the_stored_number(self):
+        state = self._state()
+        metadata.link(state, "s1", "#1441")
+        changed = metadata.unlink(
+            state, "s1", "https://bitbucket.org/revolut/parrot/pull-requests/1441")
+        entry = metadata.load(state)["s1"]
+        self.assertTrue(changed)
+        self.assertEqual(entry.get("prs", []), [])
+        self.assertIn("1441", entry["ignored"]["prs"])
+
+
 class Headline(unittest.TestCase):
     def test_manual_name_wins_over_generated_title(self):
         item = {"title_override": "my name", "title": "generated", "task": "t"}

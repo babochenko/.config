@@ -1700,10 +1700,12 @@ def _cmd_screen(args) -> int:
     return 0
 
 
-def unlink_association(session_id: str, association: str | None = None) -> bool:
+def unlink_association(session_id: str, association: str | None = None,
+                       kind: str | None = None) -> bool:
     """Remove a local association and suppress its rediscovery."""
-    association = association.upper() if association and "-" in association else association
-    changed = metadata.unlink(STATE, session_id, association)
+    if association and kind != "pr" and not metadata.is_pr_association(association):
+        association = metadata._ticket_from_association(association)
+    changed = metadata.unlink(STATE, session_id, association, kind)
     path = INSTANCES / f"{session_id}.json"
     record = _read_json(path)
     if record and (not association or association == record.get("ticket")):

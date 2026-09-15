@@ -211,15 +211,39 @@ def update(state: Path, con, records: list[dict]) -> dict:
     return data
 
 
-def unlink(state: Path, session_id: str, association: str | None = None) -> bool:
+def is_pr_association(association: str) -> bool:
+    """True for PR refs (#123, 123) and Bitbucket pull-request URLs.
+
+    Ticket IDs and any other string (including Jira URLs, which contain a
+    dash inside the ticket ID) must not be mistaken for PRs.
+    """
+    return association.lstrip("#").isdigit() or bool(PR_URL_RE.search(association))
+
+
+def _ticket_from_association(association: str) -> str:
+    """Uppercase ticket ID, extracting it from a Jira URL when given one."""
+    match = URL_TICKET_RE.search(association)
+    return match.group(1).upper() if match else association.upper()
+
+
+def unlink(state: Path, session_id: str, association: str | None = None,
+           kind: str | None = None) -> bool:
+    """Remove an association and suppress its rediscovery.
+
+    ``kind`` ("ticket" or "pr") states what the caller selected; without it
+    the shape decides: digit refs and Bitbucket PR URLs are PRs, anything
+    else is a ticket.
+    """
     data = load(state)
     entry = data.setdefault(session_id, {})
     ignored = entry.setdefault("ignored", {"tickets": [], "prs": []})
     ignored.setdefault("tickets", [])
     ignored.setdefault("prs", [])
     changed = False
-    if not association or ("-" in association and not association.lstrip("#").isdigit()):
-        ticket = association.upper() if association else None
+    is_pr = kind == "pr" or (kind is None and association
+                             and is_pr_association(association))
+    if not is_pr:
+        ticket = _ticket_from_association(association) if association else None
         if ticket and ticket not in ignored["tickets"]:
             ignored["tickets"].append(ticket); changed = True
         if ticket and ticket in entry.get("tickets", []):
@@ -229,8 +253,8 @@ def unlink(state: Path, session_id: str, association: str | None = None) -> bool
                 if value not in ignored["tickets"]: ignored["tickets"].append(value); changed = True
             entry["tickets"] = []
     else:
-        number = association.lstrip("#")
-        existing = [p for p in entry.get("prs", []) if p.get("number") != number]
+        number = _parse_association(association or "#")
+        existing = [p for p in entry.get("prs", []) if str(p.get("number")) != number]
         was_present = len(existing) < len(entry.get("prs", []))
         if was_present:
             entry["prs"] = existing
@@ -278,8 +302,8 @@ def link(state: Path, session_id: str, association: str) -> bool:
     entry = data.setdefault(session_id, {})
     ignored = entry.setdefault("ignored", {"tickets": [], "prs": []})
     changed = False
-    if "-" in association and not association.lstrip("#").isdigit() and "://" not in association:
-        ticket = association.upper()
+    if not is_pr_association(association):
+        ticket = _ticket_from_association(association)
         if ticket in ignored["tickets"]:
             ignored["tickets"].remove(ticket); changed = True
         tickets = entry.setdefault("tickets", [])
