@@ -39,7 +39,7 @@ ICONS = {
     "working":   None,        # animated spinner
     "attention": "◆",
     "queued":    "◔",
-    "idle":      "●",
+    "idle":      "",           # no dot: the state column says "idle"
     "error":     "✖",
     "unknown":   "○",
 }
@@ -59,9 +59,6 @@ STATE_COLOR = {
     "working": C_WORK, "attention": C_ATT, "queued": C_ACCENT,
     "idle": C_OK, "error": C_ERR, "unknown": C_DIM,
 }
-
-JIRA_COLOR = {"todo": C_DIM, "progress": C_WORK, "done": C_OK}
-
 
 
 
@@ -940,7 +937,9 @@ def _short_dir(directory: str | None) -> str:
 def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) -> None:
     state = item["state"]
     pair = curses.color_pair(C_DIM if minimized else STATE_COLOR.get(state, C_DIM))
-    icon = ICONS.get(state) or SPINNER[frame % len(SPINNER)]
+    icon = ICONS.get(state)
+    if icon is None:                     # working: the spinner stands in
+        icon = SPINNER[frame % len(SPINNER)]
 
     marker_rows = (y, y + 1) if minimized else (y, y + 1, y + 2)
     for row in marker_rows:
@@ -955,11 +954,6 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
 
     ticket = item.get("ticket")
     jinfo = jira.get(ticket) if ticket else None
-    if jinfo:
-        tile = {"todo": "○", "progress": "◐", "done": "●"}.get(jinfo.get("category"), "·")
-        tile_attr = curses.color_pair(C_DIM if minimized else JIRA_COLOR.get(jinfo.get("category"), C_DIM))
-        x = printw(stdscr, y, x, tile, tile_attr | emphasis)
-        x = printw(stdscr, y, x, " ")
     if ticket:
         ticket_attr = curses.color_pair(C_DIM if minimized else C_TICKET) | emphasis
         pad = " " * max(0, TICKET_W - _tw(ticket))
@@ -1024,7 +1018,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
             icon, label = SPINNER[frame % len(SPINNER)], clip(running, TERM_W)
             icon_pair, label_pair = C_TICKET, C_TICKET
         else:
-            icon, label = ICONS["idle"], "idle"
+            icon, label = "●", "idle"   # terminal dot: not the agent-state icon
             icon_pair, label_pair = C_OK, C_DIM
         term_text = f"{icon} ❯{label}"
         headline_end = status_x - 2 - len(term_text)
