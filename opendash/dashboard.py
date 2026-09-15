@@ -917,6 +917,7 @@ def linked_items_overlay(stdscr, item: dict, data) -> None:
     sid = item["session_id"]
     tickets = list(item.get("tickets") or [])
     prs = list(item.get("prs") or [])
+    selected_section = 0
     selected = 0
 
     def item_rows():
@@ -937,17 +938,11 @@ def linked_items_overlay(stdscr, item: dict, data) -> None:
                 rows.append((False, section, None, "(none linked)"))
         return rows
 
-    def selectable(rows):
-        return [n for n, row in enumerate(rows) if not row[0] and row[2] is not None]
-
     while True:
         rows = item_rows()
-        choices = selectable(rows)
-        if choices:
-            selected = min(selected, len(choices) - 1)
-        else:
-            selected = 0
-        selected_row = choices[selected] if choices else None
+        section_values = (tickets, prs)[selected_section]
+        selected = min(selected, max(0, len(section_values) - 1))
+        selected_value = section_values[selected] if section_values else None
         maxy, maxx = stdscr.getmaxyx()
         height = min(maxy - 4, max(9, len(rows) + 4))
         width = min(maxx - 4, max(48, max(len(row[3]) for row in rows) + 8))
@@ -960,10 +955,13 @@ def linked_items_overlay(stdscr, item: dict, data) -> None:
             if row_number >= height - 1:
                 break
             if header:
+                section_index = 0 if section == "Tickets" else 1
                 printw(win, row_number, 3, section,
-                       curses.color_pair(C_TICKET) | curses.A_BOLD)
+                       curses.color_pair(C_SEL if section_index == selected_section else C_TICKET)
+                       | curses.A_BOLD)
                 continue
-            is_selected = selected_row is not None and row_number - 2 == selected_row
+            is_selected = (section == ("Tickets" if selected_section == 0 else "PRs")
+                           and value is selected_value and value is not None)
             attr = curses.color_pair(C_SEL) | curses.A_REVERSE if is_selected else curses.color_pair(C_DIM)
             printw(win, row_number, 5, clip(label, width - 8), attr)
         printw(win, height - 2, 3, "j/k navigate · a add · d unlink · D clear section · esc close",
@@ -977,27 +975,44 @@ def linked_items_overlay(stdscr, item: dict, data) -> None:
         del win
         if ch in ("\x1b", "q", "c"):
             break
-        if ch in ("j", curses.KEY_DOWN) and choices:
-            selected = min(selected + 1, len(choices) - 1)
-        elif ch in ("k", curses.KEY_UP) and choices:
-            selected = max(0, selected - 1)
+        if ch in ("j", curses.KEY_DOWN):
+            if selected + 1 < len(section_values):
+                selected += 1
+            elif selected_section == 0:
+                selected_section, selected = 1, 0
+        elif ch in ("k", curses.KEY_UP):
+            if selected > 0:
+                selected -= 1
+            elif selected_section == 1:
+                selected_section = 0
+                selected = max(0, len(tickets) - 1)
         elif ch == "a":
             association = ask(stdscr, " link:")
             if association:
                 association = association.strip()
-                if ocore.link_association(sid, association):
-                    if "-" in association and not association.lstrip("#").isdigit() \
-                            and "://" not in association:
+                section = "Tickets" if selected_section == 0 else "PRs"
+                if section == "Tickets":
+                    association = metadata.extract_ticket(association)
+                    valid = association is not None
+                else:
+                    valid = (association.lstrip("#").isdigit()
+                             or bool(metadata.PR_URL_RE.search(association)))
+                if not valid:
+                    flash(stdscr, f" invalid {section[:-1].lower()} association", C_ERR)
+                elif ocore.link_association(sid, association):
+                    if section == "Tickets":
                         tickets.insert(0, association.upper())
                     else:
                         number = metadata._parse_association(association)
                         prs.append({"number": number, "label": f"#{number}",
                                     "manual": True})
                     data.refresh_now()
-        elif ch in ("d", "D") and selected_row is not None:
-            section = rows[selected_row][1]
+        elif ch in ("d", "D"):
+            section = "Tickets" if selected_section == 0 else "PRs"
+            values = tickets if selected_section == 0 else prs
+            if ch == "d" and selected_value is None:
+                continue
             if ch == "D":
-                values = tickets if section == "Tickets" else prs
                 if not values or not confirm(stdscr, f" unlink all {section.lower()}?"):
                     continue
                 for value in list(values):
@@ -1005,7 +1020,7 @@ def linked_items_overlay(stdscr, item: dict, data) -> None:
                     ocore.unlink_association(sid, association)
                 values.clear()
             else:
-                value = rows[selected_row][2]
+                value = selected_value
                 association = value if section == "Tickets" else f"#{value.get('number')}"
                 if not confirm(stdscr, f" unlink {association}?"):
                     continue
