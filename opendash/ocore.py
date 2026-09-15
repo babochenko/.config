@@ -1809,6 +1809,7 @@ def _cmd_log(args) -> int:
     yellow = "\033[33m" if color else ""
     grey_italic = "\033[90;3m" if color else ""
     white = "\033[37m" if color else ""
+    red = "\033[31m" if color else ""
     reset = "\033[0m" if color else ""
     columns = shutil.get_terminal_size((120, 24)).columns
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
@@ -1849,7 +1850,8 @@ def _cmd_log(args) -> int:
             agent = str(agent)
             if len(agent) > 20:
                 agent = agent[:19] + "…"
-            entries.append((timestamp, agent.lower(), message_id, role or "?", agent, subject))
+            entries.append((timestamp, agent.lower(), message_id, role or "?", agent, subject,
+                            bool(error)))
     except sqlite3.Error as error:
         print(f"opendash: could not read log: {error}", file=sys.stderr)
         return 1
@@ -1879,18 +1881,24 @@ def _cmd_log(args) -> int:
                         except OSError:
                             break
                     subject = " ".join(raw_line.split())
-                    entries.append((timestamp, source.lower(), raw_line, "SYSTEM", source, subject))
+                    is_error = bool(re.search(r"\b(error|exception|failed|failure)\b",
+                                              raw_line, re.I))
+                    entries.append((timestamp, source.lower(), raw_line, "SYSTEM", source,
+                                    subject, is_error))
 
     entries.sort(key=lambda entry: (-entry[0], entry[1], str(entry[2])))
     lines = []
-    for timestamp, _, _, role, agent, subject in entries:
+    for timestamp, _, _, role, agent, subject, is_error in entries:
         stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp / 1000))
-        prefix_width = 19 + 1 + 9 + 1 + len(agent) + 3
+        prefix_width = 19 + 1 + 9 + 1 + 1 + 1 + len(agent) + 3
         message_width = max(1, columns - prefix_width)
         if len(subject) > message_width:
             subject = subject[:max(0, message_width - 1)] + "…"
+        marker = "✗" if is_error else " "
+        subject_color = red if is_error else white
         lines.append(f"{blue}{stamp}{reset} {yellow}{str(role).upper():<9}{reset} "
-                     f"{grey_italic}({agent}){reset} {white}{subject}{reset}")
+                     f"{red}{marker}{reset} {grey_italic}({agent}){reset} "
+                     f"{subject_color}{subject}{reset}")
     output = "\n".join(lines) + ("\n" if lines else "")
     if output and sys.stdout.isatty() and shutil.which("less"):
         subprocess.run(["less", "-R"], input=output, text=True, check=False)
