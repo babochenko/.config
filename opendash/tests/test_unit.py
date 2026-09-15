@@ -270,6 +270,13 @@ class GitStatus(unittest.TestCase):
             [("+3", dashboard.C_OK), (" -1", dashboard.C_DIM)],
         )
 
+    def test_ansi_segments_preserve_combined_git_branch_colors(self):
+        self.assertEqual(
+            dashboard._ansi_segments("\033[1;36mHEAD\033[m \033[1;32mmain\033[m"),
+            [("HEAD", dashboard.C_TICKET), (" ", dashboard.C_DIM),
+             ("main", dashboard.C_OK)],
+        )
+
 
 class PullRequestMetadata(unittest.TestCase):
     def test_normalizes_lifecycle_and_review_states(self):

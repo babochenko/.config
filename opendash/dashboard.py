@@ -628,7 +628,7 @@ _ANSI_SGR = re.compile(r"\x1b\[([0-9;]*)m")
 
 
 def _ansi_segments(text: str) -> list[tuple[str, int]]:
-    """Convert the small ANSI palette emitted by git-status.awk to curses."""
+    """Convert Git's ANSI palette to the dashboard's curses colors."""
     colors = {"31": C_ERR, "32": C_OK, "33": C_WORK, "34": C_ACCENT,
               "35": C_ATT, "36": C_TICKET, "38;5;244": C_DIM}
     segments = []
@@ -638,7 +638,15 @@ def _ansi_segments(text: str) -> list[tuple[str, int]]:
         if match.start() > pos:
             segments.append((text[pos:match.start()], pair))
         code = match.group(1)
-        pair = colors.get(code, C_DIM) if code != "0" else C_DIM
+        if code in ("", "0"):
+            pair = C_DIM
+        elif code in colors:
+            pair = colors[code]
+        else:
+            # Git combines bold with the actual color for branch decorations,
+            # e.g. ``1;32`` for the current branch.
+            pair = colors.get(next((part for part in reversed(code.split(";"))
+                                   if part in colors), ""), C_DIM)
         pos = match.end()
     if pos < len(text):
         segments.append((text[pos:], pair))
