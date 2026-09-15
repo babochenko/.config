@@ -148,8 +148,12 @@ class Data:
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def create(self, task: str, directory: str, worktree: str | None) -> None:
-        """Create an instance off the UI thread while showing a local placeholder."""
+    def create(self, task: str, directory: str, worktree: str | None,
+               after: str | None = None, order: float | None = None) -> None:
+        """Create an instance off the UI thread while showing a local placeholder.
+
+        `after` parks the placeholder under that session's row; `order` is the
+        persisted sort key the real record gets so it stays there."""
         with self.lock:
             self._creation_number += 1
             number = self._creation_number
@@ -166,6 +170,7 @@ class Data:
                 "activity": ("running", "creating worktree…" if worktree
                              else "starting instance…"),
                 "pending": True,
+                "after_sid": after,
                 "git": {"branch": worktree} if worktree else {},
             }
             self.pending.append(pending)
@@ -174,7 +179,8 @@ class Data:
             record, error = None, None
             try:
                 record = ocore.new_instance(task, directory=directory,
-                                            worktree=worktree or None)
+                                            worktree=worktree or None,
+                                            order=order)
             except Exception as e:
                 error = f"{type(e).__name__}: {e}"[:160]
             with self.lock:
@@ -356,7 +362,14 @@ class Data:
 
     def read(self):
         with self.lock:
-            items = list(self.items) + list(self.pending)
+            items = list(self.items)
+            for pending in self.pending:
+                # park a creating placeholder right under the cursor row it
+                # was spawned from -- re-sorting would fight J/K's in-memory
+                # swap until the next snapshot lands
+                anchor = next((n for n, it in enumerate(items)
+                                if it.get("session_id") == pending.get("after_sid")), -1)
+                items.insert(anchor + 1, pending)
             for item in items:
                 item["pr_loading"] = self.pr_loading and bool(item.get("prs"))
             return (items, dict(self.jira),
@@ -1300,7 +1313,10 @@ def run(stdscr, start_dir: str) -> None:
                         if not task:
                             flash(stdscr, " cancelled — nothing written")
                         else:
-                            data.create(task, where, tree)
+                            # spawn under the cursor, not at the bottom
+                            after = cur["session_id"] if cur else None
+                            data.create(task, where, tree,
+                                        after=after, order=ocore.order_after(after))
                             flash(stdscr, " creating worktree…" if tree
                                   else " starting instance…")
                         data.refresh_now()

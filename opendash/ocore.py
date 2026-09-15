@@ -663,9 +663,10 @@ def _check_agent(url: str, agent: str | None) -> None:
 
 def new_instance(task: str, ticket: str | None = None, directory: str | None = None,
                  model: str | None = None, agent: str | None = None,
-                 worktree: str | None = None) -> dict:
+                 worktree: str | None = None, order: float | None = None) -> dict:
     """Start an instance. With `worktree`, the agent works on a branch of that
-    name in `../<repo>-<branch>` rather than in the project directory itself."""
+    name in `../<repo>-<branch>` rather than in the project directory itself.
+    `order` pins the row to a list position instead of the creation time."""
     url = server_url()
     _check_agent(url, agent or CONFIG.get("agent"))
     directory = str(Path(directory or os.getcwd()).expanduser().resolve())
@@ -687,6 +688,7 @@ def new_instance(task: str, ticket: str | None = None, directory: str | None = N
         "model": model or CONFIG.get("model"),
         "agent": agent or CONFIG.get("agent"),
         "created": now_ms(),
+        "order": order,
         "worktree": tree,
         "branch": branch,
         "repo": repo,
@@ -1006,6 +1008,26 @@ def sort_items(items: list[dict]) -> list[dict]:
     """
     items.sort(key=lambda i: (order_key(i), i.get("session_id") or ""))
     return items
+
+
+def order_after(session_id: str | None) -> float | None:
+    """A sort key placing a new instance right below `session_id`'s row.
+
+    None when the row is unknown -- the caller then falls back to the
+    default placement (creation time, i.e. the bottom).
+    """
+    if not session_id:
+        return None
+    records = sorted(instance_records(), key=order_key)
+    index = next((n for n, r in enumerate(records)
+                  if r["session_id"] == session_id), None)
+    if index is None:
+        return None
+    here = order_key(records[index])
+    if index + 1 < len(records):
+        below = order_key(records[index + 1])
+        return (here + below) / 2 if below > here else here + 0.5
+    return here + 1            # last row: anything larger still sorts after it
 
 
 def move_instance(session_id: str, delta: int) -> bool:

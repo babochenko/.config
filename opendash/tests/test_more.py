@@ -349,3 +349,25 @@ class AnsiSegments(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class OrderAfter(SandboxCase):
+    def test_midpoint_between_rows(self):
+        self.box.record(session_id="ses_A", created=100)
+        self.box.record(session_id="ses_B", created=200)
+        self.box.record(session_id="ses_C", created=300)
+        self.assertEqual(self.ocore.order_after("ses_A"), 150)
+
+    def test_last_row_sorts_after_everything(self):
+        self.box.record(session_id="ses_A", created=100)
+        self.box.record(session_id="ses_B", created=200)
+        self.assertEqual(self.ocore.order_after("ses_B"), 201)
+
+    def test_unknown_row_falls_back_to_none(self):
+        self.box.record(session_id="ses_A", created=100)
+        self.assertIsNone(self.ocore.order_after("ses_nope"))
+
+    def test_respects_manual_order(self):
+        self.box.record(session_id="ses_A", created=900, order=50)
+        self.box.record(session_id="ses_B", created=200)
+        # ses_A sorts first (order 50); the gap to ses_B is 50..200
+        self.assertEqual(self.ocore.order_after("ses_A"), 125)
