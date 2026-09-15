@@ -1834,17 +1834,29 @@ def _cmd_metadata(args) -> int:
         return _cmd_metadata_messages()
     if args.action == "start":
         metadata.set_agent_enabled(STATE, True)
-        print("metadata agent enabled")
+        color = sys.stdout.isatty()
+        green = "\033[32m" if color else ""
+        reset = "\033[0m" if color else ""
+        print(f"{green}✓{reset} metadata agent enabled")
     elif args.action == "stop":
         metadata.set_agent_enabled(STATE, False)
         sid = metadata_agent_sid()
         if sid:
             abort_instance(sid)
             prune_session_messages(sid, keep=0)
-        print("metadata agent disabled")
+        color = sys.stdout.isatty()
+        red = "\033[31m" if color else ""
+        reset = "\033[0m" if color else ""
+        print(f"{red}✗{reset} metadata agent disabled")
     else:
         state = "enabled" if metadata.agent_enabled(STATE) else "disabled"
-        print(f"metadata agent {state}")
+        color = sys.stdout.isatty()
+        green = "\033[32m" if color else ""
+        red = "\033[31m" if color else ""
+        reset = "\033[0m" if color else ""
+        symbol = "✓" if state == "enabled" else "✗"
+        shade = green if state == "enabled" else red
+        print(f"{shade}{symbol}{reset} metadata agent {state}")
     return 0
 
 
