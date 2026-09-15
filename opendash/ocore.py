@@ -12,6 +12,7 @@ Stdlib only, no install step.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import json
 import os
 import re
@@ -1834,10 +1835,18 @@ def _cmd_log(args) -> int:
                 continue
             for raw_line in raw_lines:
                 if re.search(r"\b(error|exception|failed|failure)\b", raw_line, re.I):
-                    try:
-                        timestamp = path.stat().st_mtime * 1000
-                    except OSError:
-                        break
+                    match = re.search(r"\btimestamp=(\d{4}-\d\d-\d\dT[^ ]+)", raw_line)
+                    if match:
+                        try:
+                            timestamp = datetime.fromisoformat(
+                                match.group(1).replace("Z", "+00:00")).timestamp() * 1000
+                        except ValueError:
+                            timestamp = 0
+                    else:
+                        try:
+                            timestamp = path.stat().st_mtime * 1000
+                        except OSError:
+                            break
                     subject = " ".join(raw_line.split())
                     entries.append((timestamp, source.lower(), raw_line, "SYSTEM", source, subject))
 
