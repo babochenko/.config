@@ -1782,6 +1782,7 @@ def _cmd_log(args) -> int:
     grey_italic = "\033[90;3m" if color else ""
     white = "\033[37m" if color else ""
     reset = "\033[0m" if color else ""
+    columns = shutil.get_terminal_size((120, 24)).columns
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
     try:
         placeholders = ",".join("?" for _ in sessions)
@@ -1805,8 +1806,14 @@ def _cmd_log(args) -> int:
             record = sessions[sid]
             agent = ("metadata" if record.get("_metadata_agent")
                      else record.get("agent") or "default")
-            agent = str(agent)[:50]
+            agent = str(agent)
+            if len(agent) > 30:
+                agent = agent[:29] + "…"
             stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp / 1000))
+            prefix_width = 19 + 1 + 9 + 1 + len(agent) + 3
+            message_width = max(1, columns - prefix_width)
+            if len(subject) > message_width:
+                subject = subject[:max(0, message_width - 1)] + "…"
             lines.append(f"{blue}{stamp}{reset} {yellow}{str(role or '?').upper():<9}{reset} "
                          f"{grey_italic}({agent}){reset} {white}{subject}{reset}")
     except sqlite3.Error as error:
