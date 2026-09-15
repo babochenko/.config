@@ -1790,7 +1790,7 @@ def _cmd_log(args) -> int:
             "select m.id, m.session_id, m.time_created, m.data, json_extract(m.data, '$.role')"
             f" from message m where m.session_id in ({placeholders})"
             " order by m.time_created desc, m.id desc", tuple(sessions)).fetchall()
-        lines = []
+        entries = []
         for message_id, sid, timestamp, raw_message, role in rows:
             try:
                 message_data = json.loads(raw_message)
@@ -1819,13 +1819,7 @@ def _cmd_log(args) -> int:
             agent = str(agent)
             if len(agent) > 20:
                 agent = agent[:19] + "…"
-            stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp / 1000))
-            prefix_width = 19 + 1 + 9 + 1 + len(agent) + 3
-            message_width = max(1, columns - prefix_width)
-            if len(subject) > message_width:
-                subject = subject[:max(0, message_width - 1)] + "…"
-            lines.append(f"{blue}{stamp}{reset} {yellow}{str(role or '?').upper():<9}{reset} "
-                         f"{grey_italic}({agent}){reset} {white}{subject}{reset}")
+            entries.append((timestamp, agent.lower(), message_id, role or "?", agent, subject))
     except sqlite3.Error as error:
         print(f"opendash: could not read log: {error}", file=sys.stderr)
         return 1
@@ -1840,11 +1834,23 @@ def _cmd_log(args) -> int:
                 continue
             for raw_line in raw_lines:
                 if re.search(r"\b(error|exception|failed|failure)\b", raw_line, re.I):
-                    stamp = time.strftime("%Y-%m-%d %H:%M:%S",
-                                          time.localtime(path.stat().st_mtime))
+                    try:
+                        timestamp = path.stat().st_mtime * 1000
+                    except OSError:
+                        break
                     subject = " ".join(raw_line.split())
-                    lines.append(f"{blue}{stamp}{reset} {yellow}{'SYSTEM':<9}{reset} "
-                                 f"{grey_italic}({source}){reset} {white}{subject}{reset}")
+                    entries.append((timestamp, source.lower(), raw_line, "SYSTEM", source, subject))
+
+    entries.sort(key=lambda entry: (-entry[0], entry[1], str(entry[2])))
+    lines = []
+    for timestamp, _, _, role, agent, subject in entries:
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp / 1000))
+        prefix_width = 19 + 1 + 9 + 1 + len(agent) + 3
+        message_width = max(1, columns - prefix_width)
+        if len(subject) > message_width:
+            subject = subject[:max(0, message_width - 1)] + "…"
+        lines.append(f"{blue}{stamp}{reset} {yellow}{str(role).upper():<9}{reset} "
+                     f"{grey_italic}({agent}){reset} {white}{subject}{reset}")
     output = "\n".join(lines) + ("\n" if lines else "")
     if output and sys.stdout.isatty() and shutil.which("less"):
         subprocess.run(["less", "-R"], input=output, text=True, check=False)
