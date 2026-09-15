@@ -426,7 +426,7 @@ def ask(stdscr, label: str, default: str = "", command_enter: bool = False):
                             except curses.error:
                                 pass
                             stdscr.timeout(-1)
-                            if sequence in ("\x1b[13;9u", "\x1b[13;2u"):
+                            if sequence == "\x1b[13;2u":
                                 return COMMAND_ENTER, "".join(buf).strip()
                         return None
                     if ch in ("\n", "\r"):
@@ -562,7 +562,7 @@ HELP = [
     ("", "or just detaches if something is still running)"),
     ("n", "new instance — asks for the directory, then a worktree"),
     ("", "branch (blank to skip), then opens nvim for the task;"),
-    ("", "Cmd+Enter uses a one-line prompt instead; empty input cancels"),
+    ("", "Shift+Enter uses a one-line prompt instead; empty input cancels"),
     ("f", "follow up: send another message without opening it"),
     ("a", "abort whatever the instance is doing right now (asks first)"),
     ("d", "stop and remove from the dashboard, asks first (the opencode"),
