@@ -1719,6 +1719,23 @@ def _cmd_clear(args) -> int:
     return 0
 
 
+def _cmd_metadata(args) -> int:
+    if args.action == "start":
+        metadata.set_agent_enabled(STATE, True)
+        print("metadata agent enabled")
+    elif args.action == "stop":
+        metadata.set_agent_enabled(STATE, False)
+        sid = metadata_agent_sid()
+        if sid:
+            abort_instance(sid)
+            prune_session_messages(sid, keep=0)
+        print("metadata agent disabled")
+    else:
+        state = "enabled" if metadata.agent_enabled(STATE) else "disabled"
+        print(f"metadata agent {state}")
+    return 0
+
+
 def _cmd_cd(args) -> int:
     sid = _resolve_session_id(args.session_id)
     if not sid:
@@ -2006,6 +2023,11 @@ def main(argv=None) -> int:
     p.add_argument("session_id", help="session ID or name")
     p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")
     p.set_defaults(fn=_cmd_clear)
+
+    p = sub.add_parser("metadata", help="control background PR metadata fetching")
+    p.add_argument("action", nargs="?", default="status",
+                   choices=["start", "stop", "status"])
+    p.set_defaults(fn=_cmd_metadata)
 
     p = sub.add_parser("quit", help="stop every instance and the shared server")
     p.add_argument("-y", "--yes", action="store_true", help="skip confirmation")

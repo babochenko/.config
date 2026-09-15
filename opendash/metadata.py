@@ -19,6 +19,7 @@ PR_URL_RE = re.compile(r"https?://[^\s)>]+/(?:pull-requests|pullrequests)/([0-9]
 PR_REF_RE = re.compile(r"\b(?:PR|pull\s+request|pullrequest)\s*#?\s*([0-9]+)\b", re.I)
 DEFAULT_REFRESH = 300.0
 AGENT_TIMEOUT = 60.0
+AGENT_CONTROL = "metadata-agent-control.json"
 
 
 def extract_tickets(text: str) -> list[str]:
@@ -509,6 +510,15 @@ def _write_cache(state: Path, name: str, value: dict) -> None:
     tmp.replace(path)
 
 
+def agent_enabled(state: Path) -> bool:
+    """Whether background metadata prompts are enabled."""
+    return bool(_read(state / AGENT_CONTROL, {"enabled": True}).get("enabled", True))
+
+
+def set_agent_enabled(state: Path, enabled: bool) -> None:
+    _write_cache(state, AGENT_CONTROL, {"enabled": enabled})
+
+
 def _json_response(text: str) -> dict | None:
     """Extract the first JSON object from an agent response."""
     decoder = json.JSONDecoder()
@@ -574,6 +584,8 @@ def _agent_prompt(prs: list[dict], tickets: list[str] | None = None) -> str:
 def _refresh_via_agent(state: Path, tickets: list[str], prs: list[dict], conf: dict,
                        pull_requests: dict, jira: dict, ttl: float) -> None:
     """Ask a hidden read-only OpenCode session for Bitbucket PR and Jira metadata."""
+    if not agent_enabled(state):
+        return
     now = time.time()
     prs = [candidate for candidate in prs
            if now - float((pull_requests.get(_candidate_key(candidate)) or

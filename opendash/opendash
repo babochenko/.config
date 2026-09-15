@@ -28,6 +28,8 @@ opendash - background opencode instances
   opendash prompt <session-id> <text...>
                                   send a prompt to an instance
   opendash clear <session-id>    delete all messages, keeping the session
+  opendash metadata start|stop   enable or disable metadata fetching
+  opendash metadata status      show metadata-agent state
   opendash unlink <session-id> [id]  ignore a ticket or PR association
   opendash unlink -a[ll] <session-id>
                                   unlink all associations (tickets and PRs)
@@ -94,6 +96,7 @@ case ${1-} in
   prompt)              shift; exec $py "$here/ocore.py" prompt "$@" ;;
   ci)                  shift; exec $py "$here/ocore.py" ci "$@" ;;
   clear)               shift; exec $py "$here/ocore.py" clear "$@" ;;
+  metadata|meta)       shift; exec $py "$here/ocore.py" metadata "$@" ;;
   server)              shift; exec $py "$here/ocore.py" server "$@" ;;
   -h|--help|help)      usage ;;
   *) print -u2 "opendash: unknown command '${1}'"; usage; exit 2 ;;
