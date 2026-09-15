@@ -1787,11 +1787,15 @@ def _cmd_log(args) -> int:
     try:
         placeholders = ",".join("?" for _ in sessions)
         rows = con.execute(
-            "select m.id, m.session_id, m.time_created, json_extract(m.data, '$.role')"
+            "select m.id, m.session_id, m.time_created, m.data, json_extract(m.data, '$.role')"
             f" from message m where m.session_id in ({placeholders})"
             " order by m.time_created desc, m.id desc", tuple(sessions)).fetchall()
         lines = []
-        for message_id, sid, timestamp, role in rows:
+        for message_id, sid, timestamp, raw_message, role in rows:
+            try:
+                message_data = json.loads(raw_message)
+            except (TypeError, json.JSONDecodeError):
+                message_data = {}
             text = []
             for (raw,) in con.execute(
                     "select p.data from part p where p.message_id = ?"
@@ -1800,7 +1804,13 @@ def _cmd_log(args) -> int:
                     text.extend(metadata._text(json.loads(raw)))
                 except (TypeError, json.JSONDecodeError):
                     continue
-            subject = " ".join(" ".join(text).split())
+            error = message_data.get("error")
+            if args.scope == "errors":
+                if not error:
+                    continue
+                subject = "error: " + " ".join(str(error).split())
+            else:
+                subject = " ".join(" ".join(text).split())
             if not subject:
                 continue
             record = sessions[sid]
@@ -1821,6 +1831,20 @@ def _cmd_log(args) -> int:
         return 1
     finally:
         con.close()
+
+    if args.scope == "errors":
+        for path, source in ((opencode_log(), "opencode.log"), (SERVER_LOG, "server.log")):
+            try:
+                raw_lines = path.read_text(errors="replace").splitlines()
+            except OSError:
+                continue
+            for raw_line in raw_lines:
+                if re.search(r"\b(error|exception|failed|failure)\b", raw_line, re.I):
+                    stamp = time.strftime("%Y-%m-%d %H:%M:%S",
+                                          time.localtime(path.stat().st_mtime))
+                    subject = " ".join(raw_line.split())
+                    lines.append(f"{blue}{stamp}{reset} {yellow}{'SYSTEM':<9}{reset} "
+                                 f"{grey_italic}({source}){reset} {white}{subject}{reset}")
     output = "\n".join(lines) + ("\n" if lines else "")
     if output and sys.stdout.isatty() and shutil.which("less"):
         subprocess.run(["less", "-R"], input=output, text=True, check=False)
@@ -2199,8 +2223,8 @@ def main(argv=None) -> int:
     p.set_defaults(fn=_cmd_screen)
 
     p = sub.add_parser("log", help="show all OpenDash agent messages")
-    p.add_argument("scope", nargs="?", choices=["meta", "metadata"],
-                   help="show only metadata-agent messages")
+    p.add_argument("scope", nargs="?", choices=["meta", "metadata", "errors"],
+                   help="show only metadata or error messages")
     p.set_defaults(fn=_cmd_log)
 
     p = sub.add_parser("agent", help="find the instance assigned to a directory")

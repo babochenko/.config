@@ -254,7 +254,7 @@ function _opendash() {
       _arguments ':session:_opendash_sessions'
       ;;
     log)
-      _describe 'log scope' 'meta:show metadata-agent messages' 'metadata:show metadata-agent messages'
+      _describe 'log scope' 'meta:show metadata-agent messages' 'metadata:show metadata-agent messages' 'errors:show error messages'
       ;;
   esac
 }

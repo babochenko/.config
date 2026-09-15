@@ -25,6 +25,7 @@ opendash - background opencode instances
                                    add or restore a ticket/PR association
   opendash screen                 print the running dashboard's current screen
   opendash log                    show all agent messages (paged)
+  opendash log errors             show recorded agent errors (paged)
   opendash agent <directory>      find instances assigned to a directory
   opendash prompt <session-id> <text...>
                                   send a prompt to an instance

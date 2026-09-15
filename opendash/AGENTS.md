@@ -133,6 +133,9 @@ dashboard, which is useful for diagnosing layout without a screenshot. A dump
 older than five seconds is treated as unavailable. It does not include terminal
 font rendering or colors.
 
+`oo log errors` shows recorded OpenCode message errors across managed sessions;
+it is a paged, read-only diagnostic view like `oo log`.
+
 ## Operational Gotchas
 
 The dashboard pauses its own curses loop while an agent view is attached. It
