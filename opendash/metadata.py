@@ -111,17 +111,35 @@ def conversation_text(con, session_id: str, role: str | None = None) -> str:
     return "\n".join(chunks)
 
 
+def first_user_message_text(con, session_id: str) -> str:
+    """Return only the first requested message, including its content parts."""
+    row = con.execute(
+        "select m.id, m.data from message m where m.session_id = ?"
+        " and json_extract(m.data, '$.role') = 'user'"
+        " order by m.time_created, m.id limit 1", (session_id,)).fetchone()
+    if not row:
+        return ""
+    message_id, raw_message = row
+    chunks = []
+    try:
+        chunks.extend(_text(json.loads(raw_message)))
+    except (TypeError, json.JSONDecodeError):
+        pass
+    for (raw,) in con.execute(
+            "select p.data from part p where p.message_id = ?"
+            " order by p.time_created, p.id", (message_id,)):
+        try:
+            chunks.extend(_text(json.loads(raw)))
+        except (TypeError, json.JSONDecodeError):
+            pass
+    return "\n".join(chunks)
+
+
 def scan_session(con, session_id: str, ignored: dict | None = None, repository_path: str | None = None,
                  scan_prs: bool = True) -> dict:
-    user_text = conversation_text(con, session_id, "user")
-    assistant_text = conversation_text(con, session_id, "assistant")
-    tickets = extract_tickets(user_text + "\n" + assistant_text)
-    prs = extract_prs(user_text) if scan_prs else []
-    if scan_prs:
-        # Assistant prose contains examples and historical references. Only
-        # trust an assistant PR when it includes a concrete provider URL.
-        prs.extend(extract_prs("\n".join(PR_URL_RE.findall(assistant_text))))
-        prs = list({p["number"]: p for p in prs}.values())
+    initial_text = first_user_message_text(con, session_id)
+    tickets = extract_tickets(initial_text)
+    prs = extract_prs(initial_text) if scan_prs else []
     ignored = ignored or {}
     ignored_tickets = {str(v).upper() for v in ignored.get("tickets", [])}
     ignored_prs = {str(v).lstrip("#") for v in ignored.get("prs", [])}
@@ -169,7 +187,13 @@ def update(state: Path, con, records: list[dict]) -> dict:
         repository = os.environ.get("X_BITBUCKET_REPOSITORY")
         directory = str(record.get("directory") or "").rstrip("/").rsplit("/", 1)[-1]
         repository_path = f"{repository.strip('/')}/{directory}" if repository and directory else repository
-        found = scan_session(con, sid, entry.get("ignored"), repository_path)
+        if entry.get("initial_scan_complete"):
+            found = {"tickets": entry.get("tickets", []),
+                     "prs": entry.get("prs", [])}
+        else:
+            found = scan_session(con, sid, entry.get("ignored"), repository_path)
+            entry["initial_scan_complete"] = True
+            changed = True
         if entry.get("tickets") != found["tickets"]:
             entry["tickets"] = found["tickets"]
             changed = True
@@ -198,6 +222,8 @@ def unlink(state: Path, session_id: str, association: str | None = None) -> bool
         ticket = association.upper() if association else None
         if ticket and ticket not in ignored["tickets"]:
             ignored["tickets"].append(ticket); changed = True
+        if ticket and ticket in entry.get("tickets", []):
+            entry["tickets"].remove(ticket); changed = True
         if not ticket:
             for value in entry.get("tickets", []):
                 if value not in ignored["tickets"]: ignored["tickets"].append(value); changed = True
