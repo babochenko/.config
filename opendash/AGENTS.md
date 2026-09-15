@@ -183,7 +183,7 @@ the dashboard and editor share the same session.
 | `J` `K` | move the selected instance down / up the list |
 | `z` | minimize or maximize the selected instance |
 | `enter` or `o` | open the instance and talk to it |
-| `c` | code actions: `h` runs `check`, `m` runs `gitmm`, `p` commits/pushes, `s` shows `gs`, `r` reviews the branch |
+| `c` | code actions: `h` runs `check`, `m` runs `gitmm`, `p` commits/pushes, `s` shows `gs`, `g` shows the last 10 commits, `r` reviews the branch |
 | `cU` | update the config checkout with `p config && gitsm`, then relaunch the dashboard |
 | `t` | terminal in the instance's working directory |
 | `n` | new instance — asks for the directory, then opens nvim for the task |

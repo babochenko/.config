@@ -540,7 +540,7 @@ HELP = [
     ("J K", "move the selected instance down / up the list"),
     ("g / G", "first / last"),
     ("enter or o", "open the instance (option+q comes back here)"),
-    ("c", "code actions: h check, m merge master, p commit/push, s git status, r review, U update/restart"),
+    ("c", "code actions: h check, m merge master, p commit/push, s git status, g git log, r review, U update/restart"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
     ("", "or just detaches if something is still running)"),
     ("n", "new instance — asks for the directory, then a worktree"),
@@ -569,6 +569,7 @@ CODE_ACTIONS = [
     ("P", "show all [P]ull requests, fetch fresh checks"),
     ("r", "[r]eview branch"),
     ("s", "[s]how git status"),
+    ("g", "[g]it log, last 10 commits"),
     ("U", "[U]pdate config and relaunch"),
     ("esc", "[esc] cancel"),
 ]
@@ -613,7 +614,7 @@ def code_actions_overlay(stdscr) -> str | None:
     with blocking(stdscr):
         try:
             ch = stdscr.get_wch()
-            if isinstance(ch, str) and ch in ("h", "m", "p", "s", "r", "i", "U", "P"):
+            if isinstance(ch, str) and ch in ("h", "m", "p", "s", "g", "r", "i", "U", "P"):
                 choice = ch
         except curses.error:
             pass
@@ -628,7 +629,8 @@ _ANSI_SGR = re.compile(r"\x1b\[([0-9;]*)m")
 
 def _ansi_segments(text: str) -> list[tuple[str, int]]:
     """Convert the small ANSI palette emitted by git-status.awk to curses."""
-    colors = {"32": C_OK, "31": C_ERR, "38;5;244": C_DIM}
+    colors = {"31": C_ERR, "32": C_OK, "33": C_WORK, "34": C_ACCENT,
+              "35": C_ATT, "36": C_TICKET, "38;5;244": C_DIM}
     segments = []
     pair = C_DIM
     pos = 0
@@ -656,9 +658,8 @@ def _print_link(win, y: int, x: int, label: str, url: str | None, attr=0) -> int
     return x + sum(_w(c) for c in label)
 
 
-def git_status_overlay(stdscr, directory: str) -> None:
-    """Show the exact ``gs`` output for a directory in a scrollable modal."""
-    output, _ = ocore.git_status_output(directory)
+def git_output_overlay(stdscr, output: str, title: str) -> None:
+    """Show colored Git output in a scrollable modal."""
     lines = output.splitlines() or ["no output"]
     maxy, maxx = stdscr.getmaxyx()
     height = min(maxy - 4, max(7, len(lines) + 4))
@@ -672,7 +673,7 @@ def git_status_overlay(stdscr, directory: str) -> None:
         # addstr, corrupting those pairs -- keep it attribute-free.
         win.bkgd(" ")
         win.border()
-        printw(win, 0, 2, " git status ", curses.color_pair(C_ACCENT) | curses.A_BOLD)
+        printw(win, 0, 2, f" {title} ", curses.color_pair(C_ACCENT) | curses.A_BOLD)
         visible = max(1, height - 4)
         for row, line in enumerate(lines[top:top + visible], 2):
             x = 3
@@ -699,6 +700,19 @@ def git_status_overlay(stdscr, directory: str) -> None:
             break
     stdscr.touchwin()
     stdscr.refresh()
+
+
+def git_status_overlay(stdscr, directory: str) -> None:
+    """Show the exact ``gs`` output for a directory in a scrollable modal."""
+    output, _ = ocore.git_status_output(directory)
+    git_output_overlay(stdscr, output, "git status")
+
+
+def git_log_overlay(stdscr, directory: str) -> None:
+    """Show the colored Git graph for the last ten commits."""
+    result = ocore.git(directory, "g", "--color=always", "-10", timeout=10)
+    output = result.stdout if result.returncode == 0 else result.stderr
+    git_output_overlay(stdscr, output, "git log")
 
 
 
@@ -1241,6 +1255,8 @@ def run(stdscr, start_dir: str) -> None:
                         flash(stdscr, " asked agent to commit and push", C_OK)
                     elif action == "s":
                         git_status_overlay(stdscr, cur.get("directory") or last_dir)
+                    elif action == "g":
+                        git_log_overlay(stdscr, cur.get("directory") or last_dir)
                     elif action == "P":
                         prs_overlay(stdscr, cur, data, frame)
                     elif action == "r":
