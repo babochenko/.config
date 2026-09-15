@@ -987,10 +987,10 @@ def linked_items_overlay(stdscr, item: dict, data) -> None:
                 selected_section = 0
                 selected = max(0, len(tickets) - 1)
         elif ch == "a":
-            association = ask(stdscr, " link:")
+            section = "Tickets" if selected_section == 0 else "PRs"
+            association = ask(stdscr, " link ticket:" if section == "Tickets" else " link PR:")
             if association:
                 association = association.strip()
-                section = "Tickets" if selected_section == 0 else "PRs"
                 if section == "Tickets":
                     association = metadata.extract_ticket(association)
                     valid = association is not None
