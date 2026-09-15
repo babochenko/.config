@@ -29,7 +29,8 @@ from prview import (C_ACCENT, C_ATT, C_DIM, C_ERR, C_OK, C_SEL, C_TICKET,
                      jira_status_pair, shorten_status, status_width)
 
 REFRESH = 1.5          # seconds between db snapshots
-METADATA_EVERY = 5.0   # wake the worker; remote cache TTL controls actual polls
+METADATA_EVERY = 5.0   # wake the worker; the refresh queue paces the fetches
+REFRESH_SPACING = 30.0  # seconds between the end of one fetch and the next start
 TICK_MS = 120          # ui tick; also the spinner rate
 
 AGE_W = 5              # right-aligned age column
@@ -104,6 +105,9 @@ class Data:
         self._server_up_cache: bool = False
         self.pr_forcing = False
         self._meta_lock = threading.Lock()
+        # refresh queue: one stale candidate per turn, never overlapping;
+        # 30s must pass between the end of one fetch and the next start
+        self._next_refresh_at = 0.0
 
     def start(self):
         threading.Thread(target=self._loop, daemon=True).start()
@@ -137,6 +141,9 @@ class Data:
                 with self.lock:
                     self.jira = jira_cache
                     self.pr = pr_cache
+                    # the forced fetch counts against the rate budget too:
+                    # hold the queue for a spacing gap after it
+                    self._next_refresh_at = time.time() + REFRESH_SPACING
             except Exception:
                 pass
             finally:
@@ -245,41 +252,86 @@ class Data:
             self._wake.wait(REFRESH)
             self._wake.clear()
 
+    def _stale_candidate(self) -> str | dict | None:
+        """Front of the refresh queue: a ticket id (str) or a PR (dict).
+
+        A candidate is stale once its cached fetch is older than the TTL
+        (default 5 minutes); it then re-enters the queue at the back, because
+        the queue is ordered by fetch time. Only one candidate is handed out
+        per turn, so metadata fetches never overlap.
+        """
+        ttl = metadata.mcp_config()["refresh"]
+        now = time.time()
+        with self.lock:
+            jira, pr_cache = dict(self.jira), dict(self.pr)
+            items = list(self.items)
+        queue: list[tuple[float, str | dict]] = []
+        seen: set[str] = set()
+
+        def age(entry: dict) -> float:
+            return now - float(entry.get("fetched") or 0)
+
+        for item in items:
+            ticket = item.get("ticket")
+            if ticket and ticket not in seen:
+                seen.add(ticket)
+                if age(jira.get(ticket) or {}) > ttl:
+                    queue.append((age(jira.get(ticket) or {}), ticket))
+            for p in item.get("prs") or []:
+                key = metadata._candidate_key(p)
+                if key in seen:
+                    continue
+                seen.add(key)
+                entry = pr_cache.get(key) or pr_cache.get(str(p.get("number"))) or {}
+                if age(entry) > ttl:
+                    queue.append((age(entry), p))
+        if not queue:
+            return None
+        queue.sort(key=lambda pair: -pair[0])       # oldest fetch first
+        return queue[0][1]
+
     def _jira_loop(self):
         while not self._stop.is_set():
             loading = False
             try:
+                if time.time() >= self._next_refresh_at:
+                    candidate = self._stale_candidate()
+                    if candidate is not None:
+                        loading = not isinstance(candidate, str)
+                        with self.lock:
+                            self.pr_loading = loading
+                        with self._meta_lock:
+                            if isinstance(candidate, str):
+                                cache, pr_cache = metadata.refresh_remote(
+                                    ocore.STATE, [candidate], [], 0)
+                            else:
+                                cache, pr_cache = metadata.refresh_remote(
+                                    ocore.STATE, [], [candidate], 0)
+                        # no fetch may start until 30s after this one ended
+                        self._next_refresh_at = time.time() + REFRESH_SPACING
+                        with self.lock:
+                            self.jira = cache
+                            self.pr = pr_cache
                 with self.lock:
-                    tickets = sorted({i["ticket"] for i in self.items if i.get("ticket")})
-                    prs = [p for i in self.items for p in i.get("prs", [])]
-                if tickets or prs:
-                    loading = bool(prs)
-                    with self.lock:
-                        self.pr_loading = loading
-                    with self._meta_lock:
-                        cache, pr_cache = metadata.refresh_remote(ocore.STATE, tickets, prs)
-                    with self.lock:
-                        self.jira = cache
-                        self.pr = pr_cache
-                        for item in self.items:
-                            item["pr_info"] = [pr_cache.get(metadata._candidate_key(p),
-                                                               pr_cache.get(str(p.get("number")), p))
-                                                 for p in item.get("prs", [])]
-                            if not item.get("ticket") and not item.get("ticket_manual"):
-                                for info in item["pr_info"]:
-                                    if info.get("tickets"):
-                                        item["ticket"] = info["tickets"][0]
-                                        metadata.associate_ticket(ocore.STATE, item["session_id"], item["ticket"])
-                                        break
-                            # Auto-trigger "check" on gradle-exception build failures
-                            if not item.get("pending"):
-                                failures = metadata.failed_gradle_builds(item.get("pr_info") or [])
-                                if failures and not item.get("_auto_checked"):
-                                    item["_auto_checked"] = True
-                                    try:
-                                        ocore.run_terminal_command(item, "check")
-                                    except Exception:
-                                        pass
+                    for item in self.items:
+                        item["pr_info"] = [self.pr.get(metadata._candidate_key(p),
+                                                        self.pr.get(str(p.get("number")), p))
+                                           for p in item.get("prs", [])]
+                        if not item.get("ticket") and not item.get("ticket_manual"):
+                            for info in item["pr_info"]:
+                                if info.get("tickets"):
+                                    item["ticket"] = info["tickets"][0]
+                                    metadata.associate_ticket(ocore.STATE, item["session_id"], item["ticket"])
+                                    break
+                        # Auto-trigger "check" on gradle-exception build failures
+                        if not item.get("pending"):
+                            failures = metadata.failed_gradle_builds(item.get("pr_info") or [])
+                            if failures and not item.get("_auto_checked"):
+                                item["_auto_checked"] = True
+                                try:
+                                    ocore.run_terminal_command(item, "check")
+                                except Exception:
+                                    pass
             except Exception:
                 pass
             finally:

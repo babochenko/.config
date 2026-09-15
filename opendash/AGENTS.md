@@ -128,6 +128,13 @@ fetch). Set `OPENDASH_METADATA_PROVIDER=none` to
 disable this fallback, or set `OPENDASH_MCP_URL` to use the existing HTTP
 bridge instead.
 
+Refreshes run through a queue: one stale ticket or PR per fetch, at least
+30 seconds between the end of one fetch and the start of the next, so they
+never overlap and the provider rate limit is respected. A candidate goes
+stale after the TTL (default 5 minutes, `metadata_refresh`) and re-enters
+the queue at the back. The session keeps no message history between fetches,
+and a wedged or dead session is discarded so the next fetch starts fresh.
+
 `opendash screen` prints the latest characters published by the running
 dashboard, which is useful for diagnosing layout without a screenshot. A dump
 older than five seconds is treated as unavailable. It does not include terminal

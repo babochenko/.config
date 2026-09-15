@@ -402,3 +402,64 @@ class ShortDir(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RefreshQueue(unittest.TestCase):
+    """The one-candidate-at-a-time queue behind the metadata loop."""
+
+    def _data(self, items, jira=None, pr=None):
+        data = dashboard.Data.__new__(dashboard.Data)
+        data.lock = __import__("threading").Lock()
+        data.items = items
+        data.jira = jira or {}
+        data.pr = pr or {}
+        return data
+
+    def setUp(self):
+        self.patcher = patch.object(metadata, "mcp_config",
+                                    return_value={"refresh": 300.0})
+        self.patcher.start()
+        self.addCleanup(self.patcher.stop)
+
+    def test_oldest_fetch_is_at_the_front(self):
+        items = [{"ticket": "T-OLD"},
+                 {"prs": [{"number": "1", "repository": "r/p"},
+                          {"number": "2", "repository": "r/p"}]}]
+        now = 1_000_000.0
+        jira = {"T-OLD": {"fetched": now - 600}}
+        pr = {"r/p#1": {"fetched": now - 900}, "r/p#2": {"fetched": now - 700}}
+        with patch("time.time", return_value=now):
+            data = self._data(items, jira, pr)
+            front = data._stale_candidate()
+        self.assertEqual(front, {"number": "1", "repository": "r/p"})
+
+    def test_fresh_candidates_are_not_queued(self):
+        now = 1_000_000.0
+        items = [{"ticket": "T-FRESH", "prs": [{"number": "9", "repository": "r/p"}]}]
+        jira = {"T-FRESH": {"fetched": now - 10}}
+        pr = {"r/p#9": {"fetched": now - 60}}
+        with patch("time.time", return_value=now):
+            self.assertIsNone(self._data(items, jira, pr)._stale_candidate())
+
+    def test_never_fetched_sorts_first(self):
+        now = 1_000_000.0
+        items = [{"ticket": "T-SEEN",
+                  "prs": [{"number": "1", "repository": "r/p"},
+                          {"number": "5", "repository": "r/p"}]}]
+        jira = {"T-SEEN": {"fetched": now - 400}}
+        pr = {"r/p#1": {"fetched": now - 350}}
+        with patch("time.time", return_value=now):
+            front = self._data(items, jira, pr)._stale_candidate()
+        self.assertEqual(front, {"number": "5", "repository": "r/p"})
+
+    def test_duplicates_across_items_are_queued_once(self):
+        now = 1_000_000.0
+        items = [{"prs": [{"number": "7", "repository": "r/p"}]},
+                 {"prs": [{"number": "7", "repository": "r/p"}]}]
+        pr = {"r/p#7": {"fetched": now - 301}}
+        with patch("time.time", return_value=now):
+            front = self._data(items, pr=pr)._stale_candidate()
+        # queued, and only once: the second sighting must not look like a
+        # separate never-fetched candidate
+        self.assertEqual(front, {"number": "7", "repository": "r/p"})
+
