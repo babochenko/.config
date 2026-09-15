@@ -632,14 +632,17 @@ HELP = [
 ]
 
 CODE_ACTIONS = [
+    (None, "Git"),
     ("h", "run c[h]eckstyle"),
-    ("i", "[i]nject open PRs, check comments and builds"),
     ("m", "[m]erge master"),
     ("p", "[p]ush commit"),
-    ("P", "show all [P]ull requests, fetch fresh checks"),
     ("r", "[r]eview branch"),
     ("s", "[s]how git status"),
     ("g", "[g]it log, last 10 commits"),
+    (None, ""),
+    (None, "OpenDash"),
+    ("i", "[i]nject open PRs, check comments and builds"),
+    ("P", "show all [P]ull requests, fetch fresh checks"),
     ("S", "manage linked ticket[s] and PRs"),
     ("U", "[U]pdate config and relaunch"),
     ("esc", "[esc] cancel"),
@@ -679,8 +682,11 @@ def code_actions_overlay(stdscr) -> str | None:
     printw(win, 0, 2, " code actions ", curses.color_pair(C_ACCENT) | curses.A_BOLD)
     choice = None
     for i, (key, desc) in enumerate(CODE_ACTIONS):
-        printw(win, i + 2, 3, f"{key:<16}", curses.color_pair(C_TICKET) | curses.A_BOLD)
-        printw(win, i + 2, 20, desc)
+        if key is None:
+            printw(win, i + 2, 3, desc, curses.color_pair(C_ACCENT) | curses.A_BOLD)
+        else:
+            printw(win, i + 2, 3, f"{key:<16}", curses.color_pair(C_TICKET) | curses.A_BOLD)
+            printw(win, i + 2, 20, desc)
     win.refresh()
     with blocking(stdscr):
         try:
