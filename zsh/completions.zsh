@@ -232,7 +232,7 @@ function _opendash() {
       _arguments ':session:_opendash_sessions'
       ;;
     log)
-      actions=(meta metadata errors)
+      actions=(meta metadata errors all)
       compadd -Q -- "${actions[@]}"
       ;;
   esac

@@ -1812,6 +1812,8 @@ def _cmd_log(args) -> int:
                 subject = "error: " + " ".join(str(error).split())
             else:
                 subject = " ".join(" ".join(text).split())
+                if not subject and args.scope == "all" and error:
+                    subject = "error: " + " ".join(str(error).split())
             if not subject:
                 continue
             record = sessions[sid]
@@ -1834,7 +1836,9 @@ def _cmd_log(args) -> int:
             except OSError:
                 continue
             for raw_line in raw_lines:
-                if re.search(r"\b(error|exception|failed|failure)\b", raw_line, re.I):
+                if raw_line.strip() and (args.scope == "all" or
+                                         re.search(r"\b(error|exception|failed|failure)\b",
+                                                   raw_line, re.I)):
                     match = re.search(r"\btimestamp=(\d{4}-\d\d-\d\dT[^ ]+)", raw_line)
                     if match:
                         try:
@@ -2238,8 +2242,8 @@ def main(argv=None) -> int:
     p.set_defaults(fn=_cmd_screen)
 
     p = sub.add_parser("log", help="show all OpenDash agent messages")
-    p.add_argument("scope", nargs="?", choices=["meta", "metadata", "errors"],
-                   help="show only metadata or error messages")
+    p.add_argument("scope", nargs="?", choices=["meta", "metadata", "errors", "all"],
+                   help="show only metadata, errors, or all messages")
     p.set_defaults(fn=_cmd_log)
 
     p = sub.add_parser("agent", help="find the instance assigned to a directory")
