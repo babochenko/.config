@@ -1805,10 +1805,10 @@ def _cmd_log(args) -> int:
                 continue
             record = sessions[sid]
             agent = ("metadata" if record.get("_metadata_agent")
-                     else record.get("agent") or "default")
+                     else record.get("title_override") or record.get("agent") or "default")
             agent = str(agent)
-            if len(agent) > 30:
-                agent = agent[:29] + "…"
+            if len(agent) > 20:
+                agent = agent[:19] + "…"
             stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp / 1000))
             prefix_width = 19 + 1 + 9 + 1 + len(agent) + 3
             message_width = max(1, columns - prefix_width)
