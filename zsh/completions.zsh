@@ -205,7 +205,7 @@ function _opendash() {
   fi
 
   case "${words[2]}" in
-    metadata)
+    metadata|meta)
       actions=('start:enable fetching' 'stop:disable fetching' 'status:show state')
       _describe 'metadata action' actions
       ;;
