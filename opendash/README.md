@@ -86,6 +86,7 @@ opendash clear <session-id>     # clear messages, keeping the session
 opendash clear --all <session-id> # clear all linked metadata for this session
 opendash metadata stop          # discard pending metadata work and stop fetching
 opendash metadata start         # resume background metadata fetching
+opendash metadata messages      # print retained metadata-agent messages
 opendash unlink <session-id> [ID|#PR]  # unlink and ignore a local association
 opendash screen                 # print the running dashboard screen
 opendash quit                   # stop every instance and the shared server

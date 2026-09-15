@@ -1719,7 +1719,46 @@ def _cmd_clear(args) -> int:
     return 0
 
 
+def _cmd_metadata_messages() -> int:
+    sid = metadata_agent_sid()
+    if not sid:
+        print("no metadata agent session")
+        return 0
+    db = db_path()
+    if not db.exists():
+        print(f"opendash: db not found at {db}", file=sys.stderr)
+        return 1
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+    try:
+        rows = con.execute(
+            "select m.id, m.time_created, json_extract(m.data, '$.role')"
+            " from message m where m.session_id = ?"
+            " order by m.time_created, m.id", (sid,)).fetchall()
+        for message_id, timestamp, role in rows:
+            text = []
+            for (raw,) in con.execute(
+                    "select p.data from part p where p.message_id = ?"
+                    " order by p.time_created, p.id", (message_id,)):
+                try:
+                    value = json.loads(raw)
+                except (TypeError, json.JSONDecodeError):
+                    continue
+                if isinstance(value, dict) and isinstance(value.get("text"), str):
+                    text.append(value["text"])
+            subject = " ".join(" ".join(text).split()) or "[no text]"
+            stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp / 1000))
+            print(f"{stamp} {str(role or '?'):<9} {subject[:160]}")
+    except sqlite3.Error as error:
+        print(f"opendash: could not read metadata messages: {error}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    return 0
+
+
 def _cmd_metadata(args) -> int:
+    if args.action == "messages":
+        return _cmd_metadata_messages()
     if args.action == "start":
         metadata.set_agent_enabled(STATE, True)
         print("metadata agent enabled")
@@ -2094,7 +2133,7 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("metadata", help="control background PR metadata fetching")
     p.add_argument("action", nargs="?", default="status",
-                   choices=["start", "stop", "status"])
+                   choices=["start", "stop", "status", "messages"])
     p.set_defaults(fn=_cmd_metadata)
 
     p = sub.add_parser("quit", help="stop every instance and the shared server")

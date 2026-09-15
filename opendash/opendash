@@ -30,6 +30,7 @@ opendash - background opencode instances
   opendash clear <session-id>    delete all messages, keeping the session
   opendash metadata start|stop   enable or disable metadata fetching
   opendash metadata status      show metadata-agent state
+  opendash metadata messages    print retained metadata-agent messages
   opendash unlink <session-id> [id]  ignore a ticket or PR association
   opendash unlink -a[ll] <session-id>
                                   unlink all associations (tickets and PRs)
