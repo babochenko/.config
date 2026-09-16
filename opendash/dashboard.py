@@ -1681,15 +1681,33 @@ def run(stdscr, start_dir: str) -> None:
             help_overlay(stdscr)
 
 
+def _switch_screen(stdscr, text: str) -> None:
+    """Paint a placeholder while the UI switches.
+
+    The terminal under the dashboard holds tmux's "[detached]" line from the
+    last round trip; without this the switch flashes that stale screen while
+    the next UI (tmux client or curses redraw) is still starting. The
+    placeholder mimics the dashboard's own header: opendash and its rule.
+    """
+    cols = stdscr.getmaxyx()[1]
+    blue, grey, reset = "\033[1;34m", "\033[38;5;245m", "\033[0m"
+    header = f" {blue}opendash{reset}{grey}  {text}{reset}" if text \
+        else f" {blue}opendash{reset}"
+    sys.stdout.write(f"\033[H\033[2J{header}\r\n{grey}{'─' * max(0, cols - 2)}{reset}\r\n")
+    sys.stdout.flush()
+
+
 def _open(stdscr, data, item, terminal: bool = False) -> None:
     curses.def_prog_mode()
     curses.endwin()
+    _switch_screen(stdscr, f"opening {clip(_confirm_label(item), 40)}…")
     err = None
     try:
         (ocore.attach_terminal if terminal else ocore.attach)(item)
     except Exception as e:
         err = f"{type(e).__name__}: {e}"
     finally:
+        _switch_screen(stdscr, "")      # clear tmux's detach message first
         curses.reset_prog_mode()
         stdscr.clear()
         stdscr.refresh()
