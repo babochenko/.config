@@ -766,7 +766,7 @@ HELP = [
     ("J K", "move the selected instance down / up the list"),
     ("g / G", "first / last"),
     ("enter or o", "open the instance (option+q comes back here)"),
-    ("c", "code actions: h check, m merge master, p commit/push, s git status, g git log, S linked items, r review, U update/restart"),
+    ("c", "code actions: h check, m merge master, p commit/push, s git status, g git log, r pull requests, P pp, S linked items, U update/restart"),
     ("t", "terminal in the instance's directory (option+q closes it,"),
     ("", "or just detaches if something is still running)"),
     ("n", "new instance — asks for the directory, then a worktree"),
@@ -793,13 +793,13 @@ CODE_ACTIONS = [
     ("h", "run c[h]eckstyle"),
     ("m", "[m]erge master"),
     ("p", "[p]ush commit"),
-    ("r", "[r]eview branch"),
+    ("P", "[p]p command: commit and push in the terminal"),
     ("s", "[s]how git status"),
     ("g", "[g]it log, last 10 commits"),
     (None, ""),
     (None, "OpenDash"),
     ("i", "[i]nject open PRs, check comments and builds"),
-    ("P", "show all [P]ull requests, fetch fresh checks"),
+    ("r", "show all pull [r]equests, fetch fresh checks"),
     ("S", "manage linked ticket[s] and PRs"),
     ("U", "[U]pdate config and relaunch"),
     ("esc", "[esc] cancel"),
@@ -1736,26 +1736,13 @@ def run(stdscr, start_dir: str) -> None:
                         git_log_overlay(stdscr, cur.get("directory") or last_dir)
                     elif action == "S":
                         linked_items_overlay(stdscr, cur, data)
-                    elif action == "P":
-                        prs_overlay(stdscr, cur, data, frame)
                     elif action == "r":
-                        directory = cur.get("directory") or last_dir
-                        branch = ocore.review_branch(directory)
-                        if not branch:
-                            flash(stdscr, " review skipped on main/master")
-                        else:
-                            ocore.send_prompt(
-                                cur["session_id"],
-                                "Review all changes in this branch against main/master, "
-                                "excluding merge commits. Include committed branch changes "
-                                "and current staged/unstaged changes. Look specifically for "
-                                "critical bugs and serious inefficiencies, and fix those "
-                                "directly. For everything else, provide a concise roundup "
-                                "with file references and recommended follow-ups. Do not "
-                                "rewrite unrelated code.",
-                                directory,
-                            )
-                            flash(stdscr, f" asked agent to review {branch}", C_OK)
+                        prs_overlay(stdscr, cur, data, frame)
+                    elif action == "P":
+                        message = ask(stdscr, " pp:")
+                        if message:
+                            ocore.run_terminal_command(cur, f'pp "{message}"')
+                            flash(stdscr, f" started pp {message}", C_OK)
                     elif action == "i":
                         prs = cur.get("pr_info") or cur.get("prs") or []
                         open_prs = [p for p in prs
