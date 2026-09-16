@@ -1231,7 +1231,7 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized) -> 
         available = body_bot - body_top
         first = max(0, sel - 4)
         while first > 0:
-            height = (2 if items[first - 1].get("_group") else
+            height = (1 if items[first - 1].get("_group") else
                       (2 if items[first - 1]["session_id"] in minimized else 4))
             if height > available:
                 break
@@ -1241,7 +1241,7 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized) -> 
         idx = first
         while idx < len(items):
             is_minimized = items[idx]["session_id"] in minimized
-            height = (2 if items[idx].get("_group") else (2 if is_minimized else 4))
+            height = (1 if items[idx].get("_group") else (2 if is_minimized else 4))
             if y + height > body_bot:
                 break
             if items[idx].get("_group"):
@@ -1674,7 +1674,7 @@ def run(stdscr, start_dir: str) -> None:
                             else:
                                 layout.pop(layout.index(entry))
                                 group["agents"].insert(
-                                    0 if delta < 0 else len(group["agents"]), cur["session_id"])
+                                    0 if delta > 0 else len(group["agents"]), cur["session_id"])
                                 set_agent_group(cur["session_id"], group_id)
                                 for item in items:
                                     if item["session_id"] == cur["session_id"]:
