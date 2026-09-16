@@ -1216,12 +1216,39 @@ def _decorate(name: str, label: str, hint: str) -> None:
     # note: set-option does not accept the "=exact" target prefix that
     # has-session/attach-session/kill-session take, so pass the bare name
     for opt, val in (
-        ("status-left", f" #[bold]{label}#[default] "),
+        ("status-left", f" {label} "),
         ("status-left-length", "160"),
         ("status-right", f" {hint} "),
         ("status-right-length", "48"),
     ):
         tmux("set-option", "-t", name, opt, val)
+
+
+# prview's colour pair constants as tmux foreground colours, so the agent
+# window's status bar matches the dashboard row exactly
+_TMUX_FG = {1: "yellow", 2: "green", 3: "red", 4: "magenta", 5: "colour245",
+            6: "cyan", 7: "blue", 8: "white"}
+
+
+def _styled_label(item: dict) -> str:
+    """Row line 1 as tmux styles: ticket, coloured Jira status, headline."""
+    import prview
+    jira = metadata.jira_cache(STATE)
+    tickets = item.get("tickets") or []
+    ticket = item.get("ticket") or (tickets[0] if tickets else None)
+    headline = _headline(item)
+    if not ticket:
+        return f"#[fg=white,bold]{_label(item)}#[default]"
+    extra = f" +{len(tickets) - 1}" if len(tickets) > 1 else ""
+    ticket_label = ticket + extra
+    parts = [f"#[fg=cyan]{ticket_label}",
+             " " * max(0, prview.TICKET_W - len(ticket_label))]
+    jstatus = prview.shorten_status((jira.get(ticket) or {}).get("status"))
+    if jstatus:
+        parts.append(f" #[fg={_TMUX_FG[prview.jira_status_pair(jstatus)]}]{jstatus}")
+        parts.append(" " * max(0, prview.status_width(jira) - len(jstatus)))
+    parts.append(f"#[fg=white]  {headline}")
+    return "".join(parts)
 
 
 _SHELL_NAMES = ("sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh")
@@ -1328,7 +1355,9 @@ def attach(item: dict) -> None:
         if r.returncode != 0:
             raise ApiError(f"tmux: {(r.stderr or '').strip() or 'could not create session'}")
         tmux("set-option", "-t", name, "@opendash_url", url)
-        _decorate(name, _label(item), "option+q → dashboard")
+    # re-decorate on every attach: title and Jira status move while the
+    # window lives, and an old label would go stale
+    _decorate(name, _styled_label(item), "option+q → dashboard")
     _tmux_attach(name)
 
 
@@ -1345,8 +1374,8 @@ def attach_terminal(item: dict) -> None:
         r = tmux("new-session", "-d", "-s", name, "-c", directory)
         if r.returncode != 0:
             raise ApiError(f"tmux: {(r.stderr or '').strip() or 'could not create session'}")
-        _decorate(name, f"{_label(item)}  ·  {Path(directory).name}",
-                  "option+q → close (detaches if busy)")
+    _decorate(name, f"{_styled_label(item)}#[default]  ·  {Path(directory).name}",
+              "option+q → close (detaches if busy)")
     _tmux_attach(name)
 
 

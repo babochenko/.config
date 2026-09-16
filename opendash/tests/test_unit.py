@@ -572,3 +572,32 @@ class AsyncRemoval(unittest.TestCase):
             gate.set()
             data.wait_removals()
         self.assertEqual(data.read()[0][0]["state"], "idle")
+
+
+class StyledAgentLabel(unittest.TestCase):
+    """The agent window's status bar mirrors the dashboard row's line 1."""
+
+    def _item(self):
+        return {"ticket": "PCYXC-2240", "tickets": ["PCYXC-2240"],
+                "title": "Rate Limits", "task": "fix rate limits"}
+
+    def test_ticket_status_and_headline_in_tmux_colours(self):
+        jira = {"PCYXC-2240": {"status": "In Progress"}}
+        with patch.object(metadata, "jira_cache", return_value=jira):
+            label = ocore._styled_label(self._item())
+        self.assertIn("#[fg=cyan]PCYXC-2240", label)
+        self.assertIn("#[fg=blue]In Progress", label)
+        self.assertIn("#[fg=white]  Rate Limits", label)
+
+    def test_extra_tickets_stay_in_the_ticket_column(self):
+        item = self._item()
+        item["tickets"] = ["PCYXC-2240", "PCYXC-2238"]
+        with patch.object(metadata, "jira_cache", return_value={}):
+            label = ocore._styled_label(item)
+        self.assertIn("#[fg=cyan]PCYXC-2240 +1", label)
+
+    def test_without_a_ticket_it_falls_back_to_the_plain_label(self):
+        item = {"title": "Rate Limits", "task": "fix rate limits"}
+        with patch.object(metadata, "jira_cache", return_value={}):
+            label = ocore._styled_label(item)
+        self.assertEqual(label, "#[fg=white,bold]Rate Limits#[default]")
