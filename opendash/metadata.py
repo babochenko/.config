@@ -192,8 +192,11 @@ def update(state: Path, con, records: list[dict]) -> dict:
                      "prs": entry.get("prs", [])}
         else:
             found = scan_session(con, sid, entry.get("ignored"), repository_path)
-            entry["initial_scan_complete"] = True
-            changed = True
+            # A record can briefly exist before its initial prompt is written.
+            # Leave the marker unset so that prompt gets one scan later.
+            if first_user_message_text(con, sid).strip():
+                entry["initial_scan_complete"] = True
+                changed = True
         if entry.get("tickets") != found["tickets"]:
             entry["tickets"] = found["tickets"]
             changed = True
