@@ -96,6 +96,9 @@ class Data:
         self._wake = threading.Event()
         self.pending: list[dict] = []
         self.completions: list[tuple[dict, dict | None, str | None]] = []
+        self.removal_errors: list[str] = []
+        self._removing: set[str] = set()
+        self._removal_threads: list[threading.Thread] = []
         self._creation_threads: list[threading.Thread] = []
         self._creation_number = 0
         self._order_override: list[str] = []
@@ -206,6 +209,43 @@ class Data:
         with self.lock:
             completions, self.completions = self.completions, []
             return completions
+
+    def take_removal_errors(self):
+        with self.lock:
+            errors, self.removal_errors = self.removal_errors, []
+            return errors
+
+    def remove(self, session_id: str, force: bool = False) -> None:
+        """Remove an instance off the UI thread; the row stays until it's gone."""
+        with self.lock:
+            if session_id in self._removing:
+                return
+            self._removing.add(session_id)
+
+        def run() -> None:
+            error = None
+            try:
+                ocore.remove_instance(session_id, force=force)
+            except Exception as e:
+                error = f"{type(e).__name__}: {e}"[:160]
+            with self.lock:
+                self._removing.discard(session_id)
+                if error:
+                    self.removal_errors.append(error)
+            self.refresh_now()
+
+        thread = threading.Thread(target=run, daemon=True)
+        with self.lock:
+            self._removal_threads.append(thread)
+        thread.start()
+
+    def wait_removals(self):
+        with self.lock:
+            threads = list(self._removal_threads)
+            self._removal_threads[:] = [t for t in threads if t.is_alive()]
+        for thread in threads:
+            if thread.is_alive():
+                thread.join()
 
     def wait_creations(self):
         with self.lock:
@@ -419,6 +459,13 @@ class Data:
                 anchor = next((n for n, it in enumerate(items)
                                 if it.get("session_id") == pending.get("after_sid")), -1)
                 items.insert(anchor + 1, pending)
+            if self._removing:
+                for n, item in enumerate(items):
+                    if item.get("session_id") in self._removing:
+                        copy = dict(item)
+                        copy["state"] = "working"
+                        copy["activity"] = ("running", "removing…")
+                        items[n] = copy
             for item in items:
                 item["pr_loading"] = self.pr_loading and bool(item.get("prs"))
             return (items, dict(self.jira),
@@ -1367,6 +1414,8 @@ def run(stdscr, start_dir: str) -> None:
             elif record:
                 flash(stdscr, f" started {record.get('ticket') or record['session_id'][-8:]}",
                       C_OK)
+        for removal_error in data.take_removal_errors():
+            error_pause(stdscr, f"failed: {removal_error}")
         items, jira, server_up, error = data.read()
         if filt:
             low = filt.lower()
@@ -1601,10 +1650,8 @@ def run(stdscr, start_dir: str) -> None:
                     if tree and ocore.worktree_dirty(cur) and not force:
                         flash(stdscr, " kept — commit or stash first")
                     else:
-                        try:
-                            ocore.remove_instance(cur["session_id"], force=force)
-                        except Exception as e:
-                            error_pause(stdscr, f"{e}")
+                        data.remove(cur["session_id"], force=force)
+                        flash(stdscr, " removing…")
                         data.refresh_now()
         elif ch in ("r", "R") and cur:
             name = ask(stdscr, " title:", ocore._headline(cur) if ch == "r" else "")

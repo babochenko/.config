@@ -532,3 +532,43 @@ class RefreshQueue(unittest.TestCase):
         # separate never-fetched candidate
         self.assertEqual(front, {"number": "7", "repository": "r/p"})
 
+
+
+class AsyncRemoval(unittest.TestCase):
+    """Instance removal runs off the UI thread, the row still shows while it works."""
+
+    def _data(self):
+        data = dashboard.Data.__new__(dashboard.Data)
+        data.lock = __import__("threading").Lock()
+        data.removal_errors = []
+        data._removing = set()
+        data._removal_threads = []
+        data._wake = __import__("threading").Event()
+        return data
+
+    def test_remove_reports_errors_without_blocking(self):
+        data = self._data()
+        with patch.object(ocore, "remove_instance",
+                          side_effect=RuntimeError("worktree dirty")):
+            data.remove("ses_X", force=True)
+            data.wait_removals()
+        self.assertIn("RuntimeError: worktree dirty", data.take_removal_errors()[0])
+        self.assertEqual(data._removing, set())
+        self.assertTrue(data._wake.is_set())
+
+    def test_read_marks_the_row_while_removal_runs(self):
+        data = self._data()
+        data.items = [{"session_id": "ses_X", "state": "idle",
+                       "activity": ("none", "")}]
+        data.pending = []
+        data.jira, data.pr, data.server_up, data.error = {}, {}, True, None
+        data.pr_loading = False
+        gate = __import__("threading").Event()
+        with patch.object(ocore, "remove_instance", lambda *a, **k: gate.wait()):
+            data.remove("ses_X")
+            items, *_ = data.read()
+            self.assertEqual(items[0]["state"], "working")
+            self.assertEqual(items[0]["activity"], ("running", "removing…"))
+            gate.set()
+            data.wait_removals()
+        self.assertEqual(data.read()[0][0]["state"], "idle")
