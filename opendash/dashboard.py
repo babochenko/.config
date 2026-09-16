@@ -1475,7 +1475,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False,
 
     branch = gitinfo.get("branch") or item.get("branch")
     location = _location_label(item, branch)
-    printw(stdscr, y + 2, 3, clip(location, max(4, right_start - 5)),
+    printw(stdscr, y + 2, 3 + indent, clip(location, max(4, right_start - 5 - indent)),
            curses.color_pair(C_DIM))
 
     if comments:
@@ -1483,7 +1483,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False,
             " ".join(f"{comment.get('author', 'reviewer')}: {comment.get('text', '')}".split())
             for comment in comments[:3]
         )
-        printw(stdscr, y + 1, 3, clip(thread_text, maxx - 6),
+        printw(stdscr, y + 1, 3 + indent, clip(thread_text, maxx - 6 - indent),
                curses.color_pair(C_DIM))
 
     printw(stdscr, y, x, clip(ocore._headline(item), max(4, headline_end - x - 2)),
@@ -1502,8 +1502,8 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False,
     # a note with embedded newlines would spill onto line 3 and erase it
     note = " ".join((item.get("attention") or ocore.worked_on(item)).split())
     lead = "◆ " if state == "attention" else ("▸ " if state == "working" else "")
-    avail = maxx - 6 - (len(meta_text) + 2 if meta_text else 0)
-    x2 = printw(stdscr, y + 1, 3, lead, pair)
+    avail = maxx - 6 - indent - (len(meta_text) + 2 if meta_text else 0)
+    x2 = printw(stdscr, y + 1, 3 + indent, lead, pair)
     printw(stdscr, y + 1, x2, clip(note, max(4, avail)),
            curses.color_pair(C_ATT) | curses.A_BOLD if state == "attention"
            else curses.color_pair(C_DIM))
