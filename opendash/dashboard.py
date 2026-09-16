@@ -702,7 +702,8 @@ def grouped_rows(items: list[dict], groups: list[dict], layout: list[str]) -> li
             group = by_group[value]
             member_ids = list(group.get("agents", []))
             member_ids.extend(sid for sid, item in by_id.items()
-                              if item.get("group_id") == value and sid not in member_ids)
+                              if (item.get("group_id") or item.get("_group_id")) == value
+                              and sid not in member_ids)
             children = [dict(by_id[sid], _group_id=value)
                         for sid in member_ids if sid in by_id]
             rows.append({"_group": True, "group_id": value, "name": group["name"],
@@ -716,6 +717,18 @@ def grouped_rows(items: list[dict], groups: list[dict], layout: list[str]) -> li
     for item in items:
         if item["session_id"] not in shown and not item.get("group_id"):
             rows.append(item)
+    return rows
+
+
+def agent_rows(items: list[dict]) -> list[dict]:
+    """Strip display-only group fields before rebuilding the layout."""
+    rows = []
+    for item in items:
+        if item.get("_group"):
+            continue
+        item = dict(item)
+        item.pop("_group_id", None)
+        rows.append(item)
     return rows
 
 
@@ -1598,7 +1611,7 @@ def run(stdscr, start_dir: str) -> None:
                 if 0 <= target < len(layout):
                     layout[index], layout[target] = layout[target], layout[index]
                     save_groups(groups, layout)
-                    rows = grouped_rows([i for i in items if not i.get("_group")], groups, layout)
+                    rows = grouped_rows(agent_rows(items), groups, layout)
                     sel = next((n for n, row in enumerate(rows)
                                 if row.get("_group") and row["group_id"] == cur["group_id"]), sel)
             elif 0 <= target < len(items):
@@ -1611,21 +1624,37 @@ def run(stdscr, start_dir: str) -> None:
                         group["agents"][index], group["agents"][target_index] = \
                             group["agents"][target_index], group["agents"][index]
                         save_groups(groups, layout)
-                        rows = grouped_rows([i for i in items if not i.get("_group")],
-                                            groups, layout)
+                        rows = grouped_rows(agent_rows(items), groups, layout)
                         sel = next((n for n, row in enumerate(rows)
                                     if row["session_id"] == cur["session_id"]), sel)
+                    elif delta < 0 or delta > 0:
+                        group_entry = f"group:{group_id}"
+                        group_position = layout.index(group_entry)
+                        group["agents"].pop(index)
+                        set_agent_group(cur["session_id"], None)
+                        insert_at = group_position if delta < 0 else group_position + 1
+                        layout.insert(insert_at, f"agent:{cur['session_id']}")
+                        save_groups(groups, layout)
+                        sel = max(0, sel - 1) if delta < 0 else sel
                 else:
                     entry = f"agent:{cur['session_id']}"
                     target_entry = layout_entry(items[target])
                     if entry in layout and target_entry in layout:
                         index, target_index = layout.index(entry), layout.index(target_entry)
-                        layout[index], layout[target_index] = layout[target_index], layout[index]
+                        if target_entry.startswith("group:"):
+                            group_id = target_entry.partition(":")[2]
+                            group = next(g for g in groups if g["id"] == group_id)
+                            layout.pop(index)
+                            group["agents"].insert(
+                                0 if delta < 0 else len(group["agents"]), cur["session_id"])
+                            set_agent_group(cur["session_id"], group_id)
+                        else:
+                            layout[index], layout[target_index] = layout[target_index], layout[index]
                         save_groups(groups, layout)
-                        rows = grouped_rows([i for i in items if not i.get("_group")],
-                                            groups, layout)
-                        sel = next((n for n, row in enumerate(rows)
-                                    if row["session_id"] == cur["session_id"]), sel)
+                        if target_entry.startswith("group:") and delta > 0:
+                            sel += 1
+                        elif not target_entry.startswith("group:"):
+                            sel = target
         elif ch == "g":
             sel = 0
         elif ch == "G":
