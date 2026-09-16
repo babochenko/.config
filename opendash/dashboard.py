@@ -1321,7 +1321,7 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False,
 
     marker_rows = (y, y + 1) if minimized else (y, y + 1, y + 2)
     for row in marker_rows:
-        printw(stdscr, row, indent, "▌" if selected else "│" if indent else " ",
+        printw(stdscr, row, 0, "▌" if selected else "│" if indent else " ",
                curses.color_pair(C_DIM if minimized else C_ACCENT) | curses.A_BOLD)
 
     title_attr = (curses.color_pair(C_DIM) if minimized
