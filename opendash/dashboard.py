@@ -18,6 +18,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from pathlib import Path
 
 import ocore
@@ -156,7 +157,8 @@ class Data:
         threading.Thread(target=worker, daemon=True).start()
 
     def create(self, task: str, directory: str, worktree: str | None,
-               after: str | None = None, order: float | None = None) -> None:
+               after: str | None = None, order: float | None = None,
+               group_id: str | None = None) -> None:
         """Create an instance off the UI thread while showing a local placeholder.
 
         `after` parks the placeholder under that session's row; `order` is the
@@ -178,6 +180,7 @@ class Data:
                              else "starting instance…"),
                 "pending": True,
                 "after_sid": after,
+                "group_id": group_id,
                 "git": {"branch": worktree} if worktree else {},
             }
             self.pending.append(pending)
@@ -186,8 +189,11 @@ class Data:
             record, error = None, None
             try:
                 record = ocore.new_instance(task, directory=directory,
-                                            worktree=worktree or None,
-                                            order=order)
+                                             worktree=worktree or None,
+                                             order=order)
+                if group_id:
+                    record["group_id"] = group_id
+                    ocore._write_json(ocore.INSTANCES / f"{record['session_id']}.json", record)
             except Exception as e:
                 error = f"{type(e).__name__}: {e}"[:160]
             with self.lock:
@@ -647,8 +653,94 @@ def load_minimized(session_ids: set[str]) -> set[str]:
 
 def save_minimized(session_ids: set[str]) -> None:
     """Persist dashboard-only visual state atomically with other opendash state."""
-    ocore._write_json(ocore.STATE / "dashboard.json",
-                      {"minimized": sorted(session_ids)})
+    state = ocore._read_json(ocore.STATE / "dashboard.json", {})
+    state = state if isinstance(state, dict) else {}
+    state["minimized"] = sorted(session_ids)
+    ocore._write_json(ocore.STATE / "dashboard.json", state)
+
+
+def load_groups(session_ids: set[str]) -> tuple[list[dict], list[str]]:
+    """Load groups and top-level layout, dropping stale agent references."""
+    state = ocore._read_json(ocore.STATE / "dashboard.json", {})
+    state = state if isinstance(state, dict) else {}
+    groups = [g for g in state.get("groups", [])
+              if isinstance(g, dict) and isinstance(g.get("id"), str)
+              and isinstance(g.get("name"), str) and g.get("name")]
+    group_ids = {g["id"] for g in groups}
+    for group in groups:
+        group["agents"] = [sid for sid in group.get("agents", [])
+                            if sid in session_ids]
+    layout = [entry for entry in state.get("layout", [])
+              if isinstance(entry, str)]
+    valid = {f"group:{g['id']}" for g in groups}
+    valid.update(f"agent:{sid}" for sid in session_ids)
+    layout = [entry for entry in layout if entry in valid]
+    present = set(layout)
+    layout.extend(f"group:{g['id']}" for g in groups if f"group:{g['id']}" not in present)
+    grouped = {sid for g in groups for sid in g["agents"]}
+    layout.extend(f"agent:{sid}" for sid in sorted(session_ids - grouped)
+                  if f"agent:{sid}" not in present)
+    return groups, layout
+
+
+def save_groups(groups: list[dict], layout: list[str]) -> None:
+    state = ocore._read_json(ocore.STATE / "dashboard.json", {})
+    state = state if isinstance(state, dict) else {}
+    state["groups"] = groups
+    state["layout"] = layout
+    ocore._write_json(ocore.STATE / "dashboard.json", state)
+
+
+def grouped_rows(items: list[dict], groups: list[dict], layout: list[str]) -> list[dict]:
+    """Build visible rows from top-level layout and agent group membership."""
+    by_id = {item["session_id"]: item for item in items}
+    by_group = {group["id"]: group for group in groups}
+    rows = []
+    for entry in layout:
+        kind, _, value = entry.partition(":")
+        if kind == "group" and value in by_group:
+            group = by_group[value]
+            member_ids = list(group.get("agents", []))
+            member_ids.extend(sid for sid, item in by_id.items()
+                              if item.get("group_id") == value and sid not in member_ids)
+            children = [dict(by_id[sid], _group_id=value)
+                        for sid in member_ids if sid in by_id]
+            rows.append({"_group": True, "group_id": value, "name": group["name"],
+                         "children": children, "session_id": f"group:{value}"})
+            rows.extend(children)
+        elif kind == "agent" and value in by_id:
+            if not any(value in group.get("agents", []) for group in groups) \
+                    and not by_id[value].get("group_id"):
+                rows.append(by_id[value])
+    shown = {row["session_id"] for row in rows if not row.get("_group")}
+    for item in items:
+        if item["session_id"] not in shown and not item.get("group_id"):
+            rows.append(item)
+    return rows
+
+
+def group_for_agent(groups: list[dict], session_id: str) -> str | None:
+    for group in groups:
+        if session_id in group.get("agents", []):
+            return group["id"]
+    return None
+
+
+def set_agent_group(session_id: str, group_id: str | None) -> None:
+    path = ocore.INSTANCES / f"{session_id}.json"
+    record = ocore._read_json(path)
+    if record is None:
+        return
+    if group_id:
+        record["group_id"] = group_id
+    else:
+        record.pop("group_id", None)
+    ocore._write_json(path, record)
+
+
+def layout_entry(item: dict) -> str:
+    return (f"group:{item['group_id']}" if item.get("_group")
+            else f"agent:{item['session_id']}")
 
 
 HELP = [
@@ -663,6 +755,7 @@ HELP = [
     ("n", "new instance — asks for the directory, then a worktree"),
     ("", "branch (blank to skip), then opens nvim for the task;"),
     ("", "Shift+Enter uses a one-line prompt instead; empty input cancels"),
+    ("N", "create a group; n on a group creates an agent inside it"),
     ("f", "follow up: send another message without opening it"),
     ("a", "abort whatever the instance is doing right now (asks first)"),
     ("d", "stop and remove from the dashboard, asks first (the opencode"),
@@ -1093,9 +1186,10 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized) -> 
     maxy, maxx = stdscr.getmaxyx()
     dim = curses.color_pair(C_DIM)
 
-    working = sum(1 for i in items if i["state"] == "working")
-    attention = sum(1 for i in items if i["state"] == "attention")
-    parts = [f"{len(items)} instance" + ("s" if len(items) != 1 else "")]
+    agents = [item for item in items if not item.get("_group")]
+    working = sum(1 for i in agents if i["state"] == "working")
+    attention = sum(1 for i in agents if i["state"] == "attention")
+    parts = [f"{len(agents)} instance" + ("s" if len(agents) != 1 else "")]
     if working:
         parts.append(f"{working} working")
     if attention:
@@ -1120,7 +1214,7 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized) -> 
         available = body_bot - body_top
         first = max(0, sel - 4)
         while first > 0:
-            height = 2 if items[first - 1]["session_id"] in minimized else 4
+            height = 2 if items[first - 1].get("_group") or items[first - 1]["session_id"] in minimized else 4
             if height > available:
                 break
             first -= 1
@@ -1129,11 +1223,14 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized) -> 
         idx = first
         while idx < len(items):
             is_minimized = items[idx]["session_id"] in minimized
-            height = 2 if is_minimized else 4
+            height = 2 if items[idx].get("_group") or is_minimized else 4
             if y + height > body_bot:
                 break
-            _draw_item(stdscr, y, items[idx], jira, idx == sel, frame, maxx,
-                       is_minimized)
+            if items[idx].get("_group"):
+                _draw_group(stdscr, y, items[idx], idx == sel, maxx)
+            else:
+                _draw_item(stdscr, y, items[idx], jira, idx == sel, frame, maxx,
+                           is_minimized, indent=2 if items[idx].get("_group_id") else 0)
             y += height
             idx += 1
         if first > 0:
@@ -1201,7 +1298,8 @@ def _short_dir(directory: str | None) -> str:
 
 
 
-def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) -> None:
+def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False,
+               indent: int = 0) -> None:
     state = item["state"]
     pair = curses.color_pair(C_DIM if minimized else STATE_COLOR.get(state, C_DIM))
     icon = ICONS.get(state)
@@ -1210,13 +1308,13 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
 
     marker_rows = (y, y + 1) if minimized else (y, y + 1, y + 2)
     for row in marker_rows:
-        printw(stdscr, row, 0, "▌" if selected else " ",
+        printw(stdscr, row, indent, "▌" if selected else "│" if indent else " ",
                curses.color_pair(C_DIM if minimized else C_ACCENT) | curses.A_BOLD)
 
     title_attr = (curses.color_pair(C_DIM) if minimized
                   else (curses.A_BOLD if selected else 0))
     emphasis = 0 if minimized else curses.A_BOLD
-    x = printw(stdscr, y, 2, icon, pair | emphasis)
+    x = printw(stdscr, y, indent + 2, icon, pair | emphasis)
     x += 1
 
     tickets = item.get("tickets") or []
@@ -1365,7 +1463,6 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
 
     printw(stdscr, y, x, clip(ocore._headline(item), max(4, headline_end - x - 2)),
            title_attr)
-
     # line 2: what has actually been done, then the counters
     meta = []
     prog = ocore._progress(item)
@@ -1388,6 +1485,16 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False) ->
     if meta_text:
         printw(stdscr, y + 1, maxx - 2 - len(meta_text), meta_text, curses.color_pair(C_DIM))
 
+
+def _draw_group(stdscr, y: int, group: dict, selected: bool, maxx: int) -> None:
+    """Draw a group row; its children follow immediately below it."""
+    marker = curses.color_pair(C_ACCENT if selected else C_DIM) | curses.A_BOLD
+    printw(stdscr, y, 0, "▌" if selected else "│", marker)
+    attr = curses.color_pair(C_ACCENT if selected else C_DIM) | curses.A_BOLD
+    count = len(group.get("children", []))
+    label = f"{group['name']} ({count})"
+    printw(stdscr, y, 2, label, attr)
+
 # ------------------------------------------------------------------- main loop
 
 def run(stdscr, start_dir: str) -> None:
@@ -1407,22 +1514,30 @@ def run(stdscr, start_dir: str) -> None:
     sel, filt, last_dir = 0, "", start_dir
     session_ids = {record["session_id"] for record in ocore.instance_records()}
     minimized = load_minimized(session_ids)
+    groups, layout = load_groups(session_ids)
     while True:
         for pending, record, creation_error in data.take_completions():
             if creation_error:
                 error_pause(stdscr, f"failed: {creation_error}")
             elif record:
+                group_id = pending.get("group_id")
+                if group_id and any(g["id"] == group_id for g in groups):
+                    next(g for g in groups if g["id"] == group_id)["agents"].append(record["session_id"])
+                    save_groups(groups, layout)
                 flash(stdscr, f" started {record.get('ticket') or record['session_id'][-8:]}",
                       C_OK)
         for removal_error in data.take_removal_errors():
             error_pause(stdscr, f"failed: {removal_error}")
         items, jira, server_up, error = data.read()
+        session_ids = {item["session_id"] for item in items}
+        groups, layout = load_groups(session_ids)
         if filt:
             low = filt.lower()
             items = [i for i in items
                      if low in (i.get("ticket") or "").lower()
                      or low in ocore._headline(i).lower()
                      or low in (i.get("directory") or "").lower()]
+        items = grouped_rows(items, groups, layout)
         sel = max(0, min(sel, len(items) - 1)) if items else 0
         frame = int(time.time() * (1000 / TICK_MS)) % len(SPINNER)
         draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized)
@@ -1476,16 +1591,48 @@ def run(stdscr, start_dir: str) -> None:
             target = sel + delta
             if filt:
                 flash(stdscr, " clear the filter to reorder")
+            elif cur.get("_group"):
+                entry = layout_entry(cur)
+                index = layout.index(entry) if entry in layout else -1
+                target = index + delta
+                if 0 <= target < len(layout):
+                    layout[index], layout[target] = layout[target], layout[index]
+                    save_groups(groups, layout)
+                    rows = grouped_rows([i for i in items if not i.get("_group")], groups, layout)
+                    sel = next((n for n, row in enumerate(rows)
+                                if row.get("_group") and row["group_id"] == cur["group_id"]), sel)
             elif 0 <= target < len(items):
-                neighbour = items[target]["session_id"]
-                if ocore.move_instance(cur["session_id"], delta):
-                    data.reorder(cur["session_id"], neighbour)
-                    sel = target
+                group_id = cur.get("_group_id")
+                if group_id:
+                    group = next(g for g in groups if g["id"] == group_id)
+                    index = group["agents"].index(cur["session_id"])
+                    target_index = index + delta
+                    if 0 <= target_index < len(group["agents"]):
+                        group["agents"][index], group["agents"][target_index] = \
+                            group["agents"][target_index], group["agents"][index]
+                        save_groups(groups, layout)
+                        rows = grouped_rows([i for i in items if not i.get("_group")],
+                                            groups, layout)
+                        sel = next((n for n, row in enumerate(rows)
+                                    if row["session_id"] == cur["session_id"]), sel)
+                else:
+                    entry = f"agent:{cur['session_id']}"
+                    target_entry = layout_entry(items[target])
+                    if entry in layout and target_entry in layout:
+                        index, target_index = layout.index(entry), layout.index(target_entry)
+                        layout[index], layout[target_index] = layout[target_index], layout[index]
+                        save_groups(groups, layout)
+                        rows = grouped_rows([i for i in items if not i.get("_group")],
+                                            groups, layout)
+                        sel = next((n for n, row in enumerate(rows)
+                                    if row["session_id"] == cur["session_id"]), sel)
         elif ch == "g":
             sel = 0
         elif ch == "G":
             sel = max(0, len(items) - 1)
         elif ch == "z" and cur:
+            if cur.get("_group"):
+                continue
             sid = cur["session_id"]
             if sid in minimized:
                 minimized.remove(sid)
@@ -1493,16 +1640,20 @@ def run(stdscr, start_dir: str) -> None:
                 minimized.add(sid)
             save_minimized(minimized)
         elif ch in ("\n", "\r", "o") and cur:
-            _open(stdscr, data, cur)
+            if not cur.get("_group"):
+                _open(stdscr, data, cur)
         elif ch == "t" and cur:
-            _open(stdscr, data, cur, terminal=True)
+            if not cur.get("_group"):
+                _open(stdscr, data, cur, terminal=True)
         elif ch == "c":
             action = code_actions_overlay(stdscr)
             if action == "U":
                 data.stop()
                 data.wait_creations()
                 return True
-            if action and cur:
+            if action and cur and cur.get("_group"):
+                flash(stdscr, " select an agent for this code action")
+            if action and cur and not cur.get("_group"):
                 try:
                     if action == "p":
                         ocore.send_prompt(
@@ -1568,6 +1719,29 @@ def run(stdscr, start_dir: str) -> None:
                 except Exception as e:
                     error_pause(stdscr, f"failed: {e}")
                 data.refresh_now()
+        elif ch == "N":
+            name = ask(stdscr, " group name:")
+            if name:
+                group = {"id": "grp-" + uuid.uuid4().hex[:10],
+                         "name": name.strip(), "agents": []}
+                if not group["name"]:
+                    continue
+                groups.append(group)
+                if cur and cur.get("_group"):
+                    position = layout.index(layout_entry(cur)) + 1
+                elif cur and cur.get("_group_id"):
+                    position = layout.index(f"group:{cur['_group_id']}") + 1
+                elif cur and not cur.get("_group"):
+                    position = layout.index(layout_entry(cur))
+                    group["agents"].append(cur["session_id"])
+                    set_agent_group(cur["session_id"], group["id"])
+                    layout.pop(position)
+                else:
+                    position = len(layout)
+                layout.insert(position, f"group:{group['id']}")
+                save_groups(groups, layout)
+                flash(stdscr, f" created group {group['name']}", C_OK)
+                data.refresh_now()
         elif ch == "n":
             where = ask(stdscr, " dir :", last_dir)
             if where is not None:
@@ -1592,12 +1766,14 @@ def run(stdscr, start_dir: str) -> None:
                         else:
                             # spawn under the cursor, not at the bottom
                             after = cur["session_id"] if cur else None
+                            group_id = cur.get("group_id") if cur and cur.get("_group") else None
                             data.create(task, where, tree,
-                                        after=after, order=ocore.order_after(after))
+                                        after=after, order=ocore.order_after(after),
+                                        group_id=group_id)
                             flash(stdscr, " creating worktree…" if tree
                                   else " starting instance…")
                         data.refresh_now()
-        elif ch == "f" and cur:
+        elif ch == "f" and cur and not cur.get("_group"):
             msg = ask(stdscr, " follow up:")
             if msg:
                 try:
@@ -1608,13 +1784,13 @@ def run(stdscr, start_dir: str) -> None:
                 except Exception as e:
                     error_pause(stdscr, f"failed: {e}")
                 data.refresh_now()
-        elif ch == "a" and cur:
+        elif ch == "a" and cur and not cur.get("_group"):
             label = cur.get("ticket") or ocore._headline(cur)[:40]
             if confirm(stdscr, f" abort what “{label}” is doing?"):
                 ocore.abort_instance(cur["session_id"])
                 flash(stdscr, " aborted")
                 data.refresh_now()
-        elif ch == "u" and cur:
+        elif ch == "u" and cur and not cur.get("_group"):
             association = cur.get("ticket")
             if not association and cur.get("prs"):
                 association = f"#{cur['prs'][0].get('number')}"
@@ -1622,11 +1798,24 @@ def run(stdscr, start_dir: str) -> None:
                 if ocore.unlink_association(cur["session_id"], association):
                     flash(stdscr, f" unlinked {association}", C_OK)
                     data.refresh_now()
-        elif ch == "b" and cur:
+        elif ch == "b" and cur and not cur.get("_group"):
             try:
                 _open_links(cur)
             except OSError as e:
                 error_pause(stdscr, f"failed to open link: {e}")
+        elif ch == "d" and cur and cur.get("_group"):
+            group_id = cur["group_id"]
+            group = next((g for g in groups if g["id"] == group_id), None)
+            if group and confirm(stdscr, f" remove group “{group['name']}”? agents stay? "):
+                members = list(group.get("agents", []))
+                position = layout.index(f"group:{group_id}")
+                for sid in members:
+                    set_agent_group(sid, None)
+                groups[:] = [g for g in groups if g["id"] != group_id]
+                layout[position:position + 1] = [f"agent:{sid}" for sid in members]
+                save_groups(groups, layout)
+                flash(stdscr, " group removed; agents kept", C_OK)
+                data.refresh_now()
         elif ch == "d" and cur:
             if cur.get("pending"):
                 if confirm(stdscr, f" cancel this pending instance?"):
@@ -1653,7 +1842,7 @@ def run(stdscr, start_dir: str) -> None:
                         data.remove(cur["session_id"], force=force)
                         flash(stdscr, " removing…")
                         data.refresh_now()
-        elif ch in ("r", "R") and cur:
+        elif ch in ("r", "R") and cur and not cur.get("_group"):
             name = ask(stdscr, " title:", ocore._headline(cur) if ch == "r" else "")
             if name:
                 try:

@@ -42,6 +42,19 @@ class Tickets(unittest.TestCase):
         self.assertEqual(metadata.extract_tickets("x-1 PROJ-2 /browse/proj-2"), ["PROJ-2"])
 
 
+class DashboardGroups(unittest.TestCase):
+    def test_grouped_rows_keep_group_and_children_together(self):
+        agents = [{"session_id": "ses-1", "state": "idle"},
+                  {"session_id": "ses-2", "state": "working"}]
+        groups = [{"id": "grp-1", "name": "build", "agents": ["ses-2"]}]
+        rows = dashboard.grouped_rows(agents, groups,
+                                      ["agent:ses-1", "group:grp-1"])
+        self.assertEqual([row.get("session_id") for row in rows],
+                         ["ses-1", "group:grp-1", "ses-2"])
+        self.assertTrue(rows[1]["_group"])
+        self.assertEqual(rows[2]["_group_id"], "grp-1")
+
+
 class PullRequests(unittest.TestCase):
     def test_url_and_reference_normalize_to_hash_numbers(self):
         self.assertEqual(

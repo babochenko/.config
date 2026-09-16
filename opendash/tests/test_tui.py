@@ -252,6 +252,19 @@ class Dashboard(unittest.TestCase):
         self.press("Escape", settle=1.2)
         self.assertIn("3 instances", self.screen())
 
+    def test_group_creation_and_deletion_keeps_agent(self):
+        self.press("g", "N")
+        self.assertIn("group name:", self.screen().splitlines()[-1])
+        self.type("build")
+        self.press("Enter")
+        self.assertIn("build (1)", self.screen())
+        self.assertIn("add subtract", self.screen())
+        self.press("d")
+        self.assertIn("agents stay", self.screen().splitlines()[-1])
+        self.press("y", settle=1.2)
+        self.assertNotIn("build (", self.screen())
+        self.assertIn("add subtract", self.screen())
+
     def test_the_server_is_reported_as_down_without_one(self):
         self.assertIn("server down", self.screen())
 

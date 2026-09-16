@@ -141,6 +141,13 @@ dashboard, which is useful for diagnosing layout without a screenshot. A dump
 older than five seconds is treated as unavailable. It does not include terminal
 font rendering or colors.
 
+Dashboard groups are stored in `dashboard.json` and contain instance IDs, not
+conversations. `N` creates a group; when an agent is selected it starts with
+that agent, while `n` on a group creates a new agent inside it. `d` on a group
+removes only the container and returns its agents to the top-level list. `J/K`
+on a group moves the whole group block. Git and PR code actions require an
+agent selection; `U` remains available from a group.
+
 `oo log errors` shows recorded OpenCode message errors across managed sessions;
 it is a paged, read-only diagnostic view like `oo log`.
 
