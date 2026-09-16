@@ -1231,7 +1231,7 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized) -> 
         available = body_bot - body_top
         first = max(0, sel - 4)
         while first > 0:
-            height = (1 if items[first - 1].get("_group") else
+            height = (2 if items[first - 1].get("_group") else
                       (2 if items[first - 1]["session_id"] in minimized else 4))
             if height > available:
                 break
@@ -1241,7 +1241,7 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized) -> 
         idx = first
         while idx < len(items):
             is_minimized = items[idx]["session_id"] in minimized
-            height = (1 if items[idx].get("_group") else (2 if is_minimized else 4))
+            height = (2 if items[idx].get("_group") else (2 if is_minimized else 4))
             if y + height > body_bot:
                 break
             if items[idx].get("_group"):
@@ -1519,6 +1519,7 @@ def _draw_group(stdscr, y: int, group: dict, selected: bool, maxx: int) -> None:
     count = group.get("member_count", len(group.get("children", [])))
     label = f"{group['name']} ({count})"
     printw(stdscr, y, 2, label, attr)
+    printw(stdscr, y + 1, 0, "▌" if selected else "│", marker)
 
 # ------------------------------------------------------------------- main loop
 
@@ -1626,7 +1627,7 @@ def run(stdscr, start_dir: str) -> None:
                     rows = grouped_rows(agent_rows(items), groups, layout)
                     sel = next((n for n, row in enumerate(rows)
                                 if row.get("_group") and row["group_id"] == cur["group_id"]), sel)
-            elif 0 <= target < len(items):
+            elif cur.get("_group_id") or 0 <= target < len(items):
                 group_id = cur.get("_group_id")
                 if group_id:
                     group = next(g for g in groups if g["id"] == group_id)
