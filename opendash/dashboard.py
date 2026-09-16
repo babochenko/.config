@@ -707,8 +707,12 @@ def grouped_rows(items: list[dict], groups: list[dict], layout: list[str]) -> li
             children = [dict(by_id[sid], _group_id=value)
                         for sid in member_ids if sid in by_id]
             rows.append({"_group": True, "group_id": value, "name": group["name"],
-                         "children": children, "session_id": f"group:{value}"})
-            rows.extend(children)
+                         "children": children if not group.get("collapsed") else [],
+                         "member_count": len(children),
+                         "session_id": f"group:{value}",
+                         "collapsed": bool(group.get("collapsed"))})
+            if not group.get("collapsed"):
+                rows.extend(children)
         elif kind == "agent" and value in by_id:
             if not any(value in group.get("agents", []) for group in groups) \
                     and not by_id[value].get("group_id"):
@@ -1227,7 +1231,8 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized) -> 
         available = body_bot - body_top
         first = max(0, sel - 4)
         while first > 0:
-            height = 2 if items[first - 1].get("_group") or items[first - 1]["session_id"] in minimized else 4
+            height = (2 if items[first - 1].get("_group") else
+                      (2 if items[first - 1]["session_id"] in minimized else 4))
             if height > available:
                 break
             first -= 1
@@ -1236,14 +1241,18 @@ def draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized) -> 
         idx = first
         while idx < len(items):
             is_minimized = items[idx]["session_id"] in minimized
-            height = 2 if items[idx].get("_group") or is_minimized else 4
+            height = (2 if items[idx].get("_group") else (2 if is_minimized else 4))
             if y + height > body_bot:
                 break
             if items[idx].get("_group"):
                 _draw_group(stdscr, y, items[idx], idx == sel, maxx)
             else:
                 _draw_item(stdscr, y, items[idx], jira, idx == sel, frame, maxx,
-                           is_minimized, indent=2 if items[idx].get("_group_id") else 0)
+                           is_minimized, indent=2 if items[idx].get("_group_id") else 0,
+                           group_last=bool(items[idx].get("_group_id") and
+                                           (idx + 1 == len(items) or
+                                            items[idx + 1].get("_group_id") !=
+                                            items[idx].get("_group_id"))))
             y += height
             idx += 1
         if first > 0:
@@ -1312,14 +1321,15 @@ def _short_dir(directory: str | None) -> str:
 
 
 def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False,
-               indent: int = 0) -> None:
+               indent: int = 0, group_last: bool = False) -> None:
     state = item["state"]
     pair = curses.color_pair(C_DIM if minimized else STATE_COLOR.get(state, C_DIM))
     icon = ICONS.get(state)
     if icon is None:                     # working: the spinner stands in
         icon = SPINNER[frame % len(SPINNER)]
 
-    marker_rows = ((y, y + 1) if minimized else (y, y + 1, y + 2, y + 3)
+    marker_rows = ((y, y + 1) if minimized else
+                   (y, y + 1, y + 2, y + 3 if not group_last else y + 2)
                    if indent else ((y, y + 1) if minimized else (y, y + 1, y + 2)))
     for row in marker_rows:
         printw(stdscr, row, 0, "▌" if selected else "│" if indent else " ",
@@ -1506,7 +1516,7 @@ def _draw_group(stdscr, y: int, group: dict, selected: bool, maxx: int) -> None:
     marker = curses.color_pair(C_ACCENT if selected else C_DIM) | curses.A_BOLD
     printw(stdscr, y, 0, "▌" if selected else "│", marker)
     attr = curses.color_pair(C_ACCENT if selected else C_DIM) | curses.A_BOLD
-    count = len(group.get("children", []))
+    count = group.get("member_count", len(group.get("children", [])))
     label = f"{group['name']} ({count})"
     printw(stdscr, y, 2, label, attr)
 
@@ -1663,13 +1673,18 @@ def run(stdscr, start_dir: str) -> None:
             sel = max(0, len(items) - 1)
         elif ch == "z" and cur:
             if cur.get("_group"):
-                continue
-            sid = cur["session_id"]
-            if sid in minimized:
-                minimized.remove(sid)
+                group = next((g for g in groups if g["id"] == cur["group_id"]), None)
+                if group:
+                    group["collapsed"] = not group.get("collapsed", False)
+                    save_groups(groups, layout)
+                    data.refresh_now()
             else:
-                minimized.add(sid)
-            save_minimized(minimized)
+                sid = cur["session_id"]
+                if sid in minimized:
+                    minimized.remove(sid)
+                else:
+                    minimized.add(sid)
+                save_minimized(minimized)
         elif ch in ("\n", "\r", "o") and cur:
             if not cur.get("_group"):
                 _open(stdscr, data, cur)
@@ -1754,7 +1769,7 @@ def run(stdscr, start_dir: str) -> None:
             name = ask(stdscr, " group name:")
             if name:
                 group = {"id": "grp-" + uuid.uuid4().hex[:10],
-                         "name": name.strip(), "agents": []}
+                         "name": name.strip(), "agents": [], "collapsed": False}
                 if not group["name"]:
                     continue
                 groups.append(group)
@@ -1873,7 +1888,16 @@ def run(stdscr, start_dir: str) -> None:
                         data.remove(cur["session_id"], force=force)
                         flash(stdscr, " removing…")
                         data.refresh_now()
-        elif ch in ("r", "R") and cur and not cur.get("_group"):
+        elif ch in ("r", "R") and cur:
+            if cur.get("_group"):
+                group = next((g for g in groups if g["id"] == cur["group_id"]), None)
+                name = ask(stdscr, " group name:", group["name"] if group and ch == "r" else "")
+                if name and group:
+                    group["name"] = name.strip()
+                    save_groups(groups, layout)
+                    flash(stdscr, " group renamed", C_OK)
+                    data.refresh_now()
+                continue
             name = ask(stdscr, " title:", ocore._headline(cur) if ch == "r" else "")
             if name:
                 try:
