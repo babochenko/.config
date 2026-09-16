@@ -1644,29 +1644,43 @@ def run(stdscr, start_dir: str) -> None:
                         group_position = layout.index(group_entry)
                         group["agents"].pop(index)
                         set_agent_group(cur["session_id"], None)
+                        for item in items:
+                            if item["session_id"] == cur["session_id"]:
+                                item.pop("group_id", None)
+                                break
                         insert_at = group_position if delta < 0 else group_position + 1
                         layout.insert(insert_at, f"agent:{cur['session_id']}")
                         save_groups(groups, layout)
-                        sel = max(0, sel - 1) if delta < 0 else sel
+                        data.refresh_now()
+                        rows = grouped_rows(agent_rows(items), groups, layout)
+                        sel = next((n for n, row in enumerate(rows)
+                                    if row["session_id"] == cur["session_id"]), sel)
                 else:
                     entry = f"agent:{cur['session_id']}"
                     target_entry = layout_entry(items[target])
                     if entry in layout and target_entry in layout:
                         index, target_index = layout.index(entry), layout.index(target_entry)
-                        if target_entry.startswith("group:"):
-                            group_id = target_entry.partition(":")[2]
+                        target_group_id = (target_entry.partition(":")[2]
+                                           if target_entry.startswith("group:") else
+                                           items[target].get("_group_id") if delta < 0 else None)
+                        if target_group_id:
+                            group_id = target_group_id
                             group = next(g for g in groups if g["id"] == group_id)
                             layout.pop(index)
                             group["agents"].insert(
                                 0 if delta < 0 else len(group["agents"]), cur["session_id"])
                             set_agent_group(cur["session_id"], group_id)
+                            for item in items:
+                                if item["session_id"] == cur["session_id"]:
+                                    item["group_id"] = group_id
+                                    break
                         else:
                             layout[index], layout[target_index] = layout[target_index], layout[index]
                         save_groups(groups, layout)
-                        if target_entry.startswith("group:") and delta > 0:
-                            sel += 1
-                        elif not target_entry.startswith("group:"):
-                            sel = target
+                        data.refresh_now()
+                        rows = grouped_rows(agent_rows(items), groups, layout)
+                        sel = next((n for n, row in enumerate(rows)
+                                    if row["session_id"] == cur["session_id"]), sel)
         elif ch == "g":
             sel = 0
         elif ch == "G":
