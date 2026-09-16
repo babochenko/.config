@@ -1658,23 +1658,30 @@ def run(stdscr, start_dir: str) -> None:
                 else:
                     entry = f"agent:{cur['session_id']}"
                     target_entry = layout_entry(items[target])
-                    if entry in layout and target_entry in layout:
-                        index, target_index = layout.index(entry), layout.index(target_entry)
+                    if entry in layout:
                         target_group_id = (target_entry.partition(":")[2]
                                            if target_entry.startswith("group:") else
                                            items[target].get("_group_id") if delta < 0 else None)
                         if target_group_id:
                             group_id = target_group_id
                             group = next(g for g in groups if g["id"] == group_id)
-                            layout.pop(index)
-                            group["agents"].insert(
-                                0 if delta < 0 else len(group["agents"]), cur["session_id"])
-                            set_agent_group(cur["session_id"], group_id)
-                            for item in items:
-                                if item["session_id"] == cur["session_id"]:
-                                    item["group_id"] = group_id
-                                    break
-                        else:
+                            if group.get("collapsed"):
+                                group_entry = f"group:{group_id}"
+                                group_position = layout.index(group_entry)
+                                index = layout.index(entry)
+                                layout[index], layout[group_position] = \
+                                    layout[group_position], layout[index]
+                            else:
+                                layout.pop(layout.index(entry))
+                                group["agents"].insert(
+                                    0 if delta < 0 else len(group["agents"]), cur["session_id"])
+                                set_agent_group(cur["session_id"], group_id)
+                                for item in items:
+                                    if item["session_id"] == cur["session_id"]:
+                                        item["group_id"] = group_id
+                                        break
+                        elif target_entry in layout:
+                            index, target_index = layout.index(entry), layout.index(target_entry)
                             layout[index], layout[target_index] = layout[target_index], layout[index]
                         save_groups(groups, layout)
                         data.refresh_now()
