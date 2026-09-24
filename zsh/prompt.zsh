@@ -49,7 +49,8 @@ typeset -g _git_prompt_fd=""
 function _async_git_callback() {
   local fd=$1
   IFS= read -r -u $fd _git_prompt_cache
-  zle -F $fd 2>/dev/null; exec {fd}<&- 2>/dev/null
+  zle -F $fd 2>/dev/null
+  exec {fd}<&-
   _git_prompt_fd=""
   zle && zle reset-prompt
 }
@@ -57,7 +58,7 @@ function _async_git_callback() {
 function _async_git_update() {
   if [[ -n $_git_prompt_fd ]]; then
     zle -F $_git_prompt_fd 2>/dev/null
-    exec {_git_prompt_fd}<&- 2>/dev/null
+    exec {_git_prompt_fd}<&-
     _git_prompt_fd=""
   fi
   exec {_git_prompt_fd}< <(git_prompt 2>/dev/null; echo)
