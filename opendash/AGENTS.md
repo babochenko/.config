@@ -100,6 +100,7 @@ opendash unlink <session-id> [ID|#PR]  # unlink and ignore a local association
 opendash screen                 # print the running dashboard screen
 opendash status                 # show memory, workers, caches, and server status
 opendash log                    # show all agent messages through less
+opendash msg                    # show retained metadata-agent messages
 opendash quit                   # stop every instance and the shared server
 opendash server [status|start|stop]
 ```
