@@ -392,16 +392,30 @@ def _post_json(url: str, body: dict, timeout: float) -> dict:
     return value
 
 
+# failure text the agent sometimes fills fields with when a fetch fails;
+# a real Jira status name never reads like this
+_JUNK_STATUS_RE = re.compile(
+    r"unavailable|unknown|\bn/?a\b|error|fail|unable|could not|cannot", re.I)
+_JUNK_SUMMARY_RE = re.compile(
+    r"^(?:could not|unable to|fetch failed|failed to|no summary|unavailable|"
+    r"unknown|n/?a\b|error)", re.I)
+
+
 def _normalise_ticket(value: dict, ticket: str) -> dict:
     status = value.get("status")
     if isinstance(status, dict):
         status = status.get("name") or status.get("label")
+    if not status or _JUNK_STATUS_RE.search(str(status)):
+        status = None
+    summary = value.get("summary")
+    if summary and _JUNK_SUMMARY_RE.match(str(summary)[:40]):
+        summary = None
     category = str(value.get("category") or value.get("status_category") or "todo").lower()
     category = {"new": "todo", "to do": "todo", "indeterminate": "progress",
                 "in progress": "progress", "done": "done"}.get(category, category)
     return {"fetched": time.time(), "key": ticket, "status": status,
             "category": category, "url": value.get("url") or value.get("link"),
-             "summary": value.get("summary"), "error": value.get("error")}
+             "summary": summary, "error": value.get("error")}
 
 
 def _normalise_pr_status(value: dict) -> str | None:
@@ -603,6 +617,10 @@ def _agent_prompt(prs: list[dict], tickets: list[str] | None = None) -> str:
         "tool (one call per ticket): " + ticket_ids + "\n"
         "Report each ticket's status name exactly as Jira shows it, together with "
         "its status category (\"To Do\", \"In Progress\" or \"Done\").\n"
+        "Omit any ticket or pull request you could not fetch, and never report "
+        "failure text, guesses or placeholders such as \"unavailable\", \"unknown\" "
+        "or \"fetch failed\" in any field -- the caller treats absence as "
+        "\"try again later\".\n"
         "Verify each comment's thread resolution state in Bitbucket and set its "
         "resolved flag accordingly -- resolved threads must never be listed "
         "or counted. Do not "
@@ -693,7 +711,13 @@ def _refresh_via_agent(state: Path, tickets: list[str], prs: list[dict], conf: d
                 continue
             ticket = str(value.get("id") or value.get("key") or "").upper()
             if ticket in wanted:
-                jira[ticket] = _normalise_ticket(value, ticket)
+                fresh = _normalise_ticket(value, ticket)
+                if not fresh.get("status") and (jira.get(ticket) or {}).get("status"):
+                    # the fetch failed: keep the last good status, but still
+                    # take the turn in the queue instead of wedging it
+                    jira[ticket]["fetched"] = fresh["fetched"]
+                else:
+                    jira[ticket] = fresh
         _write_cache(state, "jira.json", jira)
         _write_cache(state, "pr.json", pull_requests)
         # every cycle is a self-contained prompt/response pair -- the agent

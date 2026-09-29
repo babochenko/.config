@@ -614,3 +614,49 @@ class StyledAgentLabel(unittest.TestCase):
         with patch.object(metadata, "jira_cache", return_value={}):
             label = ocore._styled_label(item)
         self.assertEqual(label, "#[fg=white,bold]Rate Limits#[default]")
+
+
+class JunkTicketStatus(unittest.TestCase):
+    """Fetch failures must not masquerade as Jira statuses."""
+
+    def test_normalise_rejects_placeholder_statuses(self):
+        for junk in ("unavailable", "UNKNOWN", "Fetch failed: MCP unauthorized",
+                     "unable to fetch", "N/A"):
+            entry = metadata._normalise_ticket({"status": junk}, "PCYXC-1")
+            self.assertIsNone(entry["status"], junk)
+
+    def test_normalise_keeps_real_statuses(self):
+        for real in ("In Product QA", "In Review", "In Progress", "Done",
+                     "Won't Do", "Blocked"):
+            entry = metadata._normalise_ticket({"status": real}, "PCYXC-1")
+            self.assertEqual(entry["status"], real)
+
+    def test_normalise_strips_failure_summaries(self):
+        entry = metadata._normalise_ticket(
+            {"status": "In Progress", "summary": "Unable to fetch: tools failed"}, "PCYXC-1")
+        self.assertIsNone(entry["summary"])
+        entry = metadata._normalise_ticket(
+            {"status": "In Progress", "summary": "Fix error in /trades"}, "PCYXC-1")
+        self.assertEqual(entry["summary"], "Fix error in /trades")
+
+    def test_failed_fetch_keeps_the_last_good_status(self):
+        import ocore
+        good = ('{"tickets":[{"id":"PROJ-1","status":"In Progress","category":"In Progress"}]}', True)
+        bad = ('{"tickets":[{"id":"PROJ-1","status":"unavailable","summary":"Unable to fetch"}]}', True)
+        replies = [good, bad]
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
+                "OPENDASH_MCP_URL": "",
+                "OPENDASH_METADATA_PROVIDER": "agent",
+                "OPENDASH_MCP_AGENT": "",
+                "OPENDASH_MCP_DIRECTORY": tmp}, clear=False), \
+                patch.object(ocore, "server_url", return_value="http://server"), \
+                patch.object(ocore, "http", return_value={"id": "metadata-2"}), \
+                patch.object(ocore, "send_prompt", lambda *a, **k: None), \
+                patch.object(ocore, "latest_assistant_response",
+                             side_effect=lambda sid, started: replies.pop(0)):
+            jira, _ = metadata.refresh_remote(Path(tmp), ["PROJ-1"], [])
+            self.assertEqual(jira["PROJ-1"]["status"], "In Progress")
+            jira, _ = metadata.refresh_remote(Path(tmp), ["PROJ-1"], [])
+            # status survived; the timestamp moved so the queue still rotates
+            self.assertEqual(jira["PROJ-1"]["status"], "In Progress")
+        self.assertTrue(jira["PROJ-1"]["fetched"] > 0)
