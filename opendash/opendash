@@ -26,7 +26,7 @@ opendash - background opencode instances
                                    add or restore a ticket/PR association
   opendash screen                 print the running dashboard's current screen
   opendash status                 show memory, workers, caches, and server status
-  opendash log                    show all agent messages (paged)
+  opendash log [agent]            show all or one agent's messages (paged)
   opendash log errors             show recorded agent errors (paged)
   opendash log all                show agent and system logs together (paged)
   opendash msg <agent> <text...>  send a message to an agent

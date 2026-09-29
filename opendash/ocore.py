@@ -1894,12 +1894,18 @@ def _cmd_metadata_messages() -> int:
 
 
 def _cmd_log(args) -> int:
-    if args.scope in ("meta", "metadata"):
+    scope = args.scope
+    if scope in ("meta", "metadata"):
         return _cmd_metadata_messages()
     records = instance_records()
     md = metadata_agent_record()
     if md:
         records.append(md)
+    if scope and scope not in ("errors", "all"):
+        sid = _resolve_session_id(scope)
+        if not sid:
+            return 1
+        records = [record for record in records if record["session_id"] == sid]
     sessions = {record["session_id"]: record for record in records}
     if not sessions:
         return 0
@@ -1938,13 +1944,13 @@ def _cmd_log(args) -> int:
                 except (TypeError, json.JSONDecodeError):
                     continue
             error = message_data.get("error")
-            if args.scope == "errors":
+            if scope == "errors":
                 if not error:
                     continue
                 subject = "error: " + " ".join(str(error).split())
             else:
                 subject = " ".join(" ".join(text).split())
-                if not subject and args.scope == "all" and error:
+                if not subject and scope == "all" and error:
                     subject = "error: " + " ".join(str(error).split())
             if not subject:
                 continue
@@ -1962,7 +1968,7 @@ def _cmd_log(args) -> int:
     finally:
         con.close()
 
-    if args.scope == "errors":
+    if scope == "errors":
         for path, source in ((opencode_log(), "opencode.log"), (SERVER_LOG, "server.log")):
             try:
                 with path.open(errors="replace") as stream:
@@ -1970,7 +1976,7 @@ def _cmd_log(args) -> int:
             except OSError:
                 continue
             for raw_line in raw_lines:
-                if raw_line.strip() and (args.scope == "all" or
+                if raw_line.strip() and (scope == "all" or
                                          re.search(r"\b(error|exception|failed|failure)\b",
                                                    raw_line, re.I)):
                     match = re.search(r"\btimestamp=(\d{4}-\d\d-\d\dT[^ ]+)", raw_line)
@@ -2413,9 +2419,9 @@ def main(argv=None) -> int:
     p = sub.add_parser("status", help="show memory, workers, caches, and server status")
     p.set_defaults(fn=_cmd_status)
 
-    p = sub.add_parser("log", help="show all OpenDash agent messages")
-    p.add_argument("scope", nargs="?", choices=["meta", "metadata", "errors", "all"],
-                   help="show only metadata, errors, or all messages")
+    p = sub.add_parser("log", help="show agent messages or logs by name")
+    p.add_argument("scope", nargs="?",
+                   help="meta, errors, all, or an agent/name query")
     p.set_defaults(fn=_cmd_log)
 
     p = sub.add_parser("agent", help="find the instance assigned to a directory")
