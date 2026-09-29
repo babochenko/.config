@@ -15,6 +15,22 @@ import ocore
 import metadata
 
 
+class ProcessStatus(unittest.TestCase):
+    def test_process_tree_includes_descendants(self):
+        processes = {
+            10: {"pid": 10, "ppid": 1, "rss_kb": 100, "command": "root"},
+            11: {"pid": 11, "ppid": 10, "rss_kb": 50, "command": "child"},
+            12: {"pid": 12, "ppid": 11, "rss_kb": 25, "command": "grandchild"},
+            20: {"pid": 20, "ppid": 1, "rss_kb": 999, "command": "other"},
+        }
+        tree = ocore._process_tree(processes, 10)
+        self.assertEqual({item["pid"] for item in tree}, {10, 11, 12})
+        self.assertEqual(ocore._rss_report(processes, 10), ("175.0 KiB", 3))
+
+    def test_status_bytes_are_human_readable(self):
+        self.assertEqual(ocore._format_bytes(1024 * 1024), "1.0 MiB")
+
+
 class Tickets(unittest.TestCase):
     def test_plain_ticket(self):
         self.assertEqual(ocore.extract_ticket("PROJ-1204 fix the retry"), "PROJ-1204")

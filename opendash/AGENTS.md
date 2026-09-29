@@ -98,6 +98,7 @@ opendash metadata start         # resume background metadata fetching
 opendash metadata messages      # print retained metadata-agent messages
 opendash unlink <session-id> [ID|#PR]  # unlink and ignore a local association
 opendash screen                 # print the running dashboard screen
+opendash status                 # show memory, workers, caches, and server status
 opendash log                    # show all agent messages through less
 opendash quit                   # stop every instance and the shared server
 opendash server [status|start|stop]
@@ -140,6 +141,12 @@ and a wedged or dead session is discarded so the next fetch starts fresh.
 dashboard, which is useful for diagnosing layout without a screenshot. A dump
 older than five seconds is treated as unavailable. It does not include terminal
 font rendering or colors.
+
+`opendash status` reports current RSS for the dashboard and shared server
+process trees, plus dashboard thread, queue, cache, worker, tmux, and server
+status counters. A stale dashboard status means the dashboard exited or has
+stopped publishing diagnostics; per-session memory is not exposed by
+`opencode serve`, so the shared server RSS includes all hosted sessions.
 
 Dashboard groups are stored in `dashboard.json` and contain instance IDs, not
 conversations. `N` creates a group; when an agent is selected it starts with

@@ -37,6 +37,7 @@ STATE = Path(os.environ.get("OPENDASH_STATE", Path.home() / ".local/state/openda
 INSTANCES = STATE / "instances"
 SERVER_JSON = STATE / "server.json"
 SERVER_LOG = STATE / "server.log"
+STATUS_JSON = STATE / "dashboard-status.json"
 TMUX_CONF = STATE / "tmux.conf"
 TMUX_SOCKET = os.environ.get("OPENDASH_TMUX_SOCKET", "opendash")
 
@@ -214,6 +215,70 @@ def _server_alive(url: str, timeout: float = 2.0) -> bool:
 
 def server_info() -> dict | None:
     return _read_json(SERVER_JSON)
+
+
+def _process_table() -> dict[int, dict]:
+    """Return the portable process fields needed by ``opendash status``."""
+    try:
+        result = subprocess.run(
+            ["ps", "-axo", "pid=,ppid=,rss=,command="],
+            capture_output=True, text=True, timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    processes = {}
+    for line in result.stdout.splitlines():
+        fields = line.strip().split(None, 3)
+        if len(fields) < 4:
+            continue
+        try:
+            pid, ppid, rss = (int(fields[n]) for n in range(3))
+        except ValueError:
+            continue
+        processes[pid] = {"pid": pid, "ppid": ppid, "rss_kb": rss,
+                          "command": fields[3]}
+    return processes
+
+
+def _process_tree(processes: dict[int, dict], root: int | None) -> list[dict]:
+    if not root or root not in processes:
+        return []
+    children: dict[int, list[int]] = {}
+    for pid, process in processes.items():
+        children.setdefault(process["ppid"], []).append(pid)
+    found = []
+    pending = [root]
+    while pending:
+        pid = pending.pop()
+        process = processes.get(pid)
+        if not process:
+            continue
+        found.append(process)
+        pending.extend(children.get(pid, []))
+    return found
+
+
+def _format_bytes(value: int) -> str:
+    size = float(max(0, value))
+    for suffix in ("B", "KiB", "MiB", "GiB"):
+        if size < 1024 or suffix == "GiB":
+            return f"{size:.1f} {suffix}" if suffix != "B" else f"{int(size)} B"
+        size /= 1024
+
+
+def _rss_report(processes: dict[int, dict], pid: int | None) -> tuple[str, int]:
+    tree = _process_tree(processes, pid)
+    total_kb = sum(process["rss_kb"] for process in tree)
+    return _format_bytes(total_kb * 1024), len(tree)
+
+
+def _print_process_tree(processes: dict[int, dict], pid: int | None) -> None:
+    for process in _process_tree(processes, pid):
+        command = process["command"]
+        if len(command) > 110:
+            command = command[:107] + "..."
+        print(f"    process pid={process['pid']} rss="
+              f"{_format_bytes(process['rss_kb'] * 1024)} {command}")
 
 
 def _server_process_owned(info: dict) -> bool:
@@ -2198,6 +2263,57 @@ def _cmd_server(args) -> int:
     return 0
 
 
+def _cmd_status(args) -> int:
+    """Show process memory plus the dashboard's potentially growing caches."""
+    processes = _process_table()
+    print("OpenDash status")
+
+    dashboard = _read_json(STATUS_JSON, {}) or {}
+    dashboard_pid = dashboard.get("pid")
+    dashboard_memory, dashboard_processes = _rss_report(processes, dashboard_pid)
+    age = time.time() - float(dashboard.get("updated") or 0)
+    if dashboard_pid and dashboard_pid in processes:
+        print(f"  dashboard     pid={dashboard_pid} rss={dashboard_memory} "
+              f"processes={dashboard_processes} age={age:.1f}s")
+        print(f"    threads={dashboard.get('threads', '?')} "
+              f"items={dashboard.get('items', '?')} "
+              f"pending={dashboard.get('pending', '?')} "
+              f"completions={dashboard.get('completions', '?')}")
+        print(f"    caches: git={dashboard.get('git_cache', '?')} "
+              f"terminals={dashboard.get('terminal_cache', '?')} "
+              f"attention={dashboard.get('attention_cache', '?')} "
+              f"jira={dashboard.get('jira_cache', '?')} "
+              f"pr={dashboard.get('pr_cache', '?')}")
+        print(f"    workers: removal={dashboard.get('removal_threads', '?')} "
+              f"creation={dashboard.get('creation_threads', '?')} "
+              f"metadata_loading={dashboard.get('metadata_loading', '?')}")
+        _print_process_tree(processes, dashboard_pid)
+    else:
+        state = "not running" if not dashboard else "stale or exited"
+        print(f"  dashboard     {state}")
+
+    info = server_info()
+    server_up = bool(info and _server_process_owned(info) and
+                     _server_alive(info["url"], timeout=2))
+    if server_up:
+        server_pid = info.get("pid")
+        server_memory, server_processes = _rss_report(processes, server_pid)
+        print(f"  server        up {info['url']} pid={server_pid} "
+              f"rss={server_memory} processes={server_processes}")
+        _print_process_tree(processes, server_pid)
+    else:
+        print("  server        down")
+
+    try:
+        sessions = tmux("list-sessions", "-F", "#{session_name}")
+        names = [line for line in sessions.stdout.splitlines() if line]
+    except Exception:
+        names = []
+    print(f"  tmux          sessions={len(names)} socket={TMUX_SOCKET}")
+    print("  server status " + ("up" if server_up else "down"))
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="opendash", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -2266,6 +2382,9 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("screen", help="print the running dashboard's current screen")
     p.set_defaults(fn=_cmd_screen)
+
+    p = sub.add_parser("status", help="show memory, workers, caches, and server status")
+    p.set_defaults(fn=_cmd_status)
 
     p = sub.add_parser("log", help="show all OpenDash agent messages")
     p.add_argument("scope", nargs="?", choices=["meta", "metadata", "errors", "all"],

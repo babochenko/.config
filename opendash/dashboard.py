@@ -477,6 +477,26 @@ class Data:
             return (items, dict(self.jira),
                     self.server_up, self.error)
 
+    def diagnostics(self) -> dict:
+        """Expose bounded counters so status can identify retained work."""
+        with self.lock:
+            return {
+                "pid": os.getpid(),
+                "updated": time.time(),
+                "threads": threading.active_count(),
+                "items": len(self.items),
+                "pending": len(self.pending),
+                "completions": len(self.completions),
+                "git_cache": len(self._git_cache),
+                "terminal_cache": len(self._terminals_cache),
+                "attention_cache": len(self._attention_cache),
+                "jira_cache": len(self.jira),
+                "pr_cache": len(self.pr),
+                "removal_threads": sum(t.is_alive() for t in self._removal_threads),
+                "creation_threads": sum(t.is_alive() for t in self._creation_threads),
+                "metadata_loading": self.pr_loading,
+            }
+
 
 # ------------------------------------------------------------------ ui widgets
 
@@ -1572,6 +1592,7 @@ def run(stdscr, start_dir: str) -> None:
     data.start()
 
     sel, filt, last_dir = 0, "", start_dir
+    last_status = 0.0
     session_ids = {record["session_id"] for record in ocore.instance_records()}
     minimized = load_minimized(session_ids)
     groups, layout = load_groups(session_ids)
@@ -1601,6 +1622,12 @@ def run(stdscr, start_dir: str) -> None:
         sel = max(0, min(sel, len(items) - 1)) if items else 0
         frame = int(time.time() * (1000 / TICK_MS)) % len(SPINNER)
         draw(stdscr, items, jira, server_up, error, sel, frame, filt, minimized)
+        if time.time() - last_status >= 1.0:
+            try:
+                ocore._write_json(ocore.STATUS_JSON, data.diagnostics())
+                last_status = time.time()
+            except OSError:
+                pass
 
         try:
             ch = stdscr.get_wch()
