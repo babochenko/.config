@@ -637,8 +637,8 @@ def _agent_prompt(prs: list[dict], tickets: list[str] | None = None) -> str:
         "its status category (\"To Do\", \"In Progress\" or \"Done\").\n"
         "Omit any ticket or pull request you could not fetch, and never report "
         "failure text, guesses or placeholders such as \"unavailable\", \"unknown\" "
-        "or \"fetch failed\" in any field -- the caller treats absence as "
-        "\"try again later\".\n"
+        "or \"fetch failed\" in any field -- the caller preserves cached data "
+        "and retries after the normal refresh interval.\n"
         "Verify each comment's thread resolution state in Bitbucket and set its "
         "resolved flag accordingly -- resolved threads must never be listed "
         "or counted. Do not "
@@ -737,6 +737,21 @@ def _refresh_via_agent(state: Path, tickets: list[str], prs: list[dict], conf: d
                     jira[ticket]["fetched"] = fresh["fetched"]
                 else:
                     jira[ticket] = fresh
+        # Omitted candidates are failed attempts, not candidates that were
+        # never tried.  Advance them to the back of the refresh queue while
+        # retaining their last good data; otherwise the oldest omission is
+        # selected every 30 seconds and grows the hidden agent without bound.
+        attempted_at = time.time()
+        for candidate in prs:
+            key = _candidate_key(candidate)
+            entry = (pull_requests.get(key)
+                     or pull_requests.get(str(candidate.get("number"))))
+            if entry is None:
+                entry = dict(candidate)
+                pull_requests[key] = entry
+            entry["fetched"] = attempted_at
+        for ticket in tickets:
+            jira.setdefault(ticket, {"key": ticket})["fetched"] = attempted_at
         _write_cache(state, "jira.json", jira)
         _write_cache(state, "pr.json", pull_requests)
         # every cycle is a self-contained prompt/response pair -- the agent

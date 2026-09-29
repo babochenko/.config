@@ -117,11 +117,11 @@ class RemoteMetadata(unittest.TestCase):
                 patch.object(ocore, "send_prompt"), \
                 patch.object(ocore, "latest_assistant_response", side_effect=replies):
             # a healthy cycle creates the session and keeps it
-            metadata.refresh_remote(Path(tmp), ["PROJ-1"], [])
+            metadata.refresh_remote(Path(tmp), ["PROJ-1"], [], 0)
             self.assertTrue((Path(tmp) / "metadata-agent-session.json").exists())
             # the wedged session answers with nothing: drop it so the next
             # cycle starts fresh instead of failing forever
-            metadata.refresh_remote(Path(tmp), ["PROJ-1"], [])
+            metadata.refresh_remote(Path(tmp), ["PROJ-1"], [], 0)
             self.assertFalse((Path(tmp) / "metadata-agent-session.json").exists())
 
     def test_bridge_sends_read_only_candidates_and_normalizes_response(self):
@@ -660,6 +660,33 @@ class JunkTicketStatus(unittest.TestCase):
             # status survived; the timestamp moved so the queue still rotates
             self.assertEqual(jira["PROJ-1"]["status"], "In Progress")
         self.assertTrue(jira["PROJ-1"]["fetched"] > 0)
+
+    def test_omitted_candidates_keep_cached_data_and_leave_queue_front(self):
+        import ocore
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
+                "OPENDASH_MCP_URL": "",
+                "OPENDASH_METADATA_PROVIDER": "agent",
+                "OPENDASH_MCP_AGENT": "",
+                "OPENDASH_MCP_DIRECTORY": tmp}, clear=False), \
+                patch.object(ocore, "server_url", return_value="http://server"), \
+                patch.object(ocore, "http", return_value={"id": "metadata-2"}), \
+                patch.object(ocore, "send_prompt", lambda *a, **k: None), \
+                patch.object(ocore, "latest_assistant_response",
+                             return_value=('{"tickets":[],"prs":[]}', True)):
+            state = Path(tmp)
+            metadata._write_cache(state, "jira.json", {
+                "PROJ-1": {"fetched": 1.0, "key": "PROJ-1",
+                           "status": "In Progress"}})
+            metadata._write_cache(state, "pr.json", {
+                "team/repo#7": {"fetched": 1.0, "number": "7",
+                                "repository": "team/repo", "status": "approved"}})
+            jira, prs = metadata.refresh_remote(
+                state, ["PROJ-1"], [{"number": "7", "repository": "team/repo"}], 0)
+
+        self.assertEqual(jira["PROJ-1"]["status"], "In Progress")
+        self.assertEqual(prs["team/repo#7"]["status"], "approved")
+        self.assertGreater(jira["PROJ-1"]["fetched"], 1.0)
+        self.assertGreater(prs["team/repo#7"]["fetched"], 1.0)
 
 
 class StaleJunkInCache(unittest.TestCase):
