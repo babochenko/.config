@@ -401,12 +401,18 @@ _JUNK_SUMMARY_RE = re.compile(
     r"unknown|n/?a\b|error)", re.I)
 
 
+def clean_status(status) -> str | None:
+    """A status the agent invented to signal a fetch failure is not a status."""
+    if not status or _JUNK_STATUS_RE.search(str(status)):
+        return None
+    return str(status)
+
+
 def _normalise_ticket(value: dict, ticket: str) -> dict:
     status = value.get("status")
     if isinstance(status, dict):
         status = status.get("name") or status.get("label")
-    if not status or _JUNK_STATUS_RE.search(str(status)):
-        status = None
+    status = clean_status(status)
     summary = value.get("summary")
     if summary and _JUNK_SUMMARY_RE.match(str(summary)[:40]):
         summary = None
@@ -550,7 +556,19 @@ def pr_cache(state: Path) -> dict:
 
 
 def jira_cache(state: Path) -> dict:
-    return _cache(state, "jira.json")
+    """Load the ticket cache, with failure placeholders already dropped.
+
+    Entries written before junk rejection carry invented statuses; they must
+    never reach the renderer even before the queue refetches them.
+    """
+    cache = _cache(state, "jira.json")
+    for ticket, entry in cache.items():
+        if isinstance(entry, dict) and entry.get("status") is not clean_status(entry.get("status")):
+            entry["status"] = clean_status(entry.get("status"))
+            entry["summary"] = (entry.get("summary")
+                                if entry.get("summary") and not _JUNK_SUMMARY_RE.match(
+                                    str(entry.get("summary"))[:40]) else None)
+    return cache
 
 
 def failed_gradle_builds(pr_info: list[dict]) -> list[tuple[str, str]]:
@@ -712,7 +730,8 @@ def _refresh_via_agent(state: Path, tickets: list[str], prs: list[dict], conf: d
             ticket = str(value.get("id") or value.get("key") or "").upper()
             if ticket in wanted:
                 fresh = _normalise_ticket(value, ticket)
-                if not fresh.get("status") and (jira.get(ticket) or {}).get("status"):
+                old = jira.get(ticket) or {}
+                if not fresh.get("status") and clean_status(old.get("status")):
                     # the fetch failed: keep the last good status, but still
                     # take the turn in the queue instead of wedging it
                     jira[ticket]["fetched"] = fresh["fetched"]

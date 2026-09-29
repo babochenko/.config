@@ -660,3 +660,20 @@ class JunkTicketStatus(unittest.TestCase):
             # status survived; the timestamp moved so the queue still rotates
             self.assertEqual(jira["PROJ-1"]["status"], "In Progress")
         self.assertTrue(jira["PROJ-1"]["fetched"] > 0)
+
+
+class StaleJunkInCache(unittest.TestCase):
+    """Entries written before junk rejection must not render either."""
+
+    def test_cache_load_drops_failure_placeholders(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp)
+            metadata._write_cache(state, "jira.json", {
+                "PCYXC-1": {"fetched": 1.0, "status": "unavailable",
+                            "summary": "Could not fetch"},
+                "PCYXC-2": {"fetched": 1.0, "status": "In Progress",
+                            "summary": "Real summary"}})
+            cache = metadata.jira_cache(state)
+            self.assertIsNone(cache["PCYXC-1"]["status"])
+            self.assertIsNone(cache["PCYXC-1"]["summary"])
+            self.assertEqual(cache["PCYXC-2"]["status"], "In Progress")
