@@ -134,7 +134,7 @@ class Dashboard(unittest.TestCase):
 
     def test_the_row_shows_state_progress_and_directory(self):
         screen = self.screen()
-        self.assertIn("idle", screen)
+        self.assertNotIn("idle", screen)       # idle is the norm: no label
         self.assertIn("working", screen)
         self.assertIn("✓1/1", screen)              # the completed todo
         self.assertIn("codes", screen)                  # main directory for a worktree
@@ -211,11 +211,19 @@ class Dashboard(unittest.TestCase):
     def test_rename_prefills_with_r_and_is_empty_with_R(self):
         self.press("g", "r")
         self.assertIn("add subtract", self.screen().splitlines()[-1])
-        self.press("Escape")
+        self.press("Escape", "Escape", settle=0.3)   # one escape keeps editing
         self.press("R")
         self.assertRegex(self.screen().splitlines()[-1].strip(), r"^title:$")
         self.press("Enter")                               # empty input does nothing
         self.assertIn("add subtract", self.screen())
+
+    def test_one_escape_keeps_typing_and_two_clear(self):
+        self.press("g", "r")
+        self.press("Escape", settle=0.3)          # one: keep editing
+        self.type("!", settle=0.3)
+        self.assertIn("add subtract to calc!", self.screen().splitlines()[-1])
+        self.press("Escape", "Escape", settle=0.3)
+        self.assertNotIn("title:", self.screen())  # two: cleared
 
     def test_renaming_changes_the_row_and_keeps_the_ticket(self):
         self.press("g", "R")
@@ -249,7 +257,7 @@ class Dashboard(unittest.TestCase):
         self.assertIn("dir", self.screen().splitlines()[-1])
         self.press("Enter")
         self.assertIn("tree", self.screen().splitlines()[-1])
-        self.press("Escape", settle=1.2)
+        self.press("Escape", "Escape", settle=0.6)
         self.assertIn("3 instances", self.screen())
 
     def test_group_creation_and_deletion_keeps_agent(self):

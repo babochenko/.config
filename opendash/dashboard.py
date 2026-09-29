@@ -494,10 +494,15 @@ COMMAND_ENTER = object()
 
 
 def ask(stdscr, label: str, default: str = "", command_enter: bool = False):
-    """One-line editor on the last row. Returns None on escape."""
+    """One-line editor on the last row.
+
+    A single escape keeps the text for continued typing; a second escape
+    in a row clears it and returns None.
+    """
     maxy, maxx = stdscr.getmaxyx()
     buf = list(default)
     pos = len(buf)
+    pending_esc = False
     curses.curs_set(1)
     with blocking(stdscr):
         try:
@@ -534,7 +539,11 @@ def ask(stdscr, label: str, default: str = "", command_enter: bool = False):
                             if sequence in ("\x1b[13;2u", "\x1b[13;2~",
                                             "\x1b[27;2;13~"):
                                 return COMMAND_ENTER, "".join(buf).strip()
-                        return None
+                        if pending_esc:
+                            return None
+                        pending_esc = True
+                        continue
+                    pending_esc = False
                     if ch in ("\n", "\r"):
                         return "".join(buf).strip()
                     if ch in ("\x7f", "\b"):
@@ -556,6 +565,7 @@ def ask(stdscr, label: str, default: str = "", command_enter: bool = False):
                         buf.insert(pos, ch)
                         pos += 1
                 else:
+                    pending_esc = False
                     if ch == curses.KEY_LEFT:
                         pos = max(0, pos - 1)
                     elif ch == curses.KEY_RIGHT:
@@ -1364,12 +1374,15 @@ def _draw_item(stdscr, y, item, jira, selected, frame, maxx, minimized=False,
     # the run state, then age
     age = ocore.fmt_age(item.get("last_activity"))
     status_text = LABELS.get(state) or state
+    if state == "idle":
+        status_text = ""       # idle is the norm: only exceptions get a label
     status_pair = pair
     age_x = maxx - 2 - AGE_W
     status_x = age_x - 2 - len(status_text)
     if minimized:
         status_pair = curses.color_pair(C_DIM)
-    printw(stdscr, y, status_x, status_text, status_pair | emphasis)
+    if status_text:
+        printw(stdscr, y, status_x, status_text, status_pair | emphasis)
     printw(stdscr, y, age_x + max(0, AGE_W - len(age)), age, curses.color_pair(C_DIM))
 
     if minimized:
