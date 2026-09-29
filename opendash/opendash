@@ -29,7 +29,8 @@ opendash - background opencode instances
   opendash log                    show all agent messages (paged)
   opendash log errors             show recorded agent errors (paged)
   opendash log all                show agent and system logs together (paged)
-  opendash msg                    show retained metadata-agent messages
+  opendash msg <agent> <text...>  send a message to an agent
+  opendash messages               show retained metadata-agent messages
   opendash agent <directory>      find instances assigned to a directory
   opendash prompt <session-id> <text...>
                                   send a prompt to an instance
@@ -102,7 +103,8 @@ case ${1-} in
   screen)              shift; exec $py "$here/ocore.py" screen "$@" ;;
   status)              shift; exec $py "$here/ocore.py" status "$@" ;;
   log)                 shift; exec $py "$here/ocore.py" log "$@" ;;
-  msg|messages)        shift; exec $py "$here/ocore.py" log meta "$@" ;;
+  msg)                 shift; exec $py "$here/ocore.py" msg "$@" ;;
+  messages)            shift; exec $py "$here/ocore.py" log meta "$@" ;;
   agent)               shift; exec $py "$here/ocore.py" agent "$@" ;;
   prompt)              shift; exec $py "$here/ocore.py" prompt "$@" ;;
   ci)                  shift; exec $py "$here/ocore.py" ci "$@" ;;

@@ -1687,6 +1687,7 @@ def _resolve_session_id(query: str) -> str | None:
     matches = [i["session_id"] for i in snapshot(records)
                if q in (i.get("title_override") or "").lower()
                or q in _headline(i).lower()
+               or q in (i.get("agent") or "").lower()
                or q in (i.get("ticket") or "").lower()
                or ("_metadata_agent" in i and "metadata" in q)]
     if len(matches) == 1:
@@ -2082,6 +2083,24 @@ def _cmd_msg(args) -> int:
     sid = _resolve_session_id(args.agent)
     if not sid:
         return 1
+    record = next((r for r in instance_records()
+                   if r["session_id"] == sid), None)
+    if not record:
+        print(f"opendash: unknown session: {sid}", file=sys.stderr)
+        return 1
+    text = " ".join(args.text).strip()
+    if not text:
+        print("opendash msg: need message text", file=sys.stderr)
+        return 2
+    send_prompt(sid, text, record["directory"])
+    print(f"sent to {_session_label(sid)}")
+    return 0
+
+
+def _cmd_msg(args) -> int:
+    sid = _resolve_session_id(args.agent)
+    if not sid:
+        return 1
     record = next((r for r in instance_records() if r["session_id"] == sid), None)
     if not record:
         print(f"opendash: unknown session: {sid}", file=sys.stderr)
@@ -2409,8 +2428,8 @@ def main(argv=None) -> int:
     p.set_defaults(fn=_cmd_prompt)
 
     p = sub.add_parser("msg", help="send a message to an agent by name")
-    p.add_argument("agent")
-    p.add_argument("text", nargs="+")
+    p.add_argument("agent", help="agent name, title, ticket, or session ID")
+    p.add_argument("text", nargs="+", help="message text")
     p.set_defaults(fn=_cmd_msg)
 
     p = sub.add_parser("ci", help="inject open PRs and ask agent to check comments and builds")
