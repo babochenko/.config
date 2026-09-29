@@ -677,3 +677,46 @@ class StaleJunkInCache(unittest.TestCase):
             self.assertIsNone(cache["PCYXC-1"]["status"])
             self.assertIsNone(cache["PCYXC-1"]["summary"])
             self.assertEqual(cache["PCYXC-2"]["status"], "In Progress")
+
+
+class SpawnTarget(unittest.TestCase):
+    """`n` creates inside the group under the cursor."""
+
+    GROUPS = [{"id": "g1", "name": "Discovery", "agents": ["ses_a1", "ses_a2"]}]
+
+    def test_header_row_spawns_inside_the_group(self):
+        cur = {"_group": True, "group_id": "g1", "session_id": "group:g1"}
+        after, group_id = dashboard.spawn_target(cur, self.GROUPS)
+        self.assertEqual(group_id, "g1")
+        self.assertEqual(after, "ses_a2")            # under the last member
+
+    def test_member_row_inherits_its_group(self):
+        cur = {"session_id": "ses_a1", "_group_id": "g1"}
+        after, group_id = dashboard.spawn_target(cur, self.GROUPS)
+        self.assertEqual(group_id, "g1")
+        self.assertEqual(after, "ses_a1")           # right below the row
+
+    def test_persisted_membership_counts_too(self):
+        cur = {"session_id": "ses_a2", "group_id": "g1"}
+        after, group_id = dashboard.spawn_target(cur, self.GROUPS)
+        self.assertEqual(group_id, "g1")
+
+    def test_ungrouped_row_spawns_top_level(self):
+        cur = {"session_id": "ses_x", "group_id": None}
+        after, group_id = dashboard.spawn_target(cur, self.GROUPS)
+        self.assertIsNone(group_id)
+        self.assertEqual(after, "ses_x")
+
+    def test_empty_group_has_no_anchor_but_keeps_the_group(self):
+        cur = {"_group": True, "group_id": "g1", "session_id": "group:g1"}
+        after, group_id = dashboard.spawn_target(cur, [])
+        self.assertEqual(group_id, "g1")             # header says so even if stale
+        self.assertIsNone(after)
+
+    def test_stale_membership_is_dropped(self):
+        cur = {"session_id": "ses_x", "_group_id": "gone"}
+        after, group_id = dashboard.spawn_target(cur, self.GROUPS)
+        self.assertIsNone(group_id)
+
+    def test_no_cursor_falls_back_to_defaults(self):
+        self.assertEqual(dashboard.spawn_target(None, self.GROUPS), (None, None))

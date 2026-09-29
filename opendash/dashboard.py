@@ -734,6 +734,27 @@ def grouped_rows(items: list[dict], groups: list[dict], layout: list[str]) -> li
     return rows
 
 
+def spawn_target(cur, groups):
+    """Where a new instance spawned from the cursor belongs.
+
+    Returns (after_session_id, group_id): inside the group under the
+    cursor -- header row or member row -- and right below the row
+    otherwise. `after` is None for an empty group; the placeholder
+    still lands inside via its group_id.
+    """
+    if not cur:
+        return None, None
+    if cur.get("_group"):
+        group = next((g for g in groups if g["id"] == cur["group_id"]), None)
+        agents = (group or {}).get("agents") or []
+        return (agents[-1] if agents else None), cur["group_id"]
+    after = cur["session_id"]
+    group_id = cur.get("_group_id") or cur.get("group_id")
+    if group_id and not any(g["id"] == group_id for g in groups):
+        group_id = None                            # stale membership: drop it
+    return after, group_id
+
+
 def agent_rows(items: list[dict]) -> list[dict]:
     """Strip display-only group fields before rebuilding the layout."""
     rows = []
@@ -1832,9 +1853,9 @@ def run(stdscr, start_dir: str) -> None:
                         if not task:
                             flash(stdscr, " cancelled — nothing written")
                         else:
-                            # spawn under the cursor, not at the bottom
-                            after = cur["session_id"] if cur else None
-                            group_id = cur.get("group_id") if cur and cur.get("_group") else None
+                            # spawn under the cursor: inside its group when
+                            # there is one, right below the row otherwise
+                            after, group_id = spawn_target(cur, groups)
                             data.create(task, where, tree,
                                         after=after, order=ocore.order_after(after),
                                         group_id=group_id)
