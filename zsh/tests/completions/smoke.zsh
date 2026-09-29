@@ -33,6 +33,8 @@ trap cleanup EXIT INT TERM
 
 mkdir -p "$SANDBOX"/Developer/{eventstore,my-docs} "$SANDBOX"/work/{nvim,notes}
 touch "$SANDBOX"/work/readme.md
+print -r -- $'#!/bin/sh\nprintf \'<<./install.sh>>\\n\'' > "$SANDBOX/work/install.sh"
+chmod +x "$SANDBOX/work/install.sh"
 
 # ------------------------------------------------------------- pty driver ---
 
@@ -161,6 +163,9 @@ check "gitlc runs git-list-changes" "git-list-changes" "$WORD"
 
 type_keys $'gwt\t'
 check "gwt runs gitwt"              "gitwt"            "$WORD"
+
+type_keys $'./insta\t'
+check "./ completes a local executable first" "./install.sh" "$WORD"
 
 # ---------------------------------------------------------------- results ---
 

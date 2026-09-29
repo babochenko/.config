@@ -235,6 +235,8 @@ alias zzalias='echo hi'
 # __cmds hands unmatched words back to the stock command completion
 typeset -g FELL_BACK
 _command_names() { FELL_BACK="$*" }
+typeset -g COMPLETED_FILES
+_files() { COMPLETED_FILES="$*" }
 
 # $PATH is scoped to the call so the cleanup trap keeps its own commands
 cmds() {  # cmds <query>
@@ -242,6 +244,7 @@ cmds() {  # cmds <query>
   hash -r
   tab "$1"
   FELL_BACK=""
+  COMPLETED_FILES=""
   __cmds
 }
 
@@ -265,6 +268,11 @@ check "  falling back instead"          "-e"               "$FELL_BACK"
 cmds qqqzzz
 check "no match adds nothing"           ""                 "${(j: :)ADDED}"
 check "  and defers to stock completion" "-e"              "$FELL_BACK"
+
+cmds ./insta
+check "./ prefix skips global fuzzy matches" ""             "${(j: :)ADDED}"
+check "  and skips PATH command completion" ""              "$FELL_BACK"
+check "  and immediately uses executable files" "-g *(-*)"  "$COMPLETED_FILES"
 
 cmds git
 check "a real hit does not fall back"   ""                 "$FELL_BACK"

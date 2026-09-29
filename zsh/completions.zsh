@@ -151,6 +151,14 @@ compdef __p p
 # git-list-changes and "gwt" reaches gitwt. Functions starting with _ are the
 # completion system's own (_git, _make, ...) and are never typed by hand.
 function __cmds() {
+  # An explicit relative path is never a PATH command search. Hand it straight
+  # to zsh's native file completion so ./insta<TAB> resolves ./install.sh
+  # instead of fuzzy-matching a global command such as install_name_tool.
+  if [[ "$PREFIX" == ./* ]]; then
+    _files -g '*(-*)'
+    return
+  fi
+
   local -a funcs=( ${(k)functions[(I)[^_]*]} )
   local -a alis=( ${(k)aliases} )
   local -a bins=( ${(k)commands[(I)[^_]*]} )
