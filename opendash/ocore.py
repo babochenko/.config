@@ -2005,6 +2005,23 @@ def _cmd_prompt(args) -> int:
     return 0
 
 
+def _cmd_msg(args) -> int:
+    sid = _resolve_session_id(args.agent)
+    if not sid:
+        return 1
+    record = next((r for r in instance_records() if r["session_id"] == sid), None)
+    if not record:
+        print(f"opendash: unknown session: {sid}", file=sys.stderr)
+        return 1
+    text = " ".join(args.text).strip()
+    if not text:
+        print("opendash: empty message", file=sys.stderr)
+        return 1
+    send_prompt(sid, text, record["directory"])
+    print(f"sent to {_session_label(sid)}")
+    return 0
+
+
 def _cmd_ci(args) -> int:
     sid = _resolve_session_id(args.session_id)
     if not sid:
@@ -2263,6 +2280,11 @@ def main(argv=None) -> int:
     p.add_argument("session_id")
     p.add_argument("text", nargs="+")
     p.set_defaults(fn=_cmd_prompt)
+
+    p = sub.add_parser("msg", help="send a message to an agent by name")
+    p.add_argument("agent")
+    p.add_argument("text", nargs="+")
+    p.set_defaults(fn=_cmd_msg)
 
     p = sub.add_parser("ci", help="inject open PRs and ask agent to check comments and builds")
     p.add_argument("session_id")
