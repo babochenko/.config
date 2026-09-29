@@ -19,6 +19,7 @@ PR_URL_RE = re.compile(r"https?://[^\s)>]+/(?:pull-requests|pullrequests)/([0-9]
 PR_REF_RE = re.compile(r"\b(?:PR|pull\s+request|pullrequest)\s*#?\s*([0-9]+)\b", re.I)
 DEFAULT_REFRESH = 300.0
 AGENT_TIMEOUT = 60.0
+MAX_CONVERSATION_CHARS = 1_000_000
 AGENT_CONTROL = "metadata-agent-control.json"
 
 
@@ -86,6 +87,17 @@ def _text(value) -> list[str]:
 
 def conversation_text(con, session_id: str, role: str | None = None) -> str:
     chunks: list[str] = []
+    size = 0
+
+    def add(value: str) -> bool:
+        nonlocal size
+        if size >= MAX_CONVERSATION_CHARS:
+            return False
+        value = value[:MAX_CONVERSATION_CHARS - size]
+        chunks.append(value)
+        size += len(value)
+        return size < MAX_CONVERSATION_CHARS
+
     if role:
         rows = con.execute(
             "select data from message where session_id = ?"
@@ -94,7 +106,8 @@ def conversation_text(con, session_id: str, role: str | None = None) -> str:
         rows = con.execute("select data from message where session_id = ?", (session_id,))
     for (raw,) in rows:
         try:
-            chunks.extend(_text(json.loads(raw)))
+            if not all(add(value) for value in _text(json.loads(raw))):
+                return "\n".join(chunks)
         except (TypeError, json.JSONDecodeError):
             pass
     query = "select p.data from part p join message m on m.id = p.message_id where p.session_id = ?"
@@ -105,7 +118,8 @@ def conversation_text(con, session_id: str, role: str | None = None) -> str:
     rows = con.execute(query, params)
     for (raw,) in rows:
         try:
-            chunks.extend(_text(json.loads(raw)))
+            if not all(add(value) for value in _text(json.loads(raw))):
+                break
         except (TypeError, json.JSONDecodeError):
             pass
     return "\n".join(chunks)
@@ -178,6 +192,16 @@ def save(state: Path, data: dict) -> None:
     tmp.replace(path)
 
 
+def remove_session(state: Path, session_id: str) -> bool:
+    """Drop local associations for an instance removed from OpenDash."""
+    data = load(state)
+    if session_id not in data:
+        return False
+    del data[session_id]
+    save(state, data)
+    return True
+
+
 def update(state: Path, con, records: list[dict]) -> dict:
     data = load(state)
     changed = False
@@ -209,9 +233,47 @@ def update(state: Path, con, records: list[dict]) -> dict:
         if entry.get("prs") != merged:
             entry["prs"] = merged
             changed = True
+    live_ids = {record["session_id"] for record in records}
+    for session_id in list(data):
+        if session_id not in live_ids:
+            del data[session_id]
+            changed = True
+    if _prune_provider_caches(state, data, records):
+        changed = True
     if changed:
         save(state, data)
     return data
+
+
+def _prune_provider_caches(state: Path, associations: dict,
+                           records: list[dict]) -> bool:
+    """Drop provider data that is no longer reachable from live instances."""
+    tickets = {str(record.get("ticket")).upper() for record in records
+               if record.get("ticket")}
+    pr_keys: set[str] = set()
+    pr_numbers: set[str] = set()
+    for entry in associations.values():
+        if not isinstance(entry, dict):
+            continue
+        tickets.update(str(ticket).upper() for ticket in entry.get("tickets", []))
+        for candidate in entry.get("prs", []):
+            key = _candidate_key(candidate)
+            pr_keys.add(key)
+            pr_numbers.add(str(candidate.get("number")))
+
+    changed = False
+    for filename, allowed, number_fallback in (
+            ("jira.json", tickets, False), ("pr.json", pr_keys, True)):
+        cache = _cache(state, filename)
+        kept = {}
+        for key, value in cache.items():
+            number = str(value.get("number")) if isinstance(value, dict) else ""
+            if key in allowed or (number_fallback and number in pr_numbers):
+                kept[key] = value
+        if len(kept) != len(cache):
+            _write_cache(state, filename, kept)
+            changed = True
+    return changed
 
 
 def is_pr_association(association: str) -> bool:
@@ -764,6 +826,11 @@ def _refresh_via_agent(state: Path, tickets: list[str], prs: list[dict], conf: d
         # But a session that answers with nothing (context overflow,
         # dead session id after a server restart) would fail forever:
         # drop it so the next cycle starts from a fresh session.
+        try:
+            if sid:
+                ocore.prune_session_messages(sid, keep=0)
+        except Exception:
+            pass
         try:
             (state / "metadata-agent-session.json").unlink(missing_ok=True)
         except OSError:

@@ -31,6 +31,30 @@ class ProcessStatus(unittest.TestCase):
         self.assertEqual(ocore._format_bytes(1024 * 1024), "1.0 MiB")
 
 
+class MetadataRetention(unittest.TestCase):
+    def test_provider_caches_drop_unreferenced_entries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp)
+            metadata._write_cache(state, "jira.json", {
+                "LIVE-1": {"status": "Done"}, "OLD-1": {"status": "Done"}})
+            metadata._write_cache(state, "pr.json", {
+                "team/repo#1": {"number": "1"},
+                "team/repo#2": {"number": "2"}})
+            self.assertTrue(metadata._prune_provider_caches(
+                state, {"ses_live": {"tickets": ["LIVE-1"],
+                                      "prs": [{"number": "1", "repository": "team/repo"}]}},
+                [{"session_id": "ses_live"}]))
+            self.assertEqual(set(metadata.jira_cache(state)), {"LIVE-1"})
+            self.assertEqual(set(metadata.pr_cache(state)), {"team/repo#1"})
+
+    def test_removed_session_associations_are_deleted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp)
+            metadata.save(state, {"ses_old": {"tickets": ["OLD-1"]}})
+            self.assertTrue(metadata.remove_session(state, "ses_old"))
+            self.assertEqual(metadata.load(state), {})
+
+
 class Tickets(unittest.TestCase):
     def test_plain_ticket(self):
         self.assertEqual(ocore.extract_ticket("PROJ-1204 fix the retry"), "PROJ-1204")

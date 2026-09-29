@@ -204,6 +204,8 @@ class Data:
                     pending["real_session_id"] = record["session_id"]
                     pending["activity"] = ("running", "session starting…")
                 self.completions.append((pending, record, error))
+                self._creation_threads[:] = [thread for thread in self._creation_threads
+                                             if thread.is_alive() or thread is not threading.current_thread()]
             self.refresh_now()
 
         thread = threading.Thread(target=run, daemon=True)
@@ -238,6 +240,8 @@ class Data:
                 self._removing.discard(session_id)
                 if error:
                     self.removal_errors.append(error)
+                self._removal_threads[:] = [thread for thread in self._removal_threads
+                                            if thread.is_alive() or thread is not threading.current_thread()]
             self.refresh_now()
 
         thread = threading.Thread(target=run, daemon=True)
@@ -252,12 +256,18 @@ class Data:
         for thread in threads:
             if thread.is_alive():
                 thread.join()
+        with self.lock:
+            self._removal_threads[:] = [thread for thread in self._removal_threads
+                                        if thread.is_alive()]
 
     def wait_creations(self):
         with self.lock:
             threads = list(self._creation_threads)
         for thread in threads:
             thread.join()
+        with self.lock:
+            self._creation_threads[:] = [thread for thread in self._creation_threads
+                                         if thread.is_alive()]
 
     def _loop(self):
         while not self._stop.is_set():
@@ -282,6 +292,8 @@ class Data:
                         it["attention"] = note
                 with self.lock:
                     visible_ids = {item["session_id"] for item in items}
+                    self._order_override[:] = [sid for sid in self._order_override
+                                               if sid in visible_ids]
                     self.pending[:] = [item for item in self.pending
                                        if item.get("real_session_id") not in visible_ids]
                     if self._order_override:
@@ -393,6 +405,9 @@ class Data:
                 with self.lock:
                     dirs = {it.get("directory") for it in self.items
                             if it.get("directory")}
+                    self._git_cache = {directory: summary
+                                       for directory, summary in self._git_cache.items()
+                                       if directory in dirs}
                 for d in sorted(dirs):
                     if self._stop.is_set():
                         break

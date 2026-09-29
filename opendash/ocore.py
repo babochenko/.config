@@ -12,6 +12,7 @@ Stdlib only, no install step.
 from __future__ import annotations
 
 import argparse
+from collections import deque
 from datetime import datetime
 import json
 import os
@@ -40,6 +41,8 @@ SERVER_LOG = STATE / "server.log"
 STATUS_JSON = STATE / "dashboard-status.json"
 TMUX_CONF = STATE / "tmux.conf"
 TMUX_SOCKET = os.environ.get("OPENDASH_TMUX_SOCKET", "opendash")
+MAX_LOG_ENTRIES = 5000
+MAX_LOG_FILE_LINES = 5000
 
 CONFIG_PATHS = [
     Path(os.environ.get("OPENDASH_CONFIG", "")) if os.environ.get("OPENDASH_CONFIG") else None,
@@ -874,6 +877,7 @@ def remove_instance(session_id: str, force: bool = False) -> None:
     tmux_kill(session_id)
     remove_worktree(record, force=force)     # raises rather than lose changes
     path.unlink(missing_ok=True)
+    metadata.remove_session(STATE, session_id)
 
 
 # ------------------------------------------------------------------ db reading
@@ -1862,7 +1866,9 @@ def _cmd_metadata_messages() -> int:
         rows = con.execute(
             "select m.id, m.time_created, json_extract(m.data, '$.role')"
             " from message m where m.session_id = ?"
-            " order by m.time_created, m.id", (sid,)).fetchall()
+            " order by m.time_created desc, m.id desc limit ?",
+            (sid, MAX_LOG_ENTRIES)).fetchall()
+        rows.reverse()
         for message_id, timestamp, role in rows:
             text = []
             for (raw,) in con.execute(
@@ -1914,7 +1920,8 @@ def _cmd_log(args) -> int:
         rows = con.execute(
             "select m.id, m.session_id, m.time_created, m.data, json_extract(m.data, '$.role')"
             f" from message m where m.session_id in ({placeholders})"
-            " order by m.time_created desc, m.id desc", tuple(sessions)).fetchall()
+            " order by m.time_created desc, m.id desc limit ?",
+            tuple(sessions) + (MAX_LOG_ENTRIES,)).fetchall()
         entries = []
         for message_id, sid, timestamp, raw_message, role in rows:
             try:
@@ -1957,7 +1964,8 @@ def _cmd_log(args) -> int:
     if args.scope == "errors":
         for path, source in ((opencode_log(), "opencode.log"), (SERVER_LOG, "server.log")):
             try:
-                raw_lines = path.read_text(errors="replace").splitlines()
+                with path.open(errors="replace") as stream:
+                    raw_lines = list(deque(stream, maxlen=MAX_LOG_FILE_LINES))
             except OSError:
                 continue
             for raw_line in raw_lines:
