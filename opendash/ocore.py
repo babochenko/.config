@@ -1684,20 +1684,24 @@ def _resolve_session_id(query: str) -> str | None:
     if md:
         records.append(md)
     q = query.lower()
-    matches = [i["session_id"] for i in snapshot(records)
+    matches = [i for i in snapshot(records)
                if q in (i.get("title_override") or "").lower()
                or q in _headline(i).lower()
                or q in (i.get("agent") or "").lower()
                or q in (i.get("ticket") or "").lower()
                or ("_metadata_agent" in i and "metadata" in q)]
     if len(matches) == 1:
-        return matches[0]
+        return matches[0]["session_id"]
     if not matches:
         print(f"no instance matching '{query}'")
     else:
         print(f"ambiguous '{query}' — matches {len(matches)} instances:")
-        for sid in matches:
-            print(f"  {sid}")
+        for item in matches:
+            name = (item.get("agent") or item.get("title_override") or
+                    _headline(item) or "unnamed")
+            headline = _headline(item)
+            description = name if name == headline else f"{name}  {headline}"
+            print(f"  {description}  ({item['session_id']})")
     return None
 
 
