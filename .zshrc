@@ -127,7 +127,7 @@ function p() {
     elif [[ "$file" == "Movies" ]]; then
         cd "$HOME/Movies/"
     else
-        cd "$HOME/Developer/$file" || cd "$file"
+        cd "$HOME/Developer/$file" 2>/dev/null || cd "$file"
     fi
 }
 
