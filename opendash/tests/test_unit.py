@@ -163,6 +163,7 @@ class RemoteMetadata(unittest.TestCase):
                 patch.object(ocore, "server_url", return_value="http://server"), \
                 patch.object(ocore, "http", return_value={"id": "metadata-3"}), \
                 patch.object(ocore, "send_prompt"), \
+                patch.object(ocore, "abort_instance") as abort, \
                 patch.object(ocore, "latest_assistant_response", side_effect=replies):
             # a healthy cycle creates the session and keeps it
             metadata.refresh_remote(Path(tmp), ["PROJ-1"], [], 0)
@@ -171,6 +172,7 @@ class RemoteMetadata(unittest.TestCase):
             # cycle starts fresh instead of failing forever
             metadata.refresh_remote(Path(tmp), ["PROJ-1"], [], 0)
             self.assertFalse((Path(tmp) / "metadata-agent-session.json").exists())
+            abort.assert_called_once_with("metadata-3")
 
     def test_bridge_sends_read_only_candidates_and_normalizes_response(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {

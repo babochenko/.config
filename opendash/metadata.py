@@ -747,6 +747,7 @@ def _refresh_via_agent(state: Path, tickets: list[str], prs: list[dict], conf: d
                      if now - float(jira.get(t, {}).get("fetched", 0)) > ttl)
     if not prs and not tickets:
         return
+    sid = None
     try:
         # Lazy import avoids a metadata -> ocore -> metadata import cycle.
         import ocore
@@ -821,13 +822,14 @@ def _refresh_via_agent(state: Path, tickets: list[str], prs: list[dict], conf: d
         # the next cycle a clean context. Fat JSON pairs would otherwise
         # overflow a 200k window and wedge the session into empty replies.
         ocore.prune_session_messages(sid, keep=0)
-    except (OSError, ValueError, TypeError, TimeoutError):
+    except Exception:
         # A provider outage must never erase the last known PR state.
         # But a session that answers with nothing (context overflow,
         # dead session id after a server restart) would fail forever:
         # drop it so the next cycle starts from a fresh session.
         try:
             if sid:
+                ocore.abort_instance(sid)
                 ocore.prune_session_messages(sid, keep=0)
         except Exception:
             pass
