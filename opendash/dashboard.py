@@ -33,6 +33,7 @@ REFRESH = 1.5          # seconds between db snapshots
 METADATA_EVERY = 5.0   # wake the worker; the refresh queue paces the fetches
 REFRESH_SPACING = 30.0  # seconds between the end of one fetch and the next start
 TICK_MS = 120          # ui tick; also the spinner rate
+PENDING_RETENTION = 60.0
 
 AGE_W = 5              # right-aligned age column
 TERM_W = 10            # how much of a running terminal command to show
@@ -203,6 +204,7 @@ class Data:
                                        if item["session_id"] != pending["session_id"]]
                 else:
                     pending["real_session_id"] = record["session_id"]
+                    pending["completed_at"] = time.time()
                     pending["activity"] = ("running", "session starting…")
                 self.completions.append((pending, record, error))
                 self._creation_threads[:] = [thread for thread in self._creation_threads
@@ -316,6 +318,11 @@ class Data:
             except Exception as e:                      # keep the ui alive
                 with self.lock:
                     self.error = f"{type(e).__name__}: {e}"[:120]
+            with self.lock:
+                cutoff = time.time() - PENDING_RETENTION
+                self.pending[:] = [item for item in self.pending
+                                   if not item.get("completed_at")
+                                   or item["completed_at"] >= cutoff]
             self._wake.wait(REFRESH)
             self._wake.clear()
 
@@ -1647,6 +1654,10 @@ def run(stdscr, start_dir: str) -> None:
             error_pause(stdscr, f"failed: {removal_error}")
         items, jira, server_up, error = data.read()
         session_ids = {item["session_id"] for item in items}
+        pruned_minimized = minimized & session_ids
+        if pruned_minimized != minimized:
+            minimized = pruned_minimized
+            save_minimized(minimized)
         groups, layout = load_groups(session_ids)
         if filt:
             low = filt.lower()

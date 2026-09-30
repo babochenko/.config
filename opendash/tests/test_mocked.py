@@ -40,6 +40,14 @@ class DashboardTests(unittest.TestCase):
                 self.assertEqual(dashboard.load_minimized({"session-2", "session-3"}),
                                  {"session-2"})
 
+    def test_completed_placeholder_has_bounded_lifetime(self):
+        with patch.object(ocore, "jira_cache", return_value={}), \
+             patch.object(ocore, "new_instance", return_value={"session_id": "session-1"}):
+            data = dashboard.Data()
+            data.create("do the work", "/tmp/project", None)
+            data.wait_creations()
+            self.assertIn("completed_at", data.pending[0])
+
     def test_new_instance_has_a_placeholder_until_creation_finishes(self):
         started = threading.Event()
         release = threading.Event()
