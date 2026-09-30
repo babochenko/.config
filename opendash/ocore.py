@@ -2108,23 +2108,6 @@ def _cmd_msg(args) -> int:
     return 0
 
 
-def _cmd_msg(args) -> int:
-    sid = _resolve_session_id(args.agent)
-    if not sid:
-        return 1
-    record = next((r for r in instance_records() if r["session_id"] == sid), None)
-    if not record:
-        print(f"opendash: unknown session: {sid}", file=sys.stderr)
-        return 1
-    text = " ".join(args.text).strip()
-    if not text:
-        print("opendash: empty message", file=sys.stderr)
-        return 1
-    send_prompt(sid, text, record["directory"])
-    print(f"sent to {_session_label(sid)}")
-    return 0
-
-
 def _cmd_ci(args) -> int:
     sid = _resolve_session_id(args.session_id)
     if not sid:
@@ -2302,7 +2285,13 @@ def _cmd_server(args) -> int:
 
 
 def _status_processes(processes, roots) -> list[dict]:
-    """Union of the given trees, without the status command's own lineage."""
+    """Union of the given trees, without the status command's own lineage.
+
+    Ancestors and direct subprocesses of this command are left out, but
+    children of an ancestor are kept: run from an agent's shell, the
+    lineage includes the shared server, and its other children are
+    exactly what the table is for.
+    """
     own, pid = set(), os.getpid()
     while pid and pid in processes:
         own.add(pid)
@@ -2313,11 +2302,11 @@ def _status_processes(processes, roots) -> list[dict]:
             continue
         for process in _process_tree(processes, root):
             if process["pid"] in seen or process["pid"] in own \
-                    or process["ppid"] in own:
+                    or process["ppid"] == os.getpid():
                 continue
             seen.add(process["pid"])
             out.append(process)
-    return sorted(out, key=lambda p: p["pid"])
+    return sorted(out, key=lambda p: -p["rss_kb"])
 
 
 def _render_status(color: bool = False) -> str:
