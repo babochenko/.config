@@ -44,6 +44,9 @@ TMUX_SOCKET = os.environ.get("OPENDASH_TMUX_SOCKET", "opendash")
 MAX_LOG_ENTRIES = 5000
 MAX_LOG_FILE_LINES = 5000
 MAX_HTTP_BYTES = 8 * 1024 * 1024
+MAX_MESSAGE_TEXT = 4 * 1024 * 1024
+MAX_TODOS = 1000
+DELETE_BATCH = 500
 
 CONFIG_PATHS = [
     Path(os.environ.get("OPENDASH_CONFIG", "")) if os.environ.get("OPENDASH_CONFIG") else None,
@@ -620,7 +623,11 @@ def latest_assistant_response(session_id: str, after: int = 0) -> tuple[str, boo
             message_data = json.loads(message)
         except (TypeError, json.JSONDecodeError):
             message_data = {}
+        completed = bool(message_data.get("time", {}).get("completed"))
+        if not completed:
+            return "", False
         text = []
+        size = 0
         for (raw,) in con.execute(
                 "select p.data from part p join message m on m.id = p.message_id"
                 " where m.session_id = ? and m.time_created = ?"
@@ -630,9 +637,12 @@ def latest_assistant_response(session_id: str, after: int = 0) -> tuple[str, boo
             except (TypeError, json.JSONDecodeError):
                 continue
             if isinstance(value, dict) and isinstance(value.get("text"), str):
-                text.append(value["text"])
-        completed = bool(message_data.get("time", {}).get("completed"))
-        return "\n".join(text), completed
+                part = value["text"][:MAX_MESSAGE_TEXT - size]
+                text.append(part)
+                size += len(part)
+                if size >= MAX_MESSAGE_TEXT:
+                    break
+        return "\n".join(text), True
     finally:
         con.close()
 
@@ -645,12 +655,14 @@ def prune_session_messages(session_id: str, keep: int = 30) -> None:
     con = sqlite3.connect(str(path), timeout=2.0)
     try:
         con.execute("pragma busy_timeout=2000")
-        rows = con.execute(
-            "select id from message where session_id = ?"
-            " order by time_created desc, id desc limit -1 offset ?",
-            (session_id, keep),
-        ).fetchall()
-        if rows:
+        while True:
+            rows = con.execute(
+                "select id from message where session_id = ?"
+                " order by time_created desc, id desc limit ? offset ?",
+                (session_id, DELETE_BATCH, keep),
+            ).fetchall()
+            if not rows:
+                break
             ids = [r[0] for r in rows]
             placeholders = ",".join("?" for _ in ids)
             con.execute(f"delete from part where message_id in ({placeholders})", ids)
@@ -1003,7 +1015,8 @@ def snapshot(records: list[dict]) -> list[dict]:
             item["todos"] = [
                 {"status": s, "content": c}
                 for s, c in con.execute(
-                    "select status, content from todo where session_id = ? order by position", (sid,)
+                    "select status, content from todo where session_id = ?"
+                    " order by position limit ?", (sid, MAX_TODOS)
                 )
             ]
 
@@ -1883,6 +1896,7 @@ def _cmd_metadata_messages() -> int:
         rows.reverse()
         for message_id, timestamp, role in rows:
             text = []
+            size = 0
             for (raw,) in con.execute(
                     "select p.data from part p where p.message_id = ?"
                     " order by p.time_created, p.id", (message_id,)):
@@ -1891,7 +1905,11 @@ def _cmd_metadata_messages() -> int:
                 except (TypeError, json.JSONDecodeError):
                     continue
                 if isinstance(value, dict) and isinstance(value.get("text"), str):
-                    text.append(value["text"])
+                    part = value["text"][:MAX_MESSAGE_TEXT - size]
+                    text.append(part)
+                    size += len(part)
+                    if size >= MAX_MESSAGE_TEXT:
+                        break
             subject = " ".join(" ".join(text).split()) or "[no text]"
             stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp / 1000))
             print(f"{blue}{stamp}{reset} {yellow}{str(role or '?'):<9}{reset} "
@@ -1947,13 +1965,21 @@ def _cmd_log(args) -> int:
             except (TypeError, json.JSONDecodeError):
                 message_data = {}
             text = []
+            size = 0
             for (raw,) in con.execute(
                     "select p.data from part p where p.message_id = ?"
                     " order by p.time_created, p.id", (message_id,)):
                 try:
-                    text.extend(metadata._text(json.loads(raw)))
+                    for part in metadata._text(json.loads(raw)):
+                        part = part[:MAX_MESSAGE_TEXT - size]
+                        text.append(part)
+                        size += len(part)
+                        if size >= MAX_MESSAGE_TEXT:
+                            break
                 except (TypeError, json.JSONDecodeError):
                     continue
+                if size >= MAX_MESSAGE_TEXT:
+                    break
             error = message_data.get("error")
             if scope == "errors":
                 if not error:

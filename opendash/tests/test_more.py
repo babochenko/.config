@@ -45,6 +45,18 @@ class PruneMessages(SandboxCase):
         self.box.db.unlink()
         self.ocore.prune_session_messages("ses_X", keep=30)
 
+    def test_prune_deletes_in_bounded_batches(self):
+        self.box.session("ses_many")
+        for i in range(self.ocore.DELETE_BATCH + 25):
+            self.box.message(session_id="ses_many", message_id=f"msg_many_{i:04d}",
+                             when=now_ms() + i)
+        self.ocore.prune_session_messages("ses_many", keep=5)
+        con = sqlite3.connect(self.box.db)
+        remaining = con.execute(
+            "select count(*) from message where session_id='ses_many'").fetchone()[0]
+        con.close()
+        self.assertEqual(remaining, 5)
+
 
 class MetadataAgentRecord(SandboxCase):
     def test_no_session_file(self):
@@ -112,6 +124,12 @@ class LatestAssistantResponse(SandboxCase):
     def test_returns_none_for_no_messages(self):
         self.box.session("ses_L2")
         self.assertIsNone(self.ocore.latest_assistant_response("ses_L2"))
+
+    def test_incomplete_response_does_not_materialize_parts(self):
+        self.box.session("ses_running")
+        mid = self.box.message(session_id="ses_running", role="assistant", completed=False)
+        self.box.part(mid, session_id="ses_running", text="x" * 10000)
+        self.assertEqual(self.ocore.latest_assistant_response("ses_running"), ("", False))
 
     def test_after_filter(self):
         self.box.session("ses_L3")

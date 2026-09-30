@@ -138,15 +138,29 @@ def first_user_message_text(con, session_id: str) -> str:
         return ""
     message_id, raw_message = row
     chunks = []
+    size = 0
+
+    def add(values: list[str]) -> bool:
+        nonlocal size
+        for value in values:
+            value = value[:MAX_CONVERSATION_CHARS - size]
+            chunks.append(value)
+            size += len(value)
+            if size >= MAX_CONVERSATION_CHARS:
+                return False
+        return True
+
     try:
-        chunks.extend(_text(json.loads(raw_message)))
+        if not add(_text(json.loads(raw_message))):
+            return "\n".join(chunks)
     except (TypeError, json.JSONDecodeError):
         pass
     for (raw,) in con.execute(
             "select p.data from part p where p.message_id = ?"
             " order by p.time_created, p.id", (message_id,)):
         try:
-            chunks.extend(_text(json.loads(raw)))
+            if not add(_text(json.loads(raw))):
+                break
         except (TypeError, json.JSONDecodeError):
             pass
     return "\n".join(chunks)
