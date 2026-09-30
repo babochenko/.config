@@ -102,6 +102,8 @@ class Data:
         self._removing: set[str] = set()
         self._removal_threads: list[threading.Thread] = []
         self._creation_threads: list[threading.Thread] = []
+        self._workers: list[threading.Thread] = []
+        self._metadata_threads: list[threading.Thread] = []
         self._creation_number = 0
         self._order_override: list[str] = []
         self._git_cache: dict[str, dict] = {}
@@ -116,16 +118,20 @@ class Data:
         self._next_refresh_at = 0.0
 
     def start(self):
-        threading.Thread(target=self._loop, daemon=True).start()
-        threading.Thread(target=self._jira_loop, daemon=True).start()
-        threading.Thread(target=self._git_loop, daemon=True).start()
-        threading.Thread(target=self._terminals_loop, daemon=True).start()
-        threading.Thread(target=self._attention_loop, daemon=True).start()
-        threading.Thread(target=self._server_loop, daemon=True).start()
+        for target in (self._loop, self._jira_loop, self._git_loop,
+                       self._terminals_loop, self._attention_loop, self._server_loop):
+            thread = threading.Thread(target=target, daemon=True)
+            self._workers.append(thread)
+            thread.start()
 
     def stop(self):
         self._stop.set()
         self._wake.set()
+        with self.lock:
+            workers = list(self._workers) + list(self._metadata_threads)
+        for thread in workers:
+            if thread is not threading.current_thread():
+                thread.join(timeout=2)
 
     def refresh_now(self):
         self._wake.set()
@@ -155,8 +161,14 @@ class Data:
             finally:
                 with self.lock:
                     self.pr_forcing = False
+                    self._metadata_threads[:] = [thread for thread in self._metadata_threads
+                                                 if thread is not threading.current_thread()
+                                                 and thread.is_alive()]
 
-        threading.Thread(target=worker, daemon=True).start()
+        thread = threading.Thread(target=worker, daemon=True)
+        with self.lock:
+            self._metadata_threads.append(thread)
+        thread.start()
 
     def create(self, task: str, directory: str, worktree: str | None,
                after: str | None = None, order: float | None = None,
