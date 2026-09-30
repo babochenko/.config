@@ -267,6 +267,7 @@ def _format_bytes(value: int) -> str:
         if size < 1024 or suffix == "GiB":
             return f"{size:.1f} {suffix}" if suffix != "B" else f"{int(size)} B"
         size /= 1024
+    return f"{size:.1f} GiB"
 
 
 def _rss_report(processes: dict[int, dict], pid: int | None) -> tuple[str, int]:
@@ -2300,54 +2301,154 @@ def _cmd_server(args) -> int:
     return 0
 
 
-def _cmd_status(args) -> int:
-    """Show process memory plus the dashboard's potentially growing caches."""
+def _status_processes(processes, roots) -> list[dict]:
+    """Union of the given trees, without the status command's own lineage."""
+    own, pid = set(), os.getpid()
+    while pid and pid in processes:
+        own.add(pid)
+        pid = processes[pid]["ppid"]
+    seen, out = set(), []
+    for root in roots:
+        if not root:
+            continue
+        for process in _process_tree(processes, root):
+            if process["pid"] in seen or process["pid"] in own \
+                    or process["ppid"] in own:
+                continue
+            seen.add(process["pid"])
+            out.append(process)
+    return sorted(out, key=lambda p: p["pid"])
+
+
+def _render_status(color: bool = False) -> str:
+    """One top-style frame: header, component table, counters, process table.
+
+    Colors are ANSI and only emitted when the caller passes color=True --
+    a piped frame stays plain text.
+    """
+    def a(code: str, text: str) -> str:
+        return f"\x1b[{code}m{text}\x1b[0m" if color else text
+
+    def dim(text: str) -> str:
+        return a("2", text)
+
+    def bold(text: str) -> str:
+        return a("1", text)
+
+    def rss_cell(kb: int, formatted: str) -> str:
+        if kb >= 1024 * 1024:
+            return a("31", formatted)                  # >= 1 GiB: red
+        if kb >= 256 * 1024:
+            return a("33", formatted)                  # >= 256 MiB: yellow
+        return formatted
+
+    width = max(80, shutil.get_terminal_size((120, 40)).columns)
     processes = _process_table()
-    print("OpenDash status")
+    lines: list[str] = []
+
+    def rule():
+        lines.append(dim("\u2500" * width))
 
     dashboard = _read_json(STATUS_JSON, {}) or {}
     dashboard_pid = dashboard.get("pid")
     dashboard_memory, dashboard_processes = _rss_report(processes, dashboard_pid)
     age = time.time() - float(dashboard.get("updated") or 0)
-    if dashboard_pid and dashboard_pid in processes:
-        print(f"  dashboard     pid={dashboard_pid} rss={dashboard_memory} "
-              f"processes={dashboard_processes} age={age:.1f}s")
-        print(f"    threads={dashboard.get('threads', '?')} "
-              f"items={dashboard.get('items', '?')} "
-              f"pending={dashboard.get('pending', '?')} "
-              f"completions={dashboard.get('completions', '?')}")
-        print(f"    caches: git={dashboard.get('git_cache', '?')} "
-              f"terminals={dashboard.get('terminal_cache', '?')} "
-              f"attention={dashboard.get('attention_cache', '?')} "
-              f"jira={dashboard.get('jira_cache', '?')} "
-              f"pr={dashboard.get('pr_cache', '?')}")
-        print(f"    workers: removal={dashboard.get('removal_threads', '?')} "
-              f"creation={dashboard.get('creation_threads', '?')} "
-              f"metadata_loading={dashboard.get('metadata_loading', '?')}")
-        _print_process_tree(processes, dashboard_pid)
-    else:
-        state = "not running" if not dashboard else "stale or exited"
-        print(f"  dashboard     {state}")
+    dashboard_up = bool(dashboard_pid and dashboard_pid in processes)
 
     info = server_info()
     server_up = bool(info and _server_process_owned(info) and
                      _server_alive(info["url"], timeout=2))
-    if server_up:
-        server_pid = info.get("pid")
-        server_memory, server_processes = _rss_report(processes, server_pid)
-        print(f"  server        up {info['url']} pid={server_pid} "
-              f"rss={server_memory} processes={server_processes}")
-        _print_process_tree(processes, server_pid)
-    else:
-        print("  server        down")
+    server_pid = info.get("pid") if server_up else None
+    server_memory, server_processes = _rss_report(processes, server_pid)
 
     try:
         sessions = tmux("list-sessions", "-F", "#{session_name}")
-        names = [line for line in sessions.stdout.splitlines() if line]
+        tmux_sessions = len([n for n in sessions.stdout.splitlines() if n])
     except Exception:
-        names = []
-    print(f"  tmux          sessions={len(names)} socket={TMUX_SOCKET}")
-    print("  server status " + ("up" if server_up else "down"))
+        tmux_sessions = 0
+
+    server_word = a("32", "up") if server_up else a("31", "down")
+    sessions_word = f"tmux {tmux_sessions} session" + ("" if tmux_sessions == 1 else "s")
+    lines.append(f"{bold('opendash')} {dim(datetime.now().strftime('%H:%M:%S'))}"
+                 f"   server {server_word}   {dim(sessions_word)}")
+    rule()
+
+    lines.append(bold(f"{'COMPONENT':<10} {'PID':>7} {'RSS':>10} {'PROCS':>5}  STATE"))
+    if dashboard_up:
+        lines.append(f"{bold('dashboard  ')} {dashboard_pid:>7} "
+                      f"{rss_cell(dashboard_rss_kb(processes, dashboard_pid), f'{dashboard_memory:>10}')} "
+                      f"{dashboard_processes:>5}  {dim(f'age {age:.0f}s')}")
+    else:
+        state = "not running" if not dashboard else "stale or exited"
+        lines.append(f"{bold('dashboard  ')} {dim('      \u2014')} {dim('         \u2014')} "
+                      f"{dim('    \u2014')}  {a('31', state)}")
+    if server_up:
+        lines.append(f"{bold('server     ')} {server_pid:>7} "
+                      f"{rss_cell(dashboard_rss_kb(processes, server_pid), f'{server_memory:>10}')} "
+                      f"{server_processes:>5}  {dim(info['url'])}")
+    else:
+        lines.append(f"{bold('server     ')} {dim('      \u2014')} {dim('         \u2014')} "
+                      f"{dim('    \u2014')}  {a('31', 'down')}")
+
+    rule()
+    if dashboard_up:
+        for label, stats in (
+            ("threads items pending completions".split(),
+             [dashboard.get("threads"), dashboard.get("items"),
+              dashboard.get("pending"), dashboard.get("completions")]),
+            ("git terminals attention jira pr".split(),
+             [dashboard.get("git_cache"), dashboard.get("terminal_cache"),
+              dashboard.get("attention_cache"), dashboard.get("jira_cache"),
+              dashboard.get("pr_cache")]),
+            ("removal creation metadata".split(),
+             [dashboard.get("removal_threads"), dashboard.get("creation_threads"),
+              'loading' if dashboard.get("metadata_loading") else 'idle']),
+        ):
+            parts = [f"{dim(name)} {a('36', str(value))}"
+                     for name, value in zip(label, stats)]
+            lines.append("   ".join(parts))
+        rule()
+
+    procs = _status_processes(processes, [dashboard_pid, server_pid])
+    if procs:
+        lines.append(bold(f"{'PID':>7} {'PPID':>7} {'RSS':>10}  COMMAND"))
+        cmd_width = max(10, width - 33)
+        for process in procs:
+            command = process["command"]
+            if len(command) > cmd_width:
+                command = command[:cmd_width - 1] + "\u2026"
+            rss = rss_cell(process["rss_kb"],
+                           f"{_format_bytes(process['rss_kb'] * 1024):>10}")
+            lines.append(f"{dim(str(process['pid']).rjust(7))} "
+                         f"{dim(str(process['ppid']).rjust(7))} "
+                         f"{rss}  {command}")
+    return "\n".join(lines)
+
+
+def dashboard_rss_kb(processes, pid) -> int:
+    """Total RSS of the process tree, for colour thresholds."""
+    return sum(process["rss_kb"] for process in _process_tree(processes, pid))
+
+
+def _cmd_status(args) -> int:
+    """Show process memory plus the dashboard's potentially growing caches."""
+    print(_render_status(color=sys.stdout.isatty()))
+    return 0
+
+
+def _cmd_top(args) -> int:
+    """Redraw the status frame once per second, like top."""
+    if not sys.stdout.isatty():
+        print(_render_status())
+        return 0
+    interval = max(0.2, args.seconds)
+    try:
+        while True:
+            sys.stdout.write("\x1b[H\x1b[J" + _render_status(color=True) + "\n")
+            sys.stdout.flush()
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print()
     return 0
 
 
@@ -2422,6 +2523,11 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("status", help="show memory, workers, caches, and server status")
     p.set_defaults(fn=_cmd_status)
+
+    p = sub.add_parser("top", help="redraw the status frame once per second")
+    p.add_argument("-s", "--seconds", type=float, default=1.0, metavar="N",
+                   help="redraw interval (default: 1)")
+    p.set_defaults(fn=_cmd_top)
 
     p = sub.add_parser("log", help="show agent messages or logs by name")
     p.add_argument("scope", nargs="?",

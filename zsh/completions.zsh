@@ -184,7 +184,7 @@ function _opendash() {
   local -a commands actions
   commands=(
     new n list ls rm remove quit healthcheck abort stop cd unlink link
-    screen log links agent prompt msg ci clear metadata meta server
+    screen log links agent prompt msg status top ci clear metadata meta server
   )
 
   if (( CURRENT == 2 )); then
@@ -222,6 +222,9 @@ function _opendash() {
       ;;
     msg)
       _arguments ':agent:_opendash_sessions' '*:text:'
+      ;;
+    top)
+      _arguments '-s[redraw interval]:seconds:'
       ;;
     cd)
       _arguments '-w[create a worktree]:branch:' '-y[skip confirmation]'

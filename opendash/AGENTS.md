@@ -99,6 +99,7 @@ opendash metadata messages      # print retained metadata-agent messages
 opendash unlink <session-id> [ID|#PR]  # unlink and ignore a local association
 opendash screen                 # print the running dashboard screen
 opendash status                 # show memory, workers, caches, and server status
+opendash top [-s SECONDS]       # redraw that status once per second, like top
 opendash log [agent]            # show all or one agent's messages through less
 opendash msg <agent> <text...>  # send a message to an agent
 opendash messages               # show retained metadata-agent messages

@@ -26,14 +26,15 @@ opendash - background opencode instances
                                    add or restore a ticket/PR association
   opendash screen                 print the running dashboard's current screen
   opendash status                 show memory, workers, caches, and server status
+  opendash top [-s SECONDS]       redraw that status once per second, like top
   opendash log [agent]            show all or one agent's messages (paged)
   opendash log errors             show recorded agent errors (paged)
   opendash log all                show agent and system logs together (paged)
-  opendash msg <agent> <text...>  send a message to an agent
+  opendash msg <agent> <text...>  send a prompt by agent name, title or ticket
   opendash messages               show retained metadata-agent messages
   opendash agent <directory>      find instances assigned to a directory
   opendash prompt <session-id> <text...>
-                                  send a prompt to an instance
+                                   send a prompt to an instance
   opendash clear <session-id>    delete all messages, keeping the session
   opendash metadata start|stop   enable or disable metadata fetching
   opendash metadata status      show metadata-agent state
@@ -104,6 +105,7 @@ case ${1-} in
   status)              shift; exec $py "$here/ocore.py" status "$@" ;;
   log)                 shift; exec $py "$here/ocore.py" log "$@" ;;
   msg)                 shift; exec $py "$here/ocore.py" msg "$@" ;;
+  top)                 shift; exec $py "$here/ocore.py" top "$@" ;;
   messages)            shift; exec $py "$here/ocore.py" log meta "$@" ;;
   agent)               shift; exec $py "$here/ocore.py" agent "$@" ;;
   prompt)              shift; exec $py "$here/ocore.py" prompt "$@" ;;
