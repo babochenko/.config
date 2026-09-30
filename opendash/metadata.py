@@ -20,6 +20,9 @@ PR_REF_RE = re.compile(r"\b(?:PR|pull\s+request|pullrequest)\s*#?\s*([0-9]+)\b",
 DEFAULT_REFRESH = 300.0
 AGENT_TIMEOUT = 60.0
 MAX_CONVERSATION_CHARS = 1_000_000
+MAX_PROVIDER_BYTES = 4 * 1024 * 1024
+MAX_PROVIDER_ITEMS = 100
+MAX_PROVIDER_TEXT = 4000
 AGENT_CONTROL = "metadata-agent-control.json"
 
 
@@ -448,7 +451,10 @@ def _post_json(url: str, body: dict, timeout: float) -> dict:
         url, data=json.dumps(body).encode(), method="POST",
         headers={"accept": "application/json", "content-type": "application/json"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
-        value = json.loads(response.read() or b"{}")
+        raw = response.read(MAX_PROVIDER_BYTES + 1)
+        if len(raw) > MAX_PROVIDER_BYTES:
+            raise ValueError(f"bridge response exceeds {MAX_PROVIDER_BYTES} bytes")
+        value = json.loads(raw or b"{}")
     if not isinstance(value, dict):
         raise ValueError("bridge response must be a JSON object")
     return value
@@ -470,6 +476,10 @@ def clean_status(status) -> str | None:
     return str(status)
 
 
+def _bounded(value, limit: int = MAX_PROVIDER_TEXT) -> str:
+    return str(value or "")[:limit]
+
+
 def _normalise_ticket(value: dict, ticket: str) -> dict:
     status = value.get("status")
     if isinstance(status, dict):
@@ -481,9 +491,10 @@ def _normalise_ticket(value: dict, ticket: str) -> dict:
     category = str(value.get("category") or value.get("status_category") or "todo").lower()
     category = {"new": "todo", "to do": "todo", "indeterminate": "progress",
                 "in progress": "progress", "done": "done"}.get(category, category)
-    return {"fetched": time.time(), "key": ticket, "status": status,
-            "category": category, "url": value.get("url") or value.get("link"),
-             "summary": summary, "error": value.get("error")}
+    return {"fetched": time.time(), "key": ticket, "status": _bounded(status, 200) or None,
+            "category": _bounded(category, 100),
+            "url": _bounded(value.get("url") or value.get("link")) or None,
+            "summary": _bounded(summary) or None, "error": _bounded(value.get("error")) or None}
 
 
 def _normalise_pr_status(value: dict) -> str | None:
@@ -524,8 +535,8 @@ def _normalise_comment(comment: dict) -> dict:
             text = text.get("raw") or text.get("html")
     created = (comment.get("created") or comment.get("created_on")
                or comment.get("updated_on") or comment.get("updated"))
-    return {"author": str(author or ""), "created": str(created or ""),
-            "text": str(text or ""),
+    return {"author": _bounded(author, 300), "created": _bounded(created, 100),
+            "text": _bounded(text),
             "resolved": bool(comment.get("resolved"))}
 
 
@@ -535,14 +546,14 @@ def _normalise_checks(value: dict) -> list:
     if not isinstance(raw, list):
         return []
     checks = []
-    for check in raw:
+    for check in raw[:MAX_PROVIDER_ITEMS]:
         if isinstance(check, dict):
-            label = str(check.get("check") or check.get("name") or "")
+            label = _bounded(check.get("check") or check.get("name"), 500)
             passed = check.get("passed")
             checks.append({"check": label,
                             "passed": passed if isinstance(passed, bool) else None})
         elif str(check):
-            checks.append({"check": str(check), "passed": None})
+            checks.append({"check": _bounded(check, 500), "passed": None})
     return checks
 
 
@@ -554,7 +565,10 @@ def _open_comments(value: dict, pr_author: str) -> list:
     Approver bot messages.
     """
     open_comments = []
-    for comment in value.get("unresolved_comments") or []:
+    comments = value.get("unresolved_comments") or []
+    if not isinstance(comments, list):
+        return []
+    for comment in comments[:MAX_PROVIDER_ITEMS]:
         if not isinstance(comment, dict):
             continue
         norm = _normalise_comment(comment)
@@ -588,8 +602,9 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
     return {
         "fetched": time.time(), "number": str(value.get("number") or candidate.get("number")),
         "label": f"#{value.get('number') or candidate.get('number')}",
-        "repository": value.get("repository") or candidate.get("repository"),
-        "title": value.get("title"), "url": value.get("url") or value.get("link") or candidate.get("url"),
+        "repository": _bounded(value.get("repository") or candidate.get("repository"), 500),
+        "title": _bounded(value.get("title")) or None,
+        "url": _bounded(value.get("url") or value.get("link") or candidate.get("url")) or None,
         "status": _normalise_pr_status(value),
         "approvals": approvals if isinstance(approvals, int) else None,
         "needs_update": bool(value.get("needs_update")),
@@ -599,13 +614,14 @@ def _normalise_pr(value: dict, candidate: dict) -> dict:
 "builds": {"ok": int(builds.get("ok") or 0), "in_progress": int(builds.get("in_progress") or 0),
                     "failed": int(builds.get("failed") or 0),
                     "unavailable": int(builds.get("unavailable") or 0),
-                    "error": builds.get("error")},
-        "build_details": [{"name": str(b.get("name") or ""),
-                           "status": str(b.get("status") or "").upper(),
-                           "details": str(b.get("details") or "")}
-                          for b in build_details if isinstance(b, dict)],
-        "tickets": [str(t).upper() for t in value.get("tickets", []) if isinstance(t, str)],
-        "error": value.get("error"),
+                    "error": _bounded(builds.get("error")) or None},
+        "build_details": [{"name": _bounded(b.get("name"), 500),
+                            "status": _bounded(b.get("status"), 100).upper(),
+                            "details": _bounded(b.get("details"))}
+                           for b in build_details[:MAX_PROVIDER_ITEMS] if isinstance(b, dict)],
+        "tickets": [_bounded(t, 100).upper() for t in value.get("tickets", [])[:MAX_PROVIDER_ITEMS]
+                    if isinstance(t, str)],
+        "error": _bounded(value.get("error")) or None,
     }
 
 
@@ -669,7 +685,10 @@ def set_agent_enabled(state: Path, enabled: bool) -> None:
 def _json_response(text: str) -> dict | None:
     """Extract the first JSON object from an agent response."""
     decoder = json.JSONDecoder()
-    for match in re.finditer(r"\{", text or ""):
+    text = (text or "")[:MAX_PROVIDER_BYTES]
+    for attempt, match in enumerate(re.finditer(r"\{", text)):
+        if attempt >= MAX_PROVIDER_ITEMS:
+            break
         try:
             value, _ = decoder.raw_decode(text[match.start():])
         except json.JSONDecodeError:

@@ -769,6 +769,24 @@ class StaleJunkInCache(unittest.TestCase):
             self.assertEqual(cache["PCYXC-2"]["status"], "In Progress")
 
 
+class ProviderPayloadBounds(unittest.TestCase):
+    def test_pr_payload_lists_and_text_are_bounded(self):
+        value = {
+            "number": "1",
+            "unresolved_comments": [{"text": "x" * 5000} for _ in range(200)],
+            "merge_checks": ["check" for _ in range(200)],
+            "build_details": [{"details": "x" * 5000} for _ in range(200)],
+            "tickets": [f"T-{n}" for n in range(200)],
+        }
+        result = metadata._normalise_pr(value, {"number": "1"})
+        self.assertEqual(len(result["unresolved_comments"]), metadata.MAX_PROVIDER_ITEMS)
+        self.assertEqual(len(result["merge_checks"]), metadata.MAX_PROVIDER_ITEMS)
+        self.assertEqual(len(result["build_details"]), metadata.MAX_PROVIDER_ITEMS)
+        self.assertEqual(len(result["tickets"]), metadata.MAX_PROVIDER_ITEMS)
+        self.assertEqual(len(result["unresolved_comments"][0]["text"]),
+                         metadata.MAX_PROVIDER_TEXT)
+
+
 class SpawnTarget(unittest.TestCase):
     """`n` creates inside the group under the cursor."""
 

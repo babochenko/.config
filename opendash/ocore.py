@@ -43,6 +43,7 @@ TMUX_CONF = STATE / "tmux.conf"
 TMUX_SOCKET = os.environ.get("OPENDASH_TMUX_SOCKET", "opendash")
 MAX_LOG_ENTRIES = 5000
 MAX_LOG_FILE_LINES = 5000
+MAX_HTTP_BYTES = 8 * 1024 * 1024
 
 CONFIG_PATHS = [
     Path(os.environ.get("OPENDASH_CONFIG", "")) if os.environ.get("OPENDASH_CONFIG") else None,
@@ -187,9 +188,11 @@ def http(url: str, method: str = "GET", body=None, timeout: float = 10.0):
     req = urllib.request.Request(url, data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
+            raw = resp.read(MAX_HTTP_BYTES + 1)
+            if len(raw) > MAX_HTTP_BYTES:
+                raise ApiError(f"{method} {url} response exceeds {MAX_HTTP_BYTES} bytes")
     except urllib.error.HTTPError as e:
-        raise ApiError(f"{method} {url} -> {e.code} {e.read()[:200].decode(errors='replace')}") from e
+        raise ApiError(f"{method} {url} -> {e.code} {e.read(200).decode(errors='replace')}") from e
     except (urllib.error.URLError, socket.timeout, OSError) as e:
         raise ApiError(f"{method} {url} -> {e}") from e
     if not raw:
