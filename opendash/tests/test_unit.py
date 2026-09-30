@@ -605,6 +605,7 @@ class AsyncRemoval(unittest.TestCase):
                           side_effect=RuntimeError("worktree dirty")):
             data.remove("ses_X", force=True)
             data.wait_removals()
+        self.assertEqual(data._removal_threads, [])
         self.assertIn("RuntimeError: worktree dirty", data.take_removal_errors()[0])
         self.assertEqual(data._removing, set())
         self.assertTrue(data._wake.is_set())

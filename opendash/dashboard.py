@@ -205,7 +205,8 @@ class Data:
                     pending["activity"] = ("running", "session starting…")
                 self.completions.append((pending, record, error))
                 self._creation_threads[:] = [thread for thread in self._creation_threads
-                                             if thread.is_alive() or thread is not threading.current_thread()]
+                                             if thread is not threading.current_thread()
+                                             and thread.is_alive()]
             self.refresh_now()
 
         thread = threading.Thread(target=run, daemon=True)
@@ -241,7 +242,8 @@ class Data:
                 if error:
                     self.removal_errors.append(error)
                 self._removal_threads[:] = [thread for thread in self._removal_threads
-                                            if thread.is_alive() or thread is not threading.current_thread()]
+                                            if thread is not threading.current_thread()
+                                            and thread.is_alive()]
             self.refresh_now()
 
         thread = threading.Thread(target=run, daemon=True)

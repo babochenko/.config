@@ -3,6 +3,7 @@ import io
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -59,9 +60,21 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(items[0]["state"], "working")
             release.set()
             data.wait_creations()
+            self.assertEqual(data._creation_threads, [])
             items, _, _, _ = data.read()
             self.assertEqual(items[0]["real_session_id"], "session-1")
             self.assertEqual(data.take_completions()[0][1]["session_id"], "session-1")
+
+    def test_completed_creation_thread_is_released_without_shutdown(self):
+        with patch.object(ocore, "jira_cache", return_value={}), \
+             patch.object(ocore, "new_instance", return_value={"session_id": "session-1"}):
+            data = dashboard.Data()
+            data.create("do the work", "/tmp/project", None)
+            for _ in range(100):
+                if not data._creation_threads:
+                    break
+                time.sleep(0.01)
+            self.assertEqual(data._creation_threads, [])
 
 
 class CoreTests(unittest.TestCase):
