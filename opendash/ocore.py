@@ -43,6 +43,8 @@ TMUX_CONF = STATE / "tmux.conf"
 TMUX_SOCKET = os.environ.get("OPENDASH_TMUX_SOCKET", "opendash")
 MAX_LOG_ENTRIES = 5000
 MAX_LOG_FILE_LINES = 5000
+MAX_LOG_BYTES = 10 * 1024 * 1024
+MAX_LOG_LINE = 1024 * 1024
 MAX_HTTP_BYTES = 8 * 1024 * 1024
 MAX_MESSAGE_TEXT = 4 * 1024 * 1024
 MAX_TODOS = 1000
@@ -320,6 +322,13 @@ def server_url(start: bool = True) -> str | None:
 
 def _start_server() -> str:
     STATE.mkdir(parents=True, exist_ok=True)
+    try:
+        if SERVER_LOG.stat().st_size > MAX_LOG_BYTES:
+            rotated = SERVER_LOG.with_suffix(SERVER_LOG.suffix + ".1")
+            rotated.unlink(missing_ok=True)
+            SERVER_LOG.replace(rotated)
+    except OSError:
+        pass
     port = _free_port()
     env = os.environ.copy()
     env.setdefault("OPENCODE_PERMISSION", permission_json())
@@ -2030,6 +2039,7 @@ def _cmd_log(args) -> int:
             except OSError:
                 continue
             for raw_line in raw_lines:
+                raw_line = raw_line[:MAX_LOG_LINE]
                 if raw_line.strip() and (scope == "all" or
                                          re.search(r"\b(error|exception|failed|failure)\b",
                                                    raw_line, re.I)):

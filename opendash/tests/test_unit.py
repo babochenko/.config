@@ -37,6 +37,10 @@ class ProcessStatus(unittest.TestCase):
         self.assertEqual(tmux.call_args_list[-1].args,
                          ("kill-session", "-t", "=sh-old"))
 
+    def test_log_limits_are_finite(self):
+        self.assertLessEqual(ocore.MAX_LOG_BYTES, 10 * 1024 * 1024)
+        self.assertLessEqual(ocore.MAX_LOG_LINE, 1024 * 1024)
+
 
 class MetadataRetention(unittest.TestCase):
     def test_provider_caches_drop_unreferenced_entries(self):
