@@ -106,6 +106,7 @@ class Data:
         self._git_cache: dict[str, dict] = {}
         self._terminals_cache: dict[str, str] = {}
         self._attention_cache: dict[str, str] = {}
+        self._auto_checked: dict[str, tuple[tuple[str, str], ...]] = {}
         self._server_up_cache: bool = False
         self.pr_forcing = False
         self._meta_lock = threading.Lock()
@@ -294,6 +295,9 @@ class Data:
                         it["attention"] = note
                 with self.lock:
                     visible_ids = {item["session_id"] for item in items}
+                    self._auto_checked = {sid: failures
+                                          for sid, failures in self._auto_checked.items()
+                                          if sid in visible_ids}
                     self._order_override[:] = [sid for sid in self._order_override
                                                if sid in visible_ids]
                     self.pending[:] = [item for item in self.pending
@@ -353,6 +357,7 @@ class Data:
     def _jira_loop(self):
         while not self._stop.is_set():
             loading = False
+            auto_checks = []
             try:
                 if time.time() >= self._next_refresh_at:
                     candidate = self._stale_candidate()
@@ -384,14 +389,13 @@ class Data:
                                     metadata.associate_ticket(ocore.STATE, item["session_id"], item["ticket"])
                                     break
                         # Auto-trigger "check" on gradle-exception build failures
-                        if not item.get("pending"):
-                            failures = metadata.failed_gradle_builds(item.get("pr_info") or [])
-                            if failures and not item.get("_auto_checked"):
-                                item["_auto_checked"] = True
-                                try:
-                                    ocore.run_terminal_command(item, "check")
-                                except Exception:
-                                    pass
+                        if not item.get("pending") and self._claim_auto_check(item):
+                            auto_checks.append(item)
+                for item in auto_checks:
+                    try:
+                        ocore.run_terminal_command(item, "check")
+                    except Exception:
+                        pass
             except Exception:
                 pass
             finally:
@@ -399,6 +403,18 @@ class Data:
                     with self.lock:
                         self.pr_loading = False
             self._stop.wait(METADATA_EVERY)
+
+    def _claim_auto_check(self, item: dict) -> bool:
+        """Trigger once for each distinct set of failing Gradle builds."""
+        sid = item["session_id"]
+        failures = tuple(sorted(metadata.failed_gradle_builds(item.get("pr_info") or [])))
+        if not failures:
+            self._auto_checked.pop(sid, None)
+            return False
+        if self._auto_checked.get(sid) == failures:
+            return False
+        self._auto_checked[sid] = failures
+        return True
 
     def _git_loop(self):
         """Refresh git summaries in the background so _loop never blocks on git."""

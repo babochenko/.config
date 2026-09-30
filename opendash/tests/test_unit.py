@@ -628,6 +628,18 @@ class AsyncRemoval(unittest.TestCase):
         self.assertEqual(data.read()[0][0]["state"], "idle")
 
 
+class AutoCheckDeduplication(unittest.TestCase):
+    def test_same_failed_build_triggers_only_once_until_cleared(self):
+        data = dashboard.Data.__new__(dashboard.Data)
+        data._auto_checked = {}
+        failed = {"session_id": "ses_X", "pr_info": [{"number": "1", "build_details": [
+            {"name": "tests", "status": "FAILED", "details": "Gradle exception"}]}]}
+        self.assertTrue(data._claim_auto_check(failed))
+        self.assertFalse(data._claim_auto_check(failed))
+        self.assertFalse(data._claim_auto_check({"session_id": "ses_X", "pr_info": []}))
+        self.assertTrue(data._claim_auto_check(failed))
+
+
 class StyledAgentLabel(unittest.TestCase):
     """The agent window's status bar mirrors the dashboard row's line 1."""
 
