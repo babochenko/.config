@@ -276,6 +276,8 @@ class Data:
         while not self._stop.is_set():
             try:
                 items = ocore.snapshot(ocore.instance_records())
+                jira = ocore.jira_cache()
+                pr_cache = metadata.pr_cache(ocore.STATE)
                 up = self._server_up_cache
                 terminals = dict(self._terminals_cache)
                 for it in items:
@@ -308,7 +310,8 @@ class Data:
                         ordered.extend(item for item in items
                                        if item["session_id"] not in self._order_override)
                         items = ordered
-                    self.items, self.server_up, self.error = items, up, None
+                    self.items, self.jira, self.pr = items, jira, pr_cache
+                    self.server_up, self.error = up, None
                     self.stamp = time.time()
             except Exception as e:                      # keep the ui alive
                 with self.lock:

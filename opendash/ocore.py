@@ -879,6 +879,8 @@ def remove_instance(session_id: str, force: bool = False) -> None:
     remove_worktree(record, force=force)     # raises rather than lose changes
     path.unlink(missing_ok=True)
     metadata.remove_session(STATE, session_id)
+    records = instance_records()
+    metadata._prune_provider_caches(STATE, metadata.load(STATE), records)
 
 
 # ------------------------------------------------------------------ db reading
@@ -946,6 +948,7 @@ def _activity(parts: list[tuple[str, int]]) -> tuple[str, str]:
 def snapshot(records: list[dict]) -> list[dict]:
     """Join instance records with live opencode state. Never raises on db hiccups."""
     if not records:
+        metadata._prune_provider_caches(STATE, {}, [])
         return []
     try:
         con = _connect()

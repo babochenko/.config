@@ -54,6 +54,14 @@ class MetadataRetention(unittest.TestCase):
             self.assertTrue(metadata.remove_session(state, "ses_old"))
             self.assertEqual(metadata.load(state), {})
 
+    def test_empty_snapshot_clears_provider_caches(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(ocore, "STATE", Path(tmp)):
+            metadata._write_cache(Path(tmp), "jira.json", {"OLD-1": {"status": "Done"}})
+            metadata._write_cache(Path(tmp), "pr.json", {"repo#1": {"number": "1"}})
+            self.assertEqual(ocore.snapshot([]), [])
+            self.assertEqual(metadata.jira_cache(Path(tmp)), {})
+            self.assertEqual(metadata.pr_cache(Path(tmp)), {})
+
 
 class Tickets(unittest.TestCase):
     def test_plain_ticket(self):
