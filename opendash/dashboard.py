@@ -465,6 +465,7 @@ class Data:
             try:
                 info = ocore.server_info()
                 up = bool(info and ocore._server_alive(info["url"], timeout=1.5))
+                ocore.cleanup_orphan_tmux({item["session_id"] for item in self.items})
                 with self.lock:
                     self._server_up_cache = up
             except Exception:

@@ -30,6 +30,13 @@ class ProcessStatus(unittest.TestCase):
     def test_status_bytes_are_human_readable(self):
         self.assertEqual(ocore._format_bytes(1024 * 1024), "1.0 MiB")
 
+    def test_orphan_tmux_sessions_are_killed(self):
+        result = type("Result", (), {"returncode": 0, "stdout": "oc-ses_live\nsh-old\n"})()
+        with patch.object(ocore, "tmux", side_effect=[result, result]) as tmux:
+            ocore.cleanup_orphan_tmux({"ses_live"})
+        self.assertEqual(tmux.call_args_list[-1].args,
+                         ("kill-session", "-t", "=sh-old"))
+
 
 class MetadataRetention(unittest.TestCase):
     def test_provider_caches_drop_unreferenced_entries(self):

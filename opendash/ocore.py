@@ -1268,8 +1268,11 @@ def _sync_running_server() -> None:
     if _CONF_SYNCED:
         return
     _CONF_SYNCED = True
-    subprocess.run(["tmux", "-L", TMUX_SOCKET, "source-file", str(TMUX_CONF)],
-                   capture_output=True, text=True, env=_tmux_env())
+    try:
+        subprocess.run(["tmux", "-L", TMUX_SOCKET, "source-file", str(TMUX_CONF)],
+                       capture_output=True, text=True, env=_tmux_env(), timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 def _tmux_env() -> dict:
@@ -1283,8 +1286,11 @@ def _tmux_env() -> dict:
 
 def tmux(*args: str, check: bool = False, capture: bool = True):
     cmd = ["tmux", "-L", TMUX_SOCKET, "-f", str(_tmux_conf()), *args]
-    return subprocess.run(cmd, capture_output=capture, text=True,
-                          check=check, env=_tmux_env())
+    try:
+        return subprocess.run(cmd, capture_output=capture, text=True,
+                              check=check, env=_tmux_env(), timeout=5)
+    except subprocess.TimeoutExpired as error:
+        return subprocess.CompletedProcess(cmd, 124, "", str(error))
 
 
 def tmux_name(session_id: str, kind: str = "oc") -> str:
@@ -1299,6 +1305,17 @@ def tmux_exists(session_id: str, kind: str = "oc") -> bool:
 def tmux_kill(session_id: str) -> None:
     for kind in ("oc", "sh"):
         tmux("kill-session", "-t", f"={tmux_name(session_id, kind)}")
+
+
+def cleanup_orphan_tmux(session_ids: set[str]) -> None:
+    """Remove dashboard-owned views whose instance records no longer exist."""
+    result = tmux("list-sessions", "-F", "#{session_name}")
+    if result.returncode != 0:
+        return
+    allowed = {tmux_name(sid, kind) for sid in session_ids for kind in ("oc", "sh")}
+    for name in result.stdout.splitlines():
+        if (name.startswith(("oc-", "sh-")) and name not in allowed):
+            tmux("kill-session", "-t", f"={name}")
 
 
 def _decorate(name: str, label: str, hint: str) -> None:
