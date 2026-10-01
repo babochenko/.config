@@ -312,15 +312,24 @@ def _server_process_owned(info: dict) -> bool:
 def server_url(start: bool = True) -> str | None:
     """URL of the shared headless opencode server, starting it if needed."""
     info = server_info()
-    if (info and info.get("url") and _server_process_owned(info)
-            and _server_alive(info["url"])):
-        return info["url"]
+    if info and info.get("url") and _server_process_owned(info):
+        url = info["url"]
+        # A busy server misses probes: gc pauses on a large heap, a long
+        # turn, compaction. One timed-out probe must not orphan a live
+        # server that hosts every session -- retry before deciding.
+        for attempt in range(3):
+            if _server_alive(url, timeout=1.0 if attempt == 0 else 2.0):
+                return url
+            time.sleep(0.5 * (attempt + 1))
+        if not start:
+            return None
+        return _start_server(replace_pid=info.get("pid"))
     if not start:
         return None
     return _start_server()
 
 
-def _start_server() -> str:
+def _start_server(replace_pid: int | None = None) -> str:
     STATE.mkdir(parents=True, exist_ok=True)
     try:
         if SERVER_LOG.stat().st_size > MAX_LOG_BYTES:
@@ -347,6 +356,15 @@ def _start_server() -> str:
             raise ApiError(f"opencode serve exited ({proc.returncode}); see {SERVER_LOG}")
         if _server_alive(url, timeout=1.0):
             _write_json(SERVER_JSON, {"url": url, "port": port, "pid": proc.pid, "started": now_ms()})
+            if replace_pid and replace_pid != proc.pid and \
+                    _server_process_owned({"pid": replace_pid}):
+                # the recorded server was replaced, not just lost: take its
+                # whole session down too, or it lingers with its sessions
+                # and MCP children as an orphan no command can reach
+                try:
+                    os.killpg(replace_pid, 15)
+                except (AttributeError, OSError, PermissionError):
+                    pass
             return url
         time.sleep(0.3)
     proc.terminate()
@@ -2368,6 +2386,42 @@ def _status_processes(processes, roots) -> list[dict]:
     return sorted(out, key=lambda p: -p["rss_kb"])
 
 
+def agent_labels(procs: list[dict]) -> dict[int, str]:
+    """pid -> agent label, by matching each subprocess's working directory
+    against the instance records. Tool subprocesses inherit the agent's
+    directory or worktree, so a cwd match names the agent that started it."""
+    roots: dict[str, str] = {}
+    for record in instance_records():
+        label = record.get("ticket") or Path(record.get("directory") or "").name
+        if not label:
+            continue
+        for root in (record.get("directory"), record.get("worktree")):
+            if root:
+                roots[str(Path(root).expanduser().resolve())] = label
+    if not roots or not procs:
+        return {}
+    try:
+        result = subprocess.run(
+            ["lsof", "-a", "-p", ",".join(str(p["pid"]) for p in procs),
+             "-d", "cwd", "-Fn"],
+            capture_output=True, text=True, timeout=3,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    labels, pid = {}, None
+    for line in result.stdout.splitlines():
+        if line.startswith("p"):
+            pid = line[1:]
+        elif line.startswith("n") and pid:
+            cwd = os.path.realpath(line[1:])
+            label = next((name for root, name in roots.items()
+                          if cwd == root or cwd.startswith(root + "/")), None)
+            if label:
+                labels[int(pid)] = label
+            pid = None
+    return labels
+
+
 def _render_status(color: bool = False) -> str:
     """One top-style frame: header, component table, counters, process table.
 
@@ -2459,17 +2513,25 @@ def _render_status(color: bool = False) -> str:
 
     procs = _status_processes(processes, [dashboard_pid, server_pid])
     if procs:
-        lines.append(bold(f"{'PID':>7} {'PPID':>7} {'RSS':>10}  COMMAND"))
-        cmd_width = max(10, width - 33)
+        labels = agent_labels(procs)
+        lines.append(bold(f"{'PID':>7} {'PPID':>7} {'RSS':>10}  {'AGENT':<12} COMMAND"))
+        cmd_width = max(10, width - 47)
         for process in procs:
             command = process["command"]
             if len(command) > cmd_width:
                 command = command[:cmd_width - 1] + "\u2026"
             rss = rss_cell(process["rss_kb"],
                            f"{_format_bytes(process['rss_kb'] * 1024):>10}")
+            label = labels.get(process["pid"], "")
+            if len(label) > 12:
+                label = label[:11] + "\u2026"
+            if label:
+                label = a("36", f"{label:<12}")
+            else:
+                label = " " * 12
             lines.append(f"{dim(str(process['pid']).rjust(7))} "
                          f"{dim(str(process['ppid']).rjust(7))} "
-                         f"{rss}  {command}")
+                         f"{rss}  {label} {command}")
     return "\n".join(lines)
 
 

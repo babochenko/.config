@@ -127,3 +127,98 @@ class CoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ServerUrlTests(unittest.TestCase):
+    """A busy live server must not be replaced on one failed probe."""
+
+    INFO = {"url": "http://127.0.0.1:49964", "port": 49964, "pid": 123}
+
+    def test_second_probe_passing_keeps_the_recorded_server(self):
+        probes = iter([False, True])            # busy once, then responsive
+        with patch.object(ocore, "server_info", return_value=self.INFO), \
+             patch.object(ocore, "_server_process_owned", return_value=True), \
+             patch.object(ocore, "_server_alive", side_effect=lambda *a, **k: next(probes)), \
+             patch.object(ocore, "_start_server") as start:
+            self.assertEqual(ocore.server_url(), self.INFO["url"])
+            start.assert_not_called()
+
+    def test_owned_but_unresponsive_server_is_replaced_and_killed(self):
+        with patch.object(ocore, "server_info", return_value=self.INFO), \
+             patch.object(ocore, "_server_process_owned", return_value=True), \
+             patch.object(ocore, "_server_alive", return_value=False), \
+             patch.object(ocore, "_start_server", return_value="http://127.0.0.1:61054") as start:
+            self.assertEqual(ocore.server_url(), "http://127.0.0.1:61054")
+            start.assert_called_once_with(replace_pid=123)
+
+    def test_owned_but_unresponsive_without_start_returns_none(self):
+        with patch.object(ocore, "server_info", return_value=self.INFO), \
+             patch.object(ocore, "_server_process_owned", return_value=True), \
+             patch.object(ocore, "_server_alive", return_value=False), \
+             patch.object(ocore, "_start_server") as start:
+            self.assertIsNone(ocore.server_url(start=False))
+            start.assert_not_called()
+
+    def test_gone_pid_starts_fresh_without_a_replace(self):
+        with patch.object(ocore, "server_info", return_value=self.INFO), \
+             patch.object(ocore, "_server_process_owned", return_value=False), \
+             patch.object(ocore, "_start_server", return_value="http://127.0.0.1:61054") as start:
+            self.assertEqual(ocore.server_url(), "http://127.0.0.1:61054")
+            start.assert_called_once_with()
+
+    def test_replacement_kills_the_recorded_process_group(self):
+        killed = []
+        alive = iter([False, True])              # new server comes up
+        tmp = ocore.Path(tempfile.mkdtemp())
+        (tmp / "server.log").write_text("")
+        with patch.object(ocore, "STATE", tmp), \
+             patch.object(ocore, "SERVER_LOG", tmp / "server.log"), \
+             patch.object(ocore, "_free_port", return_value=61054), \
+             patch.object(ocore, "opencode_bin", return_value="opencode"), \
+             patch.object(ocore, "_server_alive", side_effect=lambda *a, **k: next(alive)), \
+             patch.object(ocore, "_server_process_owned", side_effect=lambda info: info["pid"] == 123), \
+             patch.object(ocore.subprocess, "Popen") as popen, \
+             patch.object(ocore.os, "killpg", side_effect=lambda pid, sig: killed.append((pid, sig))):
+            popen.return_value.pid = 999
+            popen.return_value.poll.return_value = None
+            url = ocore._start_server(replace_pid=123)
+            self.assertEqual(url, "http://127.0.0.1:61054")
+            self.assertEqual(killed, [(123, 15)])  # the old group, SIGTERM
+
+
+class AgentLabelsTests(unittest.TestCase):
+    """cwd matching names the agent that started each subprocess."""
+
+    RECORDS = [
+        {"ticket": "PCYXC-2044", "directory": "/tmp/parrot",
+         "worktree": "/tmp/codes-PCYXC-2044-x"},
+        {"ticket": None, "directory": "/tmp/dotconfig", "worktree": None},
+    ]
+
+    def lsof(self, cwd_map):
+        def fake_lsof(*argv, **kwargs):
+            out = "".join(f"p{pid}\nn{cwd}\n" for pid, cwd in cwd_map.items())
+            result = ocore.subprocess.CompletedProcess(argv, 0, stdout=out, stderr="")
+            return result
+        return fake_lsof
+
+    def labels(self, cwd_map, pids):
+        with patch.object(ocore, "instance_records", return_value=self.RECORDS), \
+             patch.object(ocore.subprocess, "run", side_effect=self.lsof(cwd_map)):
+            return ocore.agent_labels([{"pid": pid} for pid in pids])
+
+    def test_subprocess_inside_worktree_is_attributed(self):
+        got = self.labels({101: "/tmp/codes-PCYXC-2044-x/src"}, [101])
+        self.assertEqual(got, {101: "PCYXC-2044"})
+
+    def test_directory_without_ticket_uses_its_name(self):
+        got = self.labels({102: "/tmp/dotconfig/sub"}, [102])
+        self.assertEqual(got, {102: "dotconfig"})
+
+    def test_unmatched_cwd_gets_no_label(self):
+        got = self.labels({103: "/tmp/elsewhere"}, [103])
+        self.assertEqual(got, {})
+
+    def test_prefix_does_not_match_a_directory_mid_path(self):
+        got = self.labels({104: "/tmp/parrot-something"}, [104])
+        self.assertEqual(got, {})
