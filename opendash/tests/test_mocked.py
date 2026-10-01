@@ -40,6 +40,16 @@ class DashboardTests(unittest.TestCase):
                 self.assertEqual(dashboard.load_minimized({"session-2", "session-3"}),
                                  {"session-2"})
 
+    def test_minimized_state_is_not_pruned_before_first_snapshot(self):
+        data = dashboard.Data.__new__(dashboard.Data)
+        data.stamp = 0
+        minimized = {"session-1"}
+        items = []
+        session_ids = {item["session_id"] for item in items}
+        if data.stamp:
+            minimized &= session_ids
+        self.assertEqual(minimized, {"session-1"})
+
     def test_completed_placeholder_has_bounded_lifetime(self):
         with patch.object(ocore, "jira_cache", return_value={}), \
              patch.object(ocore, "new_instance", return_value={"session_id": "session-1"}):

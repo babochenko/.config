@@ -1667,10 +1667,11 @@ def run(stdscr, start_dir: str) -> None:
             error_pause(stdscr, f"failed: {removal_error}")
         items, jira, server_up, error = data.read()
         session_ids = {item["session_id"] for item in items}
-        pruned_minimized = minimized & session_ids
-        if pruned_minimized != minimized:
-            minimized = pruned_minimized
-            save_minimized(minimized)
+        if data.stamp:
+            pruned_minimized = minimized & session_ids
+            if pruned_minimized != minimized:
+                minimized = pruned_minimized
+                save_minimized(minimized)
         groups, layout = load_groups(session_ids)
         if filt:
             low = filt.lower()
